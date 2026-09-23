@@ -1,0 +1,243 @@
+#!/bin/sh
+set -eu
+
+RUNTIME=/run/wproxy
+RUNNER_PID="$RUNTIME/runner.pid"
+XRAY_PID="$RUNTIME/xray.pid"
+READY="$RUNTIME/ready"
+CONFIG="$RUNTIME/xray.json"
+GATEWAY="$RUNTIME/gateway"
+LOG="$RUNTIME/xray.log"
+IFACE=wproxy0
+CTL=${WPROXYCTL:-/usr/bin/wproxyctl}
+XRAY_BIN=${XRAY_BIN:-}
+
+find_ctl() {
+    if [ -n "${CTL:-}" ] && [ -x "$CTL" ]; then
+        return 0
+    fi
+    for candidate in /usr/bin/wproxyctl /usr/local/bin/wproxyctl; do
+        if [ -x "$candidate" ]; then
+            CTL="$candidate"
+            export CTL
+            return 0
+        fi
+    done
+    if command -v wproxyctl >/dev/null 2>&1; then
+        CTL=$(command -v wproxyctl)
+        export CTL
+        return 0
+    fi
+    return 1
+}
+
+mkdir -p "$RUNTIME"
+chmod 700 "$RUNTIME"
+
+need_root() {
+    [ "$(id -u)" -eq 0 ] || {
+        echo "WProxy TUN runtime must run as root (NetworkManager normally does this)." >&2
+        exit 77
+    }
+}
+
+find_xray() {
+    if [ -n "${XRAY_BIN:-}" ] && [ -x "$XRAY_BIN" ]; then
+        return 0
+    fi
+    for candidate in /usr/local/bin/xray /usr/bin/xray /opt/xray/xray; do
+        if [ -x "$candidate" ]; then
+            XRAY_BIN="$candidate"
+            export XRAY_BIN
+            return 0
+        fi
+    done
+    if command -v xray >/dev/null 2>&1; then
+        XRAY_BIN=$(command -v xray)
+        export XRAY_BIN
+        return 0
+    fi
+    return 1
+}
+
+need_runtime() {
+    find_xray || {
+        echo "xray is not installed. Re-run the WProxy installer so it can install the official Xray core." >&2
+        exit 127
+    }
+    find_ctl || {
+        echo "wproxyctl is not installed. Re-run the WProxy installer or runtime repair." >&2
+        exit 127
+    }
+}
+
+detect_outbound_iface() {
+    command -v ip >/dev/null 2>&1 || { echo 'iproute2 is required.' >&2; exit 127; }
+
+    OUT_IFACE=$(ip -4 route show default 2>/dev/null | awk '
+        $1 == "default" && $0 !~ /dev wproxy0( |$)/ {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+            }
+        }')
+
+    if [ -z "${OUT_IFACE:-}" ]; then
+        OUT_IFACE=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '
+            {
+                for (i = 1; i <= NF; i++) {
+                    if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+                }
+            }')
+    fi
+
+    if [ -n "${OUT_IFACE:-}" ] && [ "$OUT_IFACE" != "$IFACE" ]; then
+        WPROXY_OUT_IFACE="$OUT_IFACE"
+        export WPROXY_OUT_IFACE
+    else
+        echo 'No physical IPv4 default route; connect Wi-Fi/Ethernet first.' >&2
+        exit 69
+    fi
+}
+
+configure_tun() {
+    # Old Xray cores silently ignore gateway/autoSystemRoutingTable settings.
+    # Configure the addresses ourselves; NetworkManager installs routes + DNS
+    # only after the service reports Config / Ip4Config / Ip6Config.
+    ip link set dev "$IFACE" mtu 1500 up || return 1
+    ip -4 addr replace 172.19.0.1/30 dev "$IFACE" || return 1
+    if [ -r /proc/sys/net/ipv6/conf/all/disable_ipv6 ] &&
+        [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6)" = 0 ]; then
+        ip -6 addr replace fdfe:dcba:9876::1/126 dev "$IFACE" nodad || return 1
+    fi
+    ip -4 -o addr show dev "$IFACE" |
+        awk '/inet 172\.19\.0\.1\/30 / { ready=1 } END { exit !ready }'
+}
+
+render_and_test() {
+    URI=$1
+    umask 077
+    detect_outbound_iface
+    "$CTL" render "$URI" -o "$CONFIG" --gateway-output "$GATEWAY"
+    if ! "$XRAY_BIN" run -test -c "$CONFIG" >"$RUNTIME/test.log" 2>&1; then
+        cat "$RUNTIME/test.log" >&2 || true
+        echo "Xray rejected the generated configuration." >&2
+        exit 78
+    fi
+}
+
+cleanup() {
+    trap - INT TERM EXIT
+    rm -f "$READY"
+    if command -v resolvectl >/dev/null 2>&1; then
+        resolvectl revert "$IFACE" >/dev/null 2>&1 || true
+    fi
+    if [ -f "$XRAY_PID" ]; then
+        XPID=$(cat "$XRAY_PID" 2>/dev/null || true)
+        if [ -n "${XPID:-}" ]; then
+            kill "$XPID" 2>/dev/null || true
+            i=0
+            while kill -0 "$XPID" 2>/dev/null && [ "$i" -lt 20 ]; do
+                sleep 0.1
+                i=$((i + 1))
+            done
+            kill -9 "$XPID" 2>/dev/null || true
+        fi
+    fi
+    rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$GATEWAY"
+}
+
+case "${1:-}" in
+  check)
+    URI=${WPROXY_URI:-${2:-}}
+    unset WPROXY_URI 2>/dev/null || true
+    [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
+    need_root
+    need_runtime
+    render_and_test "$URI"
+    rm -f "$CONFIG"
+    ;;
+
+  start)
+    URI=${WPROXY_URI:-${2:-}}
+    unset WPROXY_URI 2>/dev/null || true
+    [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
+    need_root
+    need_runtime
+
+    rm -f "$READY"
+
+    if [ -f "$RUNNER_PID" ]; then
+        OLD=$(cat "$RUNNER_PID" 2>/dev/null || true)
+        if [ -n "${OLD:-}" ] && kill -0 "$OLD" 2>/dev/null; then
+            echo "another WProxy tunnel is already active" >&2
+            exit 73
+        fi
+        rm -f "$RUNNER_PID"
+    fi
+
+    render_and_test "$URI"
+    : > "$LOG"
+    echo $$ > "$RUNNER_PID"
+    trap cleanup INT TERM EXIT
+
+    "$XRAY_BIN" run -c "$CONFIG" >>"$LOG" 2>&1 &
+    XPID=$!
+    echo "$XPID" > "$XRAY_PID"
+
+    READY_OK=0
+    i=0
+    while [ "$i" -lt 80 ]; do
+        if ! kill -0 "$XPID" 2>/dev/null; then
+            cat "$LOG" >&2 || true
+            exit 78
+        fi
+        if ip link show dev "$IFACE" >/dev/null 2>&1; then
+            READY_OK=1
+            break
+        fi
+        sleep 0.1
+        i=$((i + 1))
+    done
+
+    if [ "$READY_OK" -ne 1 ]; then
+        echo "Xray started but did not create $IFACE within 8 seconds." >&2
+        cat "$LOG" >&2 || true
+        exit 78
+    fi
+
+    if ! configure_tun; then
+        echo "Created $IFACE, but failed to bring it up / assign its IP address." >&2
+        exit 78
+    fi
+    if ! kill -0 "$XPID" 2>/dev/null; then
+        echo 'Xray exited while configuring the tunnel.' >&2
+        exit 78
+    fi
+
+    # Keep reverse-path filtering from rejecting packets on the Xray TUN itself.
+    if command -v sysctl >/dev/null 2>&1; then
+        sysctl -q -w "net.ipv4.conf.${IFACE}.rp_filter=0" >/dev/null 2>&1 || true
+    fi
+
+    : > "$READY"
+    chmod 600 "$READY"
+    wait "$XPID"
+    ;;
+
+  stop)
+    need_root
+    rm -f "$READY"
+    if [ -f "$RUNNER_PID" ]; then
+        PID=$(cat "$RUNNER_PID" 2>/dev/null || true)
+        [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null || true
+    elif [ -f "$XRAY_PID" ]; then
+        PID=$(cat "$XRAY_PID" 2>/dev/null || true)
+        [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null || true
+    fi
+    ;;
+
+  *)
+    echo "usage: wproxy-xray-runner check | start | stop (URI is supplied by NetworkManager)" >&2
+    exit 2
+    ;;
+esac

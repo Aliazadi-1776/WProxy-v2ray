@@ -1,0 +1,12 @@
+[VPN Connection]
+name=wproxy
+service=org.freedesktop.NetworkManager.wproxy
+program=@LIBEXECDIR@/wproxy-service
+supports-multiple-connections=false
+
+[libnm]
+plugin=@NM_PLUGIN_DIR@/libnm-vpn-plugin-wproxy.so
+
+[GNOME]
+supports-external-ui-mode=false
+supports-hints=false

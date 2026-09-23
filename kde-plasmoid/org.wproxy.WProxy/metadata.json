@@ -1,0 +1,16 @@
+{
+  "KPlugin": {
+    "Id": "org.wproxy.WProxy",
+    "Name": "WProxy",
+    "Description": "Xray/V2Ray servers, subscriptions and connection controls",
+    "Icon": "network-vpn",
+    "Category": "Online Services",
+    "Version": "2.3.0",
+    "License": "MIT",
+    "EnabledByDefault": true
+  },
+  "KPackageStructure": "Plasma/Applet",
+  "X-Plasma-API-Minimum-Version": "6.0",
+  "X-Plasma-NotificationArea": true,
+  "X-Plasma-NotificationAreaCategory": "SystemServices"
+}

@@ -1,0 +1,29 @@
+# Generated binaries
+/wproxy-service
+/wproxyctl
+/validate-plugin
+/test-service-profile-lookup
+*.so
+*.o
+__pycache__/
+*.py[cod]
+
+# Never commit user configurations, credentials or diagnostic captures
+.env
+.env.*
+!.env.example
+store.json
+*.nmconnection
+xray.json
+gateway
+*.log
+verification.txt
+*.pid
+
+# Release artifacts and local editor files
+/dist/
+*.zip
+*.plasmoid
+.idea/
+.vscode/
+.DS_Store

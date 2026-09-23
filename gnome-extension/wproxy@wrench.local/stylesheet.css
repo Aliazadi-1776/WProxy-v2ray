@@ -1,0 +1,108 @@
+.wproxy-nodes-scroll {
+  padding: 0;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+.wproxy-node-list {
+  spacing: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.wproxy-status-card {
+  spacing: 4px;
+  padding: 2px 4px;
+}
+
+.wproxy-actions-row {
+  spacing: 8px;
+}
+
+.wproxy-action-button {
+  padding: 6px 8px;
+  font-size: 0.9em;
+}
+
+.wproxy-status-title {
+  font-weight: 700;
+  font-size: 1.05em;
+}
+
+.wproxy-status-subtitle,
+.wproxy-traffic-label {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.86em;
+}
+
+.wproxy-traffic-value {
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.wproxy-subscription-box {
+  spacing: 8px;
+  padding: 2px 4px 6px;
+}
+
+.wproxy-section-title {
+  font-weight: 650;
+  font-size: 0.94em;
+}
+
+.wproxy-subscription-input-row {
+  spacing: 8px;
+}
+
+.wproxy-subscription-entry {
+  min-height: 34px;
+  border-radius: 10px;
+}
+
+.wproxy-compact-button {
+  padding: 6px 9px;
+  border-radius: 10px;
+}
+
+.wproxy-add-button {
+  padding: 6px 13px;
+  border-radius: 10px;
+  background-color: rgba(53, 191, 92, 0.28);
+}
+
+.wproxy-node-row {
+  border-radius: 12px;
+  margin: 0 4px;
+  padding: 5px 10px;
+}
+
+.wproxy-node-row:hover,
+.wproxy-node-row:focus {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.wproxy-node-row-active {
+  background-color: rgba(53, 191, 92, 0.16);
+}
+
+.wproxy-node-name {
+  font-weight: 500;
+}
+
+.wproxy-node-latency {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.86em;
+  min-width: 66px;
+}
+
+.wproxy-node-latency-good {
+  color: #57d67a;
+}
+
+.wproxy-node-latency-bad {
+  color: #ff7b72;
+}
+
+.wproxy-node-check {
+  color: #57d67a;
+}

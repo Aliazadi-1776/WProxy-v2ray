@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=WProxy
+Comment=Manage Xray/V2Ray nodes and subscriptions
+Exec=/usr/bin/wproxy-manager
+Icon=wproxy
+Terminal=false
+Categories=Network;Settings;
+StartupNotify=true

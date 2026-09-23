@@ -285,3 +285,9 @@ The local store contains subscription URLs and proxy credentials. Do not publish
 ## License
 
 WProxy source is licensed under the [MIT License](LICENSE). Xray, NetworkManager, GNOME, KDE and Qt remain separate projects under their own licenses; their binaries are not bundled here.
+
+
+## Community
+
+- [Telegram](https://t.me/im_wrench)
+- [Support the maintainer](https://daramet.com/wrench)

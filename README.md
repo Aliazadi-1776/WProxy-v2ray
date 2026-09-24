@@ -6,7 +6,9 @@ GNOME Quick Settings · KDE Plasma 6 widget · NetworkManager · GTK manager · 
 
 [راهنمای فارسی](README.fa.md) · [KDE setup](docs/KDE.md) · [Testing](docs/TESTING.md) · [Changelog](CHANGELOG.md)
 
-WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.3.0** adds a Plasma 6 frontend to the existing backend.
+WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.3.1** fixes a transport-selection bug that made WebSocket links fail while the tunnel could still appear connected. The Plasma 6 frontend was introduced in 2.3.0.
+
+**Upgrade notice:** install this version to update the actual runtime; replacing a ZIP alone is not an upgrade. See the [connection fix and before/after tests](docs/CONNECTION-FIX-2.3.1.md).
 
 ## Screenshots
 
@@ -65,7 +67,7 @@ The KDE widget does **not** inject rows into Plasma's built-in Networks applet, 
 Extract the ZIP, then open a terminal in the directory containing `Makefile` and `scripts/`. For this release archive:
 
 ```bash
-cd WProxy-2.3.0
+cd WProxy-2.3.1
 ```
 
 A GitHub “Download ZIP” may use a different folder name; enter that extracted folder instead. Run as your **normal desktop account**, not a root login, and leave Python virtual environments/Conda first. You need working Internet and permission to use `sudo`.
@@ -285,9 +287,3 @@ The local store contains subscription URLs and proxy credentials. Do not publish
 ## License
 
 WProxy source is licensed under the [MIT License](LICENSE). Xray, NetworkManager, GNOME, KDE and Qt remain separate projects under their own licenses; their binaries are not bundled here.
-
-
-## Community
-
-- [Telegram](https://t.me/im_wrench)
-- [Support the maintainer](https://daramet.com/wrench)

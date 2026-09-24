@@ -12,4 +12,4 @@ if command -v gnome-extensions >/dev/null 2>&1; then
     gnome-extensions disable wproxy@wrench.local >/dev/null 2>&1 || true
     gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 || true
 fi
-echo "WProxy Quick Settings 2.3.0 installed. Log out/in once if GNOME Shell does not reload the extension immediately."
+echo "WProxy Quick Settings 2.3.1 installed. Log out/in once if GNOME Shell does not reload the extension immediately."

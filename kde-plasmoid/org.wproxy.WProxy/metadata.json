@@ -5,7 +5,7 @@
     "Description": "Xray/V2Ray servers, subscriptions and connection controls",
     "Icon": "network-vpn",
     "Category": "Online Services",
-    "Version": "2.3.0",
+    "Version": "2.3.1",
     "License": "MIT",
     "EnabledByDefault": true
   },

@@ -1,5 +1,9 @@
 # Test coverage
 
+## 2.3.1 transport correction
+
+See [connection-fix evidence](CONNECTION-FIX-2.3.1.md) for the 2026-09-24 controlled comparison and real proxy HTTPS/YouTube checks. The wire regression uses a loopback fake server and the installed Xray core to assert that a WebSocket Upgrade is actually sent. It is explicitly skipped when Xray is absent. These results must not be described as full-system TUN or video-playback verification.
+
 ## Shared backend / GNOME
 
 The 2.2.10 host report dated 2026-09-22 recorded:
@@ -10,7 +14,7 @@ The 2.2.10 host report dated 2026-09-22 recorded:
 - Route lookup through `wproxy0`: **PASS**.
 - HTTPS through the system tunnel: **PASS (204)**.
 
-Version 2.3.0 retains this TUN algorithm. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
+Version 2.3.1 retains this TUN algorithm. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
 
 Automated C/Python tests cover profile lookup, NetworkManager gateway/IP/default-route encoding, compatibility with Xray 26.3.27's TUN fields, outbound-interface binding, endpoint pinning/SNI, gateway-file permissions, and explicit interface/address setup failures. `make test` also checks JavaScript/shell syntax, KDE command quoting and repository assets.
 

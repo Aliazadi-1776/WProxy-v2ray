@@ -108,7 +108,7 @@ class WProxyToggle extends QuickSettings.QuickMenuToggle {
         this._nodeRows = new Map();
         this._nodeListSignature = null;
 
-        this.menu.setHeader('network-vpn-symbolic', 'V2Ray', 'WProxy 2.3.0');
+        this.menu.setHeader('network-vpn-symbolic', 'V2Ray', 'WProxy 2.3.1');
 
         this._statusSection = new PopupMenu.PopupMenuSection();
         this._subscriptionSection = new PopupMenu.PopupMenuSection();

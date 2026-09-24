@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.3.0"
+VERSION = "2.3.1"
 SOURCE_ENTRIES = [
     "README.md", "README.fa.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",
     "Makefile", ".gitignore", ".gitattributes", ".github", "docs", "cli", "data",

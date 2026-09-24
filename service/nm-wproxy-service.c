@@ -660,7 +660,7 @@ int main(int argc, char **argv) {
 
     for (int i = 1; i < argc; ++i) {
         if (g_str_equal(argv[i], "--version")) {
-            g_print("WProxy service 2.3.0\n");
+            g_print("WProxy service 2.3.1\n");
             g_free(service_name);
             return 0;
         }

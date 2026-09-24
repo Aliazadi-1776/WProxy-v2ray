@@ -1,3 +1,11 @@
+# 2.3.1
+
+- Fix Xray transport selection: emit streamSettings.network rather than the ignored method field, which caused WebSocket and other non-TCP links to run as plain TCP.
+- Preserve TCP HTTP camouflage Host/path fields, including VMess, and decode URI query fields only once.
+- Reject removed/unknown transports and unknown security values instead of silently downgrading to TCP/none.
+- Add per-node/custom-target HTTPS probes and a real loopback Xray WebSocket handshake regression test.
+- Record real before/after proxy HTTPS and YouTube response checks, separately from system TUN verification.
+
 # 2.3.0
 
 - Document separate Debian/Ubuntu, Arch-family, Fedora and openSUSE Tumbleweed dependency recipes, the final desktop-specific install command, and tested versus untested support levels in English and Persian.

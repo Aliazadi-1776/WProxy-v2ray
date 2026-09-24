@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parents[1]
 widget = root / "kde-plasmoid/org.wproxy.WProxy"
 metadata = json.loads((widget / "metadata.json").read_text())
 assert metadata["KPlugin"]["Id"] == widget.name
-assert metadata["KPlugin"]["Version"] == "2.3.0"
+assert metadata["KPlugin"]["Version"] == "2.3.1"
 assert metadata["KPlugin"]["License"] == "MIT"
 license_text = (root / "LICENSE").read_text()
 assert license_text.startswith("MIT License\n")
@@ -16,7 +16,7 @@ assert (widget / "LICENSE").read_text() == license_text
 assert metadata["X-Plasma-API-Minimum-Version"] == "6.0"
 assert metadata["KPackageStructure"] == "Plasma/Applet"
 assert (widget / "contents/ui/main.qml").is_file()
-assert json.loads((root / "gnome-extension/wproxy@wrench.local/metadata.json").read_text())["version"] == 9
+assert json.loads((root / "gnome-extension/wproxy@wrench.local/metadata.json").read_text())["version"] == 10
 
 for readme in (root / "README.md", root / "README.fa.md"):
     text = readme.read_text()

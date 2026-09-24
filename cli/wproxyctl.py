@@ -20,7 +20,7 @@ from pathlib import Path
 APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
-USER_AGENT = "WProxy/2.3.0 (+NetworkManager; v2rayNG-compatible subscription reader)"
+USER_AGENT = "WProxy/2.3.1 (+NetworkManager; v2rayNG-compatible subscription reader)"
 
 
 def original_user():
@@ -291,7 +291,7 @@ def stream_settings(query, host, default_security="none", vmess=None):
             "path": str(vmess.get("path") or ""),
             "sni": str(vmess.get("sni") or ""),
             "fp": str(vmess.get("fp") or ""),
-            "type": str(vmess.get("type") or ""),
+            "headerType": str(vmess.get("type") or ""),
             "alpn": str(vmess.get("alpn") or ""),
         }
     else:
@@ -299,8 +299,8 @@ def stream_settings(query, host, default_security="none", vmess=None):
         network = str(q.get("type") or q.get("network") or "tcp").lower()
         security = str(q.get("security") or default_security).lower()
 
-    if network in ("http", "h2"):
-        network = "tcp"
+    if network in ("http", "h2", "h3", "quic"):
+        raise ValueError(f"Legacy transport {network} is not supported by this Xray backend; use an updated share link")
     if network == "splithttp":
         network = "xhttp"
 
@@ -316,11 +316,19 @@ def stream_settings(query, host, default_security="none", vmess=None):
         "mkcp": "mkcp",
         "hysteria": "hysteria",
     }
-    method = method_map.get(network, network)
-    st = {"method": method, "security": security if security in ("tls", "reality") else "none"}
+    if network not in method_map:
+        raise ValueError(f"Unsupported transport: {network}")
+    method = method_map[network]
+    if security not in ("none", "tls", "reality"):
+        raise ValueError(f"Unsupported stream security: {security}")
+    # Xray selects the transport using `network`, not `method`. Unknown JSON
+    # fields are ignored, so `method: websocket` silently connected with TCP.
+    st = {"network": method, "security": security}
 
-    path = urllib.parse.unquote(q.get("path") or "/")
-    host_header = urllib.parse.unquote(q.get("host") or "")
+    # parse_query already URL-decodes once. VMess JSON fields are literal.
+    # A second unquote corrupts escaped paths (for example %2F -> /).
+    path = q.get("path") or "/"
+    host_header = q.get("host") or ""
     if method == "websocket":
         ws = {"path": path}
         if host_header:
@@ -328,9 +336,9 @@ def stream_settings(query, host, default_security="none", vmess=None):
             ws["host"] = host_header
         st["wsSettings"] = ws
     elif method == "grpc":
-        grpc = {"serviceName": urllib.parse.unquote(q.get("serviceName") or q.get("service") or "")}
+        grpc = {"serviceName": q.get("serviceName") or q.get("service") or ""}
         if q.get("authority"):
-            grpc["authority"] = urllib.parse.unquote(q["authority"])
+            grpc["authority"] = q["authority"]
         if q.get("mode") == "multi":
             grpc["multiMode"] = True
         st["grpcSettings"] = grpc
@@ -350,15 +358,18 @@ def stream_settings(query, host, default_security="none", vmess=None):
         header = q.get("headerType") or q.get("header") or "none"
         st["kcpSettings"] = {"header": {"type": header}}
     elif method == "raw" and q.get("headerType") in ("http",):
-        # Legacy share links may still request the old TCP HTTP header.
-        st["rawSettings"] = {"header": {"type": "http"}}
+        # Preserve the HTTP camouflage requested by TCP/RAW share links.
+        request = {"path": [p.strip() for p in path.split(",") if p.strip()] or ["/"]}
+        if host_header:
+            request["headers"] = {"Host": [h.strip() for h in host_header.split(",") if h.strip()]}
+        st["rawSettings"] = {"header": {"type": "http", "request": request}}
 
     if st["security"] == "reality" and method not in ("raw", "xhttp", "grpc"):
         raise ValueError(f"REALITY is not compatible with Xray transport method {method}")
     if method == "hysteria" and st["security"] != "tls":
         raise ValueError("Xray Hysteria transport requires TLS")
 
-    sni = urllib.parse.unquote(q.get("sni") or q.get("serverName") or host)
+    sni = q.get("sni") or q.get("serverName") or host
     fp = q.get("fp") or ""
     alpn = [x for x in (q.get("alpn") or "").split(",") if x]
 
@@ -380,7 +391,7 @@ def stream_settings(query, host, default_security="none", vmess=None):
         }
         spx = q.get("spx") or q.get("spiderX")
         if spx:
-            reality["spiderX"] = urllib.parse.unquote(spx)
+            reality["spiderX"] = spx
         st["realitySettings"] = reality
     return st
 
@@ -519,7 +530,7 @@ def nm_keyfile(node):
     cid = PREFIX + node["name"]
     cuuid = deterministic_uuid(node["id"])
     uri = escape_keyfile_value(node["uri"])
-    return f"""[connection]\nid={cid}\nuuid={cuuid}\ntype=vpn\nautoconnect=false\n\n[vpn]\nservice-type={SERVICE}\nuser-name={uri}\nuri={uri}\nwproxy-version=2.3.0\nnode-id={node['id']}\npersistent=false\n\n[ipv4]\nmethod=auto\nnever-default=false\n\n[ipv6]\nmethod=auto\nnever-default=false\n"""
+    return f"""[connection]\nid={cid}\nuuid={cuuid}\ntype=vpn\nautoconnect=false\n\n[vpn]\nservice-type={SERVICE}\nuser-name={uri}\nuri={uri}\nwproxy-version=2.3.1\nnode-id={node['id']}\npersistent=false\n\n[ipv4]\nmethod=auto\nnever-default=false\n\n[ipv6]\nmethod=auto\nnever-default=false\n"""
 
 
 def require_root():
@@ -757,7 +768,7 @@ def cmd_node(args, store):
 
 def build_parser():
     p = argparse.ArgumentParser(prog="wproxyctl", description="WProxy configuration and NetworkManager controller")
-    p.add_argument("--version", action="version", version="WProxy 2.3.0")
+    p.add_argument("--version", action="version", version="WProxy 2.3.1")
     sp = p.add_subparsers(dest="cmd", required=True)
 
     ps = sp.add_parser("sub")

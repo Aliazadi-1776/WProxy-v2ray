@@ -21,4 +21,4 @@ Desktop tests and shared backend tests are separate. Do not describe a passing Q
 python3 scripts/build-release.py
 ```
 
-This creates `dist/WProxy-2.3.0-GitHub.zip` and `dist/WProxy-2.3.0-Plasma6.plasmoid` from a source allowlist. Generated binaries, caches, profiles and logs are excluded. Release artifacts can be attached to a GitHub Release instead of committed into the source repository.
+This creates `dist/WProxy-2.3.1-GitHub.zip` and `dist/WProxy-2.3.1-Plasma6.plasmoid` from a source allowlist. Generated binaries, caches, profiles and logs are excluded. Release artifacts can be attached to a GitHub Release instead of committed into the source repository.

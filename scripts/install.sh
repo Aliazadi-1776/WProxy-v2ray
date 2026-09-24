@@ -136,7 +136,7 @@ NM_CONF="/etc/NetworkManager/conf.d/90-wproxy-unmanaged.conf"
 BACKUP="/var/backups/wproxy-$(date +%Y%m%d-%H%M%S)"
 
 printf '%s\n' \
-    "WProxy 2.3.0 installer" \
+    "WProxy 2.3.1 installer" \
     "  libdir:       $LIBDIR" \
     "  libexec:      $LIBEXEC" \
     "  VPN metadata: $NM_VPN_DIR" \
@@ -275,7 +275,7 @@ echo
 [ -x /usr/bin/wproxyctl ] || { echo "Installation failed: /usr/bin/wproxyctl was not installed." >&2; exit 5; }
 /usr/bin/wproxyctl --version
 
-echo "Installed WProxy 2.3.0."
+echo "Installed WProxy 2.3.1."
 XRAY_PATH=$(find_xray 2>/dev/null || true)
 [ -n "$XRAY_PATH" ] && "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 if [ "$DESKTOP" = gnome ]; then

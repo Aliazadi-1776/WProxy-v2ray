@@ -24,7 +24,7 @@ LIBEXEC=$(pkg-config --variable=libexecdir NetworkManager 2>/dev/null || true)
 [ -n "$LIBEXEC" ] || LIBEXEC=/usr/libexec
 
 make wproxy-service wproxyctl
-BACKUP=$(mktemp -d /var/backups/wproxy-2.3.0.XXXXXX)
+BACKUP=$(mktemp -d /var/backups/wproxy-2.3.1.XXXXXX)
 chmod 700 "$BACKUP"
 for name in wproxy-service wproxy-xray-runner; do
     if [ -f "$LIBEXEC/$name" ]; then cp -a "$LIBEXEC/$name" "$BACKUP/$name"; fi
@@ -82,7 +82,7 @@ if [ "${1:-}" != --test ]; then exit 0; fi
 # The report contains status and exit codes, never subscription URLs or URIs.
 REPORT="$PROJECT_DIR/verification.txt"
 exec > >(tee "$REPORT") 2>&1
-echo "WProxy 2.3.0 host check: $(date -Is)"
+echo "WProxy 2.3.1 host check: $(date -Is)"
 echo 'Testing real HTTPS through the saved servers before enabling system routing...'
 if ! NODE_ID=$(desktop python3 scripts/test-proxy-https.py --select); then
     echo 'No saved server passed the Xray HTTPS test; TUN was not enabled.'

@@ -27,7 +27,7 @@ Item {
                 spacing: 0
                 Layout.fillWidth: true
                 Controls.Label { text: "WProxy"; font.bold: true; font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.25 }
-                Controls.Label { text: "2.3.0 · Xray / V2Ray"; opacity: 0.65 }
+                Controls.Label { text: "2.3.1 · Xray / V2Ray"; opacity: 0.65 }
             }
             Controls.Switch {
                 objectName: "connectionSwitch"

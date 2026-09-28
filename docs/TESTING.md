@@ -20,7 +20,9 @@ Automated C/Python tests cover profile lookup, NetworkManager gateway/IP/default
 
 Release checks additionally parse every README Bash example without executing it, compare dependency commands between the English/Persian guides, and build temporary source/widget archives to verify MIT notices, screenshots and exclusion of generated data. These checks do not run APT, pacman, DNF or Zypper and do not certify installation on other distributions. Arch-family, Fedora and openSUSE recipes remain untested end to end.
 
-An isolated GNOME Shell 51.beta test covers 0/1/3/4/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks three-row allocation, the last row, retained scroll position and fixed controls. It does not model every physical-device tile or theme.
+The extension metadata and installer tests cover exactly GNOME Shell 49, 50 and 51. They also reject the removed `St.Widget.vertical` property. The replacement `Clutter.Orientation.VERTICAL`, `QuickMenuToggle`, `SystemIndicator`, `setHeader()` and `quickSettingsItems` contracts were checked against the GNOME 49/50 upstream sources and the installed GNOME 51 source resource.
+
+An isolated GNOME Shell 51.0 test covers 0/1/3/4/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks three-row allocation, the last row, retained scroll position and fixed controls. It does not model every physical-device tile or theme.
 
 ## KDE
 

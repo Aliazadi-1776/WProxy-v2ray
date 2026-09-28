@@ -5,11 +5,14 @@ PROJECT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 DESKTOP=auto
+CHECK_ONLY=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --desktop)
             [ "$#" -ge 2 ] || { echo 'Missing desktop: gnome, kde, none, or auto' >&2; exit 2; }
             DESKTOP=$2; shift 2 ;;
+        --check)
+            CHECK_ONLY=1; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -21,6 +24,12 @@ if [ "$DESKTOP" = auto ]; then
     esac
 fi
 case "$DESKTOP" in gnome|kde|none) ;; *) echo 'Invalid desktop selection.' >&2; exit 2 ;; esac
+GNOME_SHELL_MAJOR=""
+if [ "$DESKTOP" = gnome ]; then
+    GNOME_SHELL_MAJOR=$(sh "$PROJECT_DIR/scripts/check-gnome-version.sh")
+    echo "GNOME Shell $GNOME_SHELL_MAJOR compatibility: OK (supported: 49, 50, 51)"
+fi
+
 TARGET_USER=${SUDO_USER:-$(id -un)}
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 TARGET_UID=$(id -u "$TARGET_USER")
@@ -101,6 +110,30 @@ install_xray_if_needed() {
     echo "Installed Xray: $XRAY_PATH"
     "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 }
+
+if [ "$CHECK_ONLY" -eq 1 ]; then
+    echo "WProxy installer preflight (no system changes)"
+    have_build_deps || {
+        echo 'Missing build dependencies: libnm, GTK3, GTK4, GLib/GIO and pkg-config are required.' >&2
+        exit 2
+    }
+    command -v python3 >/dev/null 2>&1 || { echo 'python3 is required.' >&2; exit 2; }
+    command -v nmcli >/dev/null 2>&1 || { echo 'NetworkManager/nmcli is required.' >&2; exit 2; }
+    command -v pkexec >/dev/null 2>&1 || { echo 'pkexec is required for desktop authorization.' >&2; exit 2; }
+    make check-deps
+    make check-python
+    python3 tests/check-release.py
+    if command -v node >/dev/null 2>&1; then
+        node --input-type=module --check < gnome-extension/wproxy@wrench.local/extension.js
+    fi
+    if XRAY_PATH=$(find_xray 2>/dev/null); then
+        echo "Xray runtime: $XRAY_PATH"
+    else
+        echo 'Xray runtime: not installed (the full installer would use the official XTLS installer).'
+    fi
+    echo "Installer preflight passed for desktop: $DESKTOP"
+    exit 0
+fi
 
 install_deps_if_needed
 install_xray_if_needed
@@ -239,6 +272,13 @@ if [ "$DESKTOP" = gnome ]; then
             $SUDO install -m644 -o "$TARGET_UID" -g "$TARGET_GID" "gnome-extension/wproxy@wrench.local/$name" "$USER_EXT/$name"
         done
     fi
+    for name in metadata.json extension.js stylesheet.css; do
+        cmp "gnome-extension/wproxy@wrench.local/$name" "$EXT_DIR/$name" >/dev/null || {
+            echo "Installation failed: GNOME extension file mismatch: $name" >&2
+            exit 5
+        }
+    done
+    echo "Verified GNOME Shell $GNOME_SHELL_MAJOR extension files."
 fi
 
 sed \
@@ -259,7 +299,16 @@ elif command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 
 if [ "$DESKTOP" = gnome ] && command -v gnome-extensions >/dev/null 2>&1; then
-    gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 || true
+    if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
+        runuser -u "$TARGET_USER" -- env \
+            XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
+            gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 ||
+            echo 'GNOME extension is installed but needs a log out/in before it can be enabled.'
+    else
+        gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 ||
+            echo 'GNOME extension is installed but needs a log out/in before it can be enabled.'
+    fi
 fi
 
 if [ "$DESKTOP" = kde ]; then

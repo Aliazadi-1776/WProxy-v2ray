@@ -47,7 +47,7 @@ check-deps:
 
 check-python:
 	python3 -m py_compile cli/wproxyctl.py manager/wproxy-manager.py
-	sh -n service/wproxy-xray-runner scripts/install.sh scripts/uninstall.sh scripts/diagnose.sh scripts/recover-vpn-settings.sh scripts/repair-gnome-vpn-editor.sh scripts/repair-runtime.sh
+	sh -n service/wproxy-xray-runner scripts/check-gnome-version.sh scripts/install.sh scripts/install-quick-settings-only.sh scripts/uninstall.sh scripts/diagnose.sh scripts/recover-vpn-settings.sh scripts/repair-gnome-vpn-editor.sh scripts/repair-runtime.sh
 
 test-service-profile-lookup: tests/test-service-profile-lookup.c service/nm-wproxy-service.c
 	$(CC) $(SERVICE_CFLAGS) -o $@ $< $(SERVICE_LIBS)

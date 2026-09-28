@@ -16,7 +16,13 @@ assert (widget / "LICENSE").read_text() == license_text
 assert metadata["X-Plasma-API-Minimum-Version"] == "6.0"
 assert metadata["KPackageStructure"] == "Plasma/Applet"
 assert (widget / "contents/ui/main.qml").is_file()
-assert json.loads((root / "gnome-extension/wproxy@wrench.local/metadata.json").read_text())["version"] == 10
+gnome_dir = root / "gnome-extension/wproxy@wrench.local"
+gnome_metadata = json.loads((gnome_dir / "metadata.json").read_text())
+assert gnome_metadata["version"] == 11
+assert gnome_metadata["shell-version"] == ["49", "50", "51"]
+gnome_source = (gnome_dir / "extension.js").read_text()
+assert not re.search(r"\bvertical\s*:", gnome_source)
+assert gnome_source.count("orientation: Clutter.Orientation.VERTICAL") == 2
 
 for readme in (root / "README.md", root / "README.fa.md"):
     text = readme.read_text()

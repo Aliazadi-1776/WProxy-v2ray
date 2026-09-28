@@ -160,7 +160,9 @@ class WProxyToggle extends QuickSettings.QuickMenuToggle {
             can_focus: false,
         });
         const box = new St.BoxLayout({
-            vertical: true,
+            // St.Widget.vertical was removed in GNOME Shell 51. Clutter's
+            // orientation property is shared by Shell 49, 50 and 51.
+            orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             style_class: 'wproxy-subscription-box',
         });
@@ -408,7 +410,7 @@ class WProxyToggle extends QuickSettings.QuickMenuToggle {
             can_focus: false,
         });
         const card = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             style_class: 'wproxy-status-card',
         });

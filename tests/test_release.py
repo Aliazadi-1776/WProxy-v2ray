@@ -1,5 +1,6 @@
 """Documentation and clean source/widget archive regression checks."""
 import importlib.util
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -54,6 +55,16 @@ class ReleaseTests(unittest.TestCase):
                     self.assertFalse(BUILDER.EXCLUDED.intersection(path.parts), name)
                     self.assertNotIn(path.suffix, {".pyc", ".pyo", ".so", ".o", ".log", ".nmconnection", ".pid"})
                     self.assertNotIn("dist", path.parts)
+            with zipfile.ZipFile(
+                Path(directory) / "WProxy-2.3.1-GNOME-49-51.shell-extension.zip"
+            ) as archive:
+                self.assertIsNone(archive.testzip())
+                self.assertEqual(
+                    set(archive.namelist()), {"extension.js", "metadata.json", "stylesheet.css"}
+                )
+                metadata = json.loads(archive.read("metadata.json"))
+                self.assertEqual(metadata["uuid"], "wproxy@wrench.local")
+                self.assertEqual(metadata["shell-version"], ["49", "50", "51"])
             with zipfile.ZipFile(Path(directory) / "WProxy-2.3.1-Plasma6.plasmoid") as archive:
                 self.assertIsNone(archive.testzip())
                 self.assertEqual(archive.read("LICENSE"), (ROOT / "LICENSE").read_bytes())

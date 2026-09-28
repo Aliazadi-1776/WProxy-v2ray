@@ -44,7 +44,7 @@ WProxy is a **Linux** application, not a Windows/macOS application. It needs a n
 
 | Component / platform | Support and verification |
 | --- | --- |
-| GNOME Quick Settings | Metadata declares GNOME **45–51**; runtime/layout tested on **51.beta** only |
+| GNOME Quick Settings | GNOME **49, 50 and 51**; shared API checked for all three and runtime/layout tested on **51.0** |
 | KDE widget | Targets **Plasma 6**; Qt/Plasma component tests and isolated KPackage installation passed; a full KDE login/connection test is still pending |
 | Backend | Linux + NetworkManager + Xray with native TUN + Python 3 + iproute2 |
 | GTK manager and editors | GTK4/PyGObject manager, GTK3/GTK4 editors; GTK dependencies are needed even on KDE or with `--desktop none` |
@@ -53,7 +53,7 @@ WProxy is a **Linux** application, not a Windows/macOS application. It needs a n
 | Fedora Workstation / KDE | Manual dependency recipe below; installation, SELinux integration and real connection not verified |
 | openSUSE Tumbleweed | Manual dependency recipe below; installation, security-policy integration and real connection not verified |
 | Cinnamon / Xfce / MATE / COSMIC / other desktops | No dedicated panel integration; `--desktop none` installs the backend + GTK manager; desktop-specific testing pending |
-| Plasma 5 / GNOME outside 45–51 | No supported panel frontend in this release |
+| Plasma 5 / GNOME outside 49–51 | No supported panel frontend in this release |
 | Windows / macOS / BSD | Not supported |
 | NixOS / Alpine / immutable systems | These installation scripts are not supported; no Nix module, OpenRC, rpm-ostree or transactional installation is supplied |
 | ARM / other CPU architectures | Source builds may be possible with a suitable Xray binary, but are untested; do not treat this as a universal binary release |
@@ -82,7 +82,7 @@ gnome-shell --version
 plasmashell --version
 ```
 
-The GNOME extension requires 45–51; the KDE widget requires Plasma 6. A distro name alone does not imply either version. Do not install a second desktop just to satisfy the commands below.
+The GNOME extension requires 49, 50 or 51; the KDE widget requires Plasma 6. A distro name alone does not imply either version. Do not install a second desktop just to satisfy the commands below.
 
 ### 2. Install your distribution's dependencies
 
@@ -184,10 +184,17 @@ For KDE, additionally check `kpackagetool6 --version` and keep the desktop's Pol
 
 **Finally, run exactly one of the following installation commands:**
 
-GNOME 45–51:
+GNOME 49–51:
 
 ```bash
 bash scripts/install.sh --desktop gnome
+```
+
+Before the full GNOME install, a read-only preflight checks the detected Shell
+version, build/runtime dependencies, source metadata and JavaScript syntax:
+
+```bash
+bash scripts/install.sh --desktop gnome --check
 ```
 
 KDE Plasma 6:
@@ -254,6 +261,9 @@ The installation dependencies above do not include every developer test tool. In
 make check-deps
 make all
 make test
+
+# Builds source, Plasma and GNOME 49–51 extension archives
+python3 scripts/build-release.py
 
 # Requires Qt 6 test tools, Kirigami and Plasma5Support QML
 bash scripts/test-kde.sh

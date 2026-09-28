@@ -1,5 +1,9 @@
 # 2.3.1
 
+- Fix the Quick Settings UI on GNOME Shell 51 by replacing the removed `vertical` St widget property with the orientation API shared by GNOME 49, 50 and 51.
+- Target GNOME Shell 49–51 explicitly and add compatibility regression tests for all three declared versions.
+- Add installer version checks, a no-write `--check` preflight, post-copy verification and correct extension enabling for sudo-invoked installs.
+- Build a standalone `GNOME-49-51.shell-extension.zip` release artifact.
 - Fix Xray transport selection: emit streamSettings.network rather than the ignored method field, which caused WebSocket and other non-TCP links to run as plain TCP.
 - Preserve TCP HTTP camouflage Host/path fields, including VMess, and decode URI query fields only once.
 - Reject removed/unknown transports and unknown security values instead of silently downgrading to TCP/none.

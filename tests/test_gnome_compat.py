@@ -23,7 +23,7 @@ class GnomeCompatibilityTests(unittest.TestCase):
     def test_metadata_targets_exact_supported_versions(self):
         metadata = json.loads((EXTENSION / "metadata.json").read_text())
         self.assertEqual(metadata["uuid"], "wproxy@wrench.local")
-        self.assertEqual(metadata["version"], 11)
+        self.assertEqual(metadata["version"], 12)
         self.assertEqual(metadata["shell-version"], ["49", "50", "51"])
 
     def test_removed_gnome_51_vertical_property_is_not_used(self):
@@ -33,6 +33,13 @@ class GnomeCompatibilityTests(unittest.TestCase):
             source.count("orientation: Clutter.Orientation.VERTICAL"), 2
         )
         self.assertNotRegex(source, r"async\s+disable\s*\(")
+
+    def test_four_visible_rows_do_not_truncate_the_node_collection(self):
+        source = (EXTENSION / "extension.js").read_text()
+        self.assertIn("const VISIBLE_NODE_ROWS = 4;", source)
+        self.assertIn("for (const node of this._nodes)", source)
+        self.assertNotIn("this._nodes.slice", source)
+        self.assertIn("this.connect('scroll-event'", source)
 
     def test_supported_versions_are_accepted(self):
         for version in ("GNOME Shell 49.7", "GNOME Shell 50", "GNOME Shell 51.0"):

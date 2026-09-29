@@ -22,7 +22,7 @@ Release checks additionally parse every README Bash example without executing it
 
 The extension metadata and installer tests cover exactly GNOME Shell 49, 50 and 51. They also reject the removed `St.Widget.vertical` property. The replacement `Clutter.Orientation.VERTICAL`, `QuickMenuToggle`, `SystemIndicator`, `setHeader()` and `quickSettingsItems` contracts were checked against the GNOME 49/50 upstream sources and the installed GNOME 51 source resource.
 
-An isolated GNOME Shell 51.0 test covers 0/1/3/4/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks three-row allocation, the last row, retained scroll position and fixed controls. It does not model every physical-device tile or theme.
+An isolated GNOME Shell 51.0 test covers 0/1/4/5/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks four-row allocation, creation of every server row, mouse-wheel and smooth-touchpad scrolling, the last row, retained scroll position and fixed controls. It does not model every physical-device tile or theme.
 
 ## KDE
 

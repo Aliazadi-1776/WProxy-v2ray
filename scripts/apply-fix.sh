@@ -90,8 +90,8 @@ done
 "$LIBEXEC/wproxy-service" --version
 /usr/bin/wproxyctl --version
 echo "Backup: $BACKUP"
-echo "Verified UI version 11 for GNOME Shell $GNOME_SHELL_MAJOR."
-echo 'Log out and back in once to load the updated UI (exactly 3 server rows + scroll).'
+echo "Verified UI version 12 for GNOME Shell $GNOME_SHELL_MAJOR."
+echo 'Log out and back in once to load the updated UI (exactly 4 visible server rows; all remaining rows scroll).'
 echo 'Disabling/enabling the extension alone may keep the old JavaScript cached.'
 
 if [ "${1:-}" != --test ]; then exit 0; fi

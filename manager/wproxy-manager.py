@@ -19,6 +19,7 @@ def _resolve_ctl():
 
 
 CTL = _resolve_ctl()
+VISIBLE_NODE_ROWS = 4
 
 
 def run(args):
@@ -38,6 +39,7 @@ class WProxyManager(Gtk.Application):
         self.window = None
         self.status = None
         self.nodes_box = None
+        self.nodes_scroller = None
         self.subs_box = None
         self.uri_entry = None
         self.sub_entry = None
@@ -70,6 +72,7 @@ class WProxyManager(Gtk.Application):
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+        self.stack.set_vexpand(True)
         switcher.set_stack(self.stack)
         root.append(self.stack)
 
@@ -101,7 +104,12 @@ class WProxyManager(Gtk.Application):
         return scroller, box
 
     def _build_nodes_page(self):
-        scroller, box = self._page()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(12)
+        box.set_margin_bottom(18)
+        box.set_margin_start(18)
+        box.set_margin_end(18)
+
         top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         refresh = Gtk.Button(label='Refresh')
         refresh.connect('clicked', lambda *_: self.refresh())
@@ -112,11 +120,39 @@ class WProxyManager(Gtk.Application):
         top.append(refresh); top.append(ping); top.append(disconnect)
         box.append(top)
 
+        self.nodes_scroller = Gtk.ScrolledWindow()
+        self.nodes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.nodes_scroller.set_overlay_scrolling(False)
+        self.nodes_scroller.set_propagate_natural_height(True)
+        self.nodes_scroller.set_vexpand(False)
+        self.nodes_scroller.set_valign(Gtk.Align.START)
         self.nodes_box = Gtk.ListBox()
         self.nodes_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self.nodes_box.add_css_class('boxed-list')
-        box.append(self.nodes_box)
-        return scroller
+        self.nodes_scroller.set_child(self.nodes_box)
+        box.append(self.nodes_scroller)
+        return box
+
+    def _queue_nodes_viewport_resize(self):
+        GLib.idle_add(self._resize_nodes_viewport)
+
+    def _resize_nodes_viewport(self):
+        rows = []
+        child = self.nodes_box.get_first_child()
+        while child:
+            rows.append(child)
+            child = child.get_next_sibling()
+
+        if not rows:
+            return GLib.SOURCE_REMOVE
+
+        heights = [row.measure(Gtk.Orientation.VERTICAL, -1)[1] for row in rows]
+        list_height = self.nodes_box.measure(Gtk.Orientation.VERTICAL, -1)[1]
+        chrome = max(0, list_height - sum(heights))
+        viewport_height = chrome + sum(heights[:VISIBLE_NODE_ROWS])
+        self.nodes_scroller.set_min_content_height(viewport_height)
+        self.nodes_scroller.set_max_content_height(viewport_height)
+        return GLib.SOURCE_REMOVE
 
     def _build_subs_page(self):
         scroller, box = self._page()
@@ -207,7 +243,9 @@ class WProxyManager(Gtk.Application):
             label = Gtk.Label(label='No configurations yet')
             label.set_margin_top(16); label.set_margin_bottom(16)
             row.set_child(label); self.nodes_box.append(row)
+            self._queue_nodes_viewport_resize()
             return
+
         for n in nodes:
             row = Gtk.ListBoxRow()
             outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -230,6 +268,7 @@ class WProxyManager(Gtk.Application):
             delete.connect('clicked', lambda _b, nid=n['id']: self._remove_node(nid))
             outer.append(connect); outer.append(delete)
             row.set_child(outer); self.nodes_box.append(row)
+        self._queue_nodes_viewport_resize()
 
     def _render_subs(self, subs):
         self._clear_listbox(self.subs_box)

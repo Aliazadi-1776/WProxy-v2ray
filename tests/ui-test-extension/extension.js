@@ -2,6 +2,7 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Shell from 'gi://Shell';
+import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -46,7 +47,7 @@ export default class UITest extends Extension {
         for (const textScale of [1, 1.4]) {
             settings.set_double('text-scaling-factor', textScale);
             await delay(300);
-            for (const count of [0, 1, 3, 4, 100]) {
+            for (const count of [0, 1, 4, 5, 100]) {
                 toggle._nodes = Array.from({length: count}, (_, i) => ({
                     id: `node-${i}`, name: `🇩🇪 Server ${i + 1} — TCP`,
                 }));
@@ -54,13 +55,29 @@ export default class UITest extends Extension {
                 await delay(250);
                 const scroll = toggle._nodesScroll;
                 const rows = scroll.get_child().get_children();
-                const expected = rows.slice(0, 3).reduce((sum, row) => sum + row.height, 0);
+                check(rows.length === (count || 1),
+                    `${count} nodes: rendered ${rows.length} rows instead of every node`);
+                const expected = rows.slice(0, 4).reduce((sum, row) => sum + row.height, 0);
                 const adjustment = scroll.vadjustment;
                 check(Math.abs(scroll.height - expected) < 2,
-                    `${count} rows: viewport ${scroll.height} != first three ${expected}`);
-                check(count <= 3 || adjustment.upper > adjustment.page_size,
+                    `${count} rows: viewport ${scroll.height} != first four ${expected}`);
+                check(count <= 4 || adjustment.upper > adjustment.page_size,
                     `${count} rows: content is not scrollable`);
-                if (count > 3) {
+                if (count > 4) {
+                    adjustment.value = 0;
+                    const wheelResult = scroll._onScrollEvent(scroll, {
+                        get_scroll_direction: () => Clutter.ScrollDirection.DOWN,
+                        get_scroll_delta: () => [0, 1],
+                    });
+                    check(wheelResult === Clutter.EVENT_STOP && adjustment.value > 0,
+                        'Mouse-wheel event did not scroll the server list');
+                    const afterWheel = adjustment.value;
+                    const touchpadResult = scroll._onScrollEvent(scroll, {
+                        get_scroll_direction: () => Clutter.ScrollDirection.SMOOTH,
+                        get_scroll_delta: () => [0, 1],
+                    });
+                    check(touchpadResult === Clutter.EVENT_STOP && adjustment.value > afterWheel,
+                        'Smooth touchpad event did not scroll the server list');
                     adjustment.value = adjustment.upper - adjustment.page_size;
                     await delay(50);
                     const before = adjustment.value;
@@ -85,7 +102,7 @@ export default class UITest extends Extension {
         settings.set_double('text-scaling-factor', 1);
         toggle._nodesScroll.vadjustment.value = 0;
         await delay(300);
-        const stream = Gio.File.new_for_path(`${GLib.getenv('WPROXY_TEST_ROOT')}/three-rows.png`)
+        const stream = Gio.File.new_for_path(`${GLib.getenv('WPROXY_TEST_ROOT')}/four-rows.png`)
             .replace(null, false, Gio.FileCreateFlags.NONE, null);
         await new Shell.Screenshot().screenshot(false, stream);
         stream.close(null);

@@ -18,7 +18,7 @@ assert metadata["KPackageStructure"] == "Plasma/Applet"
 assert (widget / "contents/ui/main.qml").is_file()
 gnome_dir = root / "gnome-extension/wproxy@wrench.local"
 gnome_metadata = json.loads((gnome_dir / "metadata.json").read_text())
-assert gnome_metadata["version"] == 11
+assert gnome_metadata["version"] == 12
 assert gnome_metadata["shell-version"] == ["49", "50", "51"]
 gnome_source = (gnome_dir / "extension.js").read_text()
 assert not re.search(r"\bvertical\s*:", gnome_source)

@@ -54,16 +54,56 @@ function jsonCommand(args, callback) {
     });
 }
 
+const VISIBLE_NODE_ROWS = 4;
+
 // CSS max-height is not a reliable allocation limit for a popup section.
-// Report only three rows to Quick Settings' layout; the child still contains
+// Report only four rows to Quick Settings' layout; the child still contains
 // every server, so St.ScrollView can scroll to the rest.
 const WProxyNodeScroll = GObject.registerClass(
 class WProxyNodeScroll extends St.ScrollView {
+    _init(params = {}) {
+        super._init(params);
+        this.connect('scroll-event', this._onScrollEvent.bind(this));
+    }
+
     vfunc_get_preferred_height(forWidth) {
         const rows = this.get_child()?.get_children().filter(row => row.visible) ?? [];
-        const height = rows.slice(0, 3).reduce((sum, row) =>
+        const height = rows.slice(0, VISIBLE_NODE_ROWS).reduce((sum, row) =>
             sum + row.get_preferred_height(forWidth)[1], 0);
         return this.get_theme_node().adjust_preferred_height(height, height);
+    }
+
+    _onScrollEvent(_actor, event) {
+        const adjustment = this.vadjustment ??
+            this.get_vadjustment?.() ??
+            this.get_vscroll_bar().get_adjustment();
+        if (!adjustment || adjustment.upper <= adjustment.page_size)
+            return Clutter.EVENT_PROPAGATE;
+
+        const increment = adjustment.step_increment ||
+            adjustment.page_size / VISIBLE_NODE_ROWS;
+        let delta;
+        switch (event.get_scroll_direction()) {
+        case Clutter.ScrollDirection.UP:
+            delta = -increment;
+            break;
+        case Clutter.ScrollDirection.DOWN:
+            delta = increment;
+            break;
+        case Clutter.ScrollDirection.SMOOTH: {
+            const [dx, dy] = event.get_scroll_delta();
+            delta = (Math.abs(dy) >= Math.abs(dx) ? dy : dx) * increment;
+            break;
+        }
+        default:
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        const before = adjustment.value;
+        adjustment.set_value(before + delta);
+        return adjustment.value === before
+            ? Clutter.EVENT_PROPAGATE
+            : Clutter.EVENT_STOP;
     }
 });
 
@@ -74,7 +114,9 @@ class WProxyNodeSection extends PopupMenu.PopupMenuSection {
         this.actor = new WProxyNodeScroll({
             style_class: 'wproxy-nodes-scroll',
             overlay_scrollbars: false,
-            enable_mouse_scrolling: true,
+            // Handle both discrete mouse wheels and smooth touchpad events in
+            // WProxyNodeScroll, avoiding Shell-version-specific defaults.
+            enable_mouse_scrolling: false,
             x_expand: true,
             y_expand: false,
             hscrollbar_policy: St.PolicyType.NEVER,

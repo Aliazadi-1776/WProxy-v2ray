@@ -1,12 +1,12 @@
 # WProxy
 
-**Xray/V2Ray connections in your Linux desktop panel.**
+**Xray/V2Ray connections for Linux desktops and a Windows tray companion.**
 
-GNOME Quick Settings · KDE Plasma 6 widget · NetworkManager · GTK manager · CLI
+GNOME Quick Settings · KDE Plasma 6 widget · Windows tray · split routing · CLI
 
-[راهنمای فارسی](README.fa.md) · [KDE setup](docs/KDE.md) · [Testing](docs/TESTING.md) · [Changelog](CHANGELOG.md)
+[راهنمای فارسی](README.fa.md) · [Routing](docs/ROUTING.md) · [Windows](docs/WINDOWS.md) · [KDE setup](docs/KDE.md) · [Testing](docs/TESTING.md) · [Changelog](CHANGELOG.md)
 
-WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.3.1** fixes a transport-selection bug that made WebSocket links fail while the tunnel could still appear connected. The Plasma 6 frontend was introduced in 2.3.0.
+WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.4.1** keeps the existing Quick Settings design and split-routing/Windows features, fixes GNOME 51 loading, removes stale NetworkManager profiles when nodes are deleted, and filters subscription quota/expiry announcements from connectable servers. The 2.3.1 WebSocket transport correction remains included.
 
 **Upgrade notice:** install this version to update the actual runtime; replacing a ZIP alone is not an upgrade. See the [connection fix and before/after tests](docs/CONNECTION-FIX-2.3.1.md).
 
@@ -35,16 +35,18 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 - Three-row scrolling lists keep controls visible as the server count grows.
 - Display remaining subscription traffic when the provider supplies usage information.
 - Separate GTK manager, CLI, and GTK3/GTK4 NetworkManager editors.
+- Three routing modes: all traffic through VPN, bypass listed sites/apps, or only listed sites/apps through VPN.
+- Windows 10/11 tray manager with server import, subscription update, ping, selection, routing and Xray native TUN control.
 
 **Ping measures TCP connection latency to a server endpoint, not end-to-end VPN health.** A successful HTTPS-through-TUN test is stronger evidence than a ping result.
 
 ## Compatibility
 
-WProxy is a **Linux** application, not a Windows/macOS application. It needs a normal, writable system installation, systemd, an active NetworkManager managing the uplink, and Linux TUN support. Installing GTK or Qt alone does not make the backend portable.
+The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.4.1 also contains an experimental Windows frontend using Xray's native Windows TUN support. The two runtimes share the store format and routing rules but use different operating-system integration.
 
 | Component / platform | Support and verification |
 | --- | --- |
-| GNOME Quick Settings | GNOME **49, 50 and 51**; shared API checked for all three and runtime/layout tested on **51.0** |
+| GNOME Quick Settings | Metadata declares GNOME **45–51**; runtime/layout tested on **51.beta** only |
 | KDE widget | Targets **Plasma 6**; Qt/Plasma component tests and isolated KPackage installation passed; a full KDE login/connection test is still pending |
 | Backend | Linux + NetworkManager + Xray with native TUN + Python 3 + iproute2 |
 | GTK manager and editors | GTK4/PyGObject manager, GTK3/GTK4 editors; GTK dependencies are needed even on KDE or with `--desktop none` |
@@ -53,12 +55,15 @@ WProxy is a **Linux** application, not a Windows/macOS application. It needs a n
 | Fedora Workstation / KDE | Manual dependency recipe below; installation, SELinux integration and real connection not verified |
 | openSUSE Tumbleweed | Manual dependency recipe below; installation, security-policy integration and real connection not verified |
 | Cinnamon / Xfce / MATE / COSMIC / other desktops | No dedicated panel integration; `--desktop none` installs the backend + GTK manager; desktop-specific testing pending |
-| Plasma 5 / GNOME outside 49–51 | No supported panel frontend in this release |
-| Windows / macOS / BSD | Not supported |
+| Plasma 5 / GNOME outside 45–51 | No supported panel frontend in this release |
+| Windows 10/11 x64 | Experimental source frontend; static checks only in this Linux build environment. Requires Python 3, official Xray Windows files and administrator approval for TUN. No custom Win+A tile |
+| macOS / BSD | Not supported by WProxy frontends; no installer or desktop integration is supplied |
 | NixOS / Alpine / immutable systems | These installation scripts are not supported; no Nix module, OpenRC, rpm-ostree or transactional installation is supplied |
 | ARM / other CPU architectures | Source builds may be possible with a suitable Xray binary, but are untested; do not treat this as a universal binary release |
 
 The KDE widget does **not** inject rows into Plasma's built-in Networks applet, hide its VPN entries, or provide a Qt VPN editor. Place the separate WProxy widget beside Networks.
+
+Windows does not expose a public API for arbitrary third-party controls inside Win+A Quick Settings. WProxy therefore uses a supported notification-area icon and flyout-style manager. Windows' native VPN quick setting requires a curated VPN provider package and cannot host WProxy's custom server/subscription list. See [Windows support and limitations](docs/WINDOWS.md).
 
 ## Install
 
@@ -67,7 +72,7 @@ The KDE widget does **not** inject rows into Plasma's built-in Networks applet, 
 Extract the ZIP, then open a terminal in the directory containing `Makefile` and `scripts/`. For this release archive:
 
 ```bash
-cd WProxy-2.3.1
+cd WProxy-2.4.1
 ```
 
 A GitHub “Download ZIP” may use a different folder name; enter that extracted folder instead. Run as your **normal desktop account**, not a root login, and leave Python virtual environments/Conda first. You need working Internet and permission to use `sudo`.
@@ -82,7 +87,7 @@ gnome-shell --version
 plasmashell --version
 ```
 
-The GNOME extension requires 49, 50 or 51; the KDE widget requires Plasma 6. A distro name alone does not imply either version. Do not install a second desktop just to satisfy the commands below.
+The GNOME extension requires 45–51; the KDE widget requires Plasma 6. A distro name alone does not imply either version. Do not install a second desktop just to satisfy the commands below.
 
 ### 2. Install your distribution's dependencies
 
@@ -184,17 +189,10 @@ For KDE, additionally check `kpackagetool6 --version` and keep the desktop's Pol
 
 **Finally, run exactly one of the following installation commands:**
 
-GNOME 49–51:
+GNOME 45–51:
 
 ```bash
 bash scripts/install.sh --desktop gnome
-```
-
-Before the full GNOME install, a read-only preflight checks the detected Shell
-version, build/runtime dependencies, source metadata and JavaScript syntax:
-
-```bash
-bash scripts/install.sh --desktop gnome --check
 ```
 
 KDE Plasma 6:
@@ -223,6 +221,17 @@ Replaced WProxy files are backed up under `/var/backups/`. An upgrade stops WPro
 
 Check installation with `wproxyctl --version`, then open `wproxy-manager`, add your own subscription/server and connect. No working server credentials are bundled, and a successful installation alone does not prove a VPN connection works.
 
+### Windows 10/11 installation
+
+Install Python 3, download the official Xray Windows ZIP, and extract its complete contents into `windows\bin`. Then open PowerShell in the extracted WProxy folder and run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\windows\install-windows.ps1 -Start
+```
+
+The installer is per-user. Windows asks for administrator approval only when the TUN is connected or disconnected. This frontend has not been live-tested on a Windows host in this release; read [the Windows guide](docs/WINDOWS.md) before distributing it.
+
 ### Upgrade an existing GNOME WProxy installation
 
 ```bash
@@ -249,9 +258,19 @@ wproxyctl node ping --all
 wproxyctl nm up NODE_ID
 wproxyctl nm down
 wproxyctl status --json
+
+# Split routing (the GTK Routing tab performs the same commands and sync)
+wproxyctl routing mode bypass
+wproxyctl routing domain add youtube.com
+wproxyctl routing app add firefox
+sudo wproxyctl nm sync
 ```
 
 Panel controls request Polkit authentication when new/changed subscription profiles must be synced. This is expected. Keep a Polkit authentication agent running in your desktop session.
+
+Deleting a node or subscription in **WProxy Manager** also synchronizes NetworkManager: its loaded WProxy entries are deleted from **Settings → VPN**, not just removed from `store.json`. Approve the Polkit dialog and close/reopen Settings if it was already open. With the CLI, run `sudo wproxyctl nm sync` after `node remove` or `sub remove`. This cleanup identifies WProxy by its service marker and deterministic per-user UUID; it does not delete unrelated VPN profiles.
+
+Routing changes apply on the next connection. The graphical manager saves and syncs them automatically; CLI changes need `sudo wproxyctl nm sync`. See [routing behavior, privacy implications and examples](docs/ROUTING.md).
 
 ## Build and test
 
@@ -261,9 +280,6 @@ The installation dependencies above do not include every developer test tool. In
 make check-deps
 make all
 make test
-
-# Builds source, Plasma and GNOME 49–51 extension archives
-python3 scripts/build-release.py
 
 # Requires Qt 6 test tools, Kirigami and Plasma5Support QML
 bash scripts/test-kde.sh
@@ -292,7 +308,7 @@ The main uninstaller keeps the saved store in `~/.config/wproxy/` and the separa
 
 ## Privacy and security
 
-The local store contains subscription URLs and proxy credentials. Do not publish `~/.config/wproxy/`, NetworkManager profiles, generated Xray configs, or unredacted logs. This repository includes source, synthetic test fixtures and the supplied screenshots—not a user's configuration store. See [security notes](SECURITY.md).
+The local store contains subscription URLs and proxy credentials. Do not publish `~/.config/wproxy/`, `%APPDATA%\WProxy`, NetworkManager profiles, generated Xray configs, or unredacted logs. Bypass/only rules can intentionally send selected traffic outside the VPN; the default remains all traffic through VPN. This repository includes source, synthetic test fixtures and the supplied screenshots—not a user's configuration store. See [security notes](SECURITY.md).
 
 ## License
 

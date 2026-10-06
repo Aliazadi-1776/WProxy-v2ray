@@ -10,6 +10,7 @@ static void test_profile_uri_lookup(void) {
 
     const gchar *uuid = "11111111-2222-3333-4444-555555555555";
     const gchar *expected = "vless://test-user@example.com:443?security=tls#test";
+    const gchar *routing64 = "eyJ2ZXJzaW9uIjoxLCJtb2RlIjoiYWxsIiwiZG9tYWlucyI6W10sImFwcHMiOltdfQ";
     gchar *profile = g_strdup_printf(
         "[connection]\n"
         "id=WProxy test\n"
@@ -17,8 +18,9 @@ static void test_profile_uri_lookup(void) {
         "type=vpn\n\n"
         "[vpn]\n"
         "service-type=org.freedesktop.NetworkManager.wproxy\n"
-        "user-name=%s\n",
-        uuid, expected);
+        "user-name=%s\n"
+        "routing64=%s\n",
+        uuid, expected, routing64);
     gchar *path = g_build_filename(directory, "test.nmconnection", NULL);
 
     g_assert_true(g_file_set_contents(path, profile, -1, &error));
@@ -30,6 +32,13 @@ static void test_profile_uri_lookup(void) {
 
     uri = lookup_uri_in_profile_dir(directory, "different-uuid");
     g_assert_null(uri);
+
+    gchar *routing = lookup_profile_value_in_profile_dir(
+        directory, uuid, "routing64");
+    g_assert_cmpstr(routing, ==, routing64);
+    g_clear_pointer(&routing, g_free);
+    g_assert_true(is_supported_routing(routing64));
+    g_assert_false(is_supported_routing("bad=value"));
 
     g_assert_cmpint(g_remove(path), ==, 0);
     g_assert_cmpint(g_rmdir(directory), ==, 0);

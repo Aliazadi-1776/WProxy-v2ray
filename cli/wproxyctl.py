@@ -2,11 +2,15 @@
 import argparse
 import base64
 import concurrent.futures
+import csv
 import hashlib
-import ipaddress
 import json
 import os
-import pwd
+try:
+    import pwd
+except ImportError:  # Windows
+    pwd = None
+import ipaddress
 import re
 import shutil
 import socket
@@ -17,20 +21,33 @@ import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
-USER_AGENT = "WProxy/2.3.1 (+NetworkManager; v2rayNG-compatible subscription reader)"
-SYSTEM_BYPASS_FILE = Path("/etc/wproxy/bypass.json")
-PRIVATE_BYPASS_NETWORKS = [
+VERSION = "2.4.1"
+USER_AGENT = f"WProxy/{VERSION} (Xray; v2rayNG-compatible subscription reader)"
+ROUTING_MODES = ("all", "bypass", "only")
+PRIVATE_NETWORKS = [
     "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
     "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7", "fe80::/10",
 ]
 
 
+def _is_root():
+    return hasattr(os, "geteuid") and os.geteuid() == 0
+
+
 def original_user():
-    if os.geteuid() != 0:
+    if pwd is None:
+        return SimpleNamespace(
+            pw_name=os.environ.get("USERNAME", "user"),
+            pw_uid=0,
+            pw_gid=0,
+            pw_dir=str(Path.home()),
+        )
+    if not _is_root():
         return pwd.getpwuid(os.getuid())
     sudo_user = os.environ.get("SUDO_USER")
     if sudo_user and sudo_user != "root":
@@ -48,8 +65,11 @@ def original_user():
 
 
 def config_home():
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA") or (Path.home() / "AppData/Roaming"))
+        return base / "WProxy"
     p = original_user()
-    xdg = os.environ.get("XDG_CONFIG_HOME") if os.geteuid() != 0 else None
+    xdg = os.environ.get("XDG_CONFIG_HOME") if not _is_root() else None
     base = Path(xdg) if xdg else Path(p.pw_dir) / ".config"
     return base / APP
 
@@ -58,41 +78,19 @@ def store_path():
     return config_home() / "store.json"
 
 
-def empty_store():
-    return {"subs": [], "nodes": [], "bypass": {"domains": [], "ips": [], "apps": []}}
-
-
-def normalized_bypass(value):
-    source = value if isinstance(value, dict) else {}
-    result = {"domains": [], "ips": [], "apps": []}
-    for key in result:
-        values = source.get(key, [])
-        if not isinstance(values, list):
-            continue
-        seen = set()
-        for item in values:
-            if not isinstance(item, str):
-                continue
-            item = item.strip()
-            if item and item not in seen and len(item) <= 512:
-                seen.add(item)
-                result[key].append(item)
-    return result
-
-
 def load_store():
     p = store_path()
     if not p.exists():
-        return empty_store()
+        return {"subs": [], "nodes": [], "routing": default_routing_policy()}
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
         data.setdefault("subs", [])
         data.setdefault("nodes", [])
-        data["bypass"] = normalized_bypass(data.get("bypass"))
+        data["routing"] = normalize_routing_policy(data.get("routing"), strict=False)
         return data
     except Exception as e:
         print(f"Could not read {p}: {e}", file=sys.stderr)
-        return empty_store()
+        return {"subs": [], "nodes": [], "routing": default_routing_policy()}
 
 
 def save_store(data):
@@ -102,7 +100,7 @@ def save_store(data):
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.chmod(tmp, 0o600)
     tmp.replace(p)
-    if os.geteuid() == 0:
+    if _is_root() and pwd is not None:
         u = original_user()
         try:
             os.chown(p, u.pw_uid, u.pw_gid)
@@ -111,28 +109,105 @@ def save_store(data):
             pass
 
 
-def runtime_bypass_path():
-    return Path(os.environ.get("WPROXY_BYPASS_FILE", str(SYSTEM_BYPASS_FILE)))
+def default_routing_policy():
+    return {"version": 1, "mode": "all", "domains": [], "apps": []}
 
 
-def load_runtime_bypass(path=None):
-    target = Path(path) if path else runtime_bypass_path()
+def normalize_domain(value):
+    raw = (value or "").strip()
+    if not raw or len(raw) > 2048 or any(ord(ch) < 32 for ch in raw):
+        raise ValueError("Domain must be a non-empty hostname or URL")
     try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
-        return normalized_bypass(None)
-    return normalized_bypass(data)
+        return str(ipaddress.ip_address(raw.strip("[]")))
+    except ValueError:
+        pass
+    candidate = raw if "://" in raw else "//" + raw
+    parsed = urllib.parse.urlsplit(candidate)
+    if parsed.username or parsed.password:
+        raise ValueError("Domain entries must not contain credentials")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("Domain entry has no hostname")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise ValueError("Domain entry has an invalid port") from exc
+    host = host.rstrip(".").lower()
+    if host.startswith("*."):
+        host = host[2:]
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            host = host.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise ValueError("Domain name is not valid IDNA") from exc
+        if len(host) > 253 or any(
+            not label or len(label) > 63 or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label)
+            for label in host.split(".")
+        ):
+            raise ValueError("Domain name is invalid")
+    return host
 
 
-def write_runtime_bypass(store, path=None):
-    target = Path(path) if path else runtime_bypass_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    bypass = normalized_bypass(store.get("bypass"))
-    tmp = target.with_name(target.name + ".tmp")
-    tmp.write_text(json.dumps(bypass, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.chmod(tmp, 0o600)
-    tmp.replace(target)
-    return bypass
+def normalize_app(value):
+    app = (value or "").strip().replace("\\", "/")
+    if not app or len(app) > 512 or any(ord(ch) < 32 for ch in app):
+        raise ValueError("Application must be a process name or absolute path")
+    if app in ("self/", "xray/"):
+        raise ValueError("Reserved Xray process selectors are not allowed")
+    if "/" in app and not (app.startswith("/") or re.match(r"^[A-Za-z]:/", app)):
+        raise ValueError("Application paths must be absolute")
+    return app
+
+
+def normalize_routing_policy(value, strict=True):
+    if value is None:
+        return default_routing_policy()
+    if not isinstance(value, dict):
+        if strict:
+            raise ValueError("Routing policy must be an object")
+        return default_routing_policy()
+    mode = value.get("mode", "all")
+    if mode not in ROUTING_MODES:
+        if strict:
+            raise ValueError("Routing mode must be all, bypass, or only")
+        return default_routing_policy()
+    domains = value.get("domains", [])
+    apps = value.get("apps", [])
+    if not isinstance(domains, list) or not isinstance(apps, list):
+        if strict:
+            raise ValueError("Routing domains and apps must be lists")
+        return default_routing_policy()
+    if len(domains) > 256 or len(apps) > 256:
+        if strict:
+            raise ValueError("Routing lists are limited to 256 entries each")
+        return default_routing_policy()
+    try:
+        clean_domains = list(dict.fromkeys(normalize_domain(item) for item in domains))
+        clean_apps = list(dict.fromkeys(normalize_app(item) for item in apps))
+    except (TypeError, ValueError):
+        if strict:
+            raise
+        return default_routing_policy()
+    return {"version": 1, "mode": mode, "domains": clean_domains, "apps": clean_apps}
+
+
+def encode_routing_policy(value):
+    policy = normalize_routing_policy(value)
+    raw = json.dumps(policy, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def decode_routing_policy(value):
+    raw = (value or "").strip()
+    if not raw or len(raw) > 32768 or not re.fullmatch(r"[A-Za-z0-9_-]+", raw):
+        raise ValueError("Invalid encoded routing policy")
+    try:
+        decoded = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
+        return normalize_routing_policy(json.loads(decoded.decode("utf-8")))
+    except (TypeError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError("Invalid encoded routing policy") from exc
 
 
 def stable_id(text):
@@ -171,62 +246,6 @@ def clean_name(name, fallback):
     name = re.sub(r"[\r\n\t]+", " ", name)
     name = re.sub(r"\s{2,}", " ", name)
     return name[:80] or fallback
-
-
-def normalize_bypass_target(value):
-    raw = (value or "").strip()
-    if not raw or len(raw) > 2048 or any(char in raw for char in "\r\n\0"):
-        raise ValueError("Enter a valid website, domain, IP address, or CIDR")
-    try:
-        network = ipaddress.ip_network(raw, strict=False)
-    except ValueError:
-        pass
-    else:
-        return "ips", str(network)
-
-    parsed_input = raw if "://" in raw else "//" + raw
-    try:
-        parsed = urllib.parse.urlsplit(parsed_input)
-    except ValueError as error:
-        raise ValueError("Invalid website or domain") from error
-    host = parsed.hostname
-    if not host:
-        raise ValueError("The website must contain a hostname")
-    host = host.rstrip(".")
-    if host.startswith("*."):
-        host = host[2:]
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        pass
-    else:
-        return "ips", str(address)
-    try:
-        domain = host.encode("idna").decode("ascii").lower()
-    except UnicodeError as error:
-        raise ValueError("Invalid international domain name") from error
-    labels = domain.split(".")
-    if len(domain) > 253 or any(not label or len(label) > 63 for label in labels):
-        raise ValueError("Invalid domain name")
-    if any(
-        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
-        for label in labels
-    ):
-        raise ValueError("Invalid domain name")
-    return "domains", domain
-
-
-def normalize_bypass_process(value):
-    process = (value or "").strip()
-    if not process or any(char in process for char in "\r\n\0"):
-        raise ValueError("Enter a process name or absolute executable path")
-    if len(process) > 512:
-        raise ValueError("Process matcher is too long")
-    if "/" in process and not process.startswith("/"):
-        raise ValueError("Executable paths must be absolute")
-    if process in {"/", ".", ".."}:
-        raise ValueError("Invalid process matcher")
-    return process
 
 
 def vmess_payload(uri):
@@ -307,6 +326,22 @@ def node_name(uri, index=0):
         return f"Proxy {index + 1}"
 
 
+def is_subscription_notice(uri):
+    """Recognize provider quota/expiry announcements encoded as fake proxy links."""
+    name = node_name(uri).casefold()
+    if any(text in name for text in (
+        "جهت تمدید", "تمدید اشتراک", "حجم اشتراک", "پایان رسیده",
+        "subscription expired", "renew subscription",
+    )):
+        return True
+    signals = (
+        bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:gb|tb|gib|tib)\b", name)),
+        bool(re.search(r"\b\d+\s*(?:day|days)\b", name)),
+        any(text in name for text in ("traffic", "remaining", "expires", "expire")),
+    )
+    return sum(signals) >= 2
+
+
 def make_unique_name(base, existing):
     if base not in existing:
         return base
@@ -372,6 +407,8 @@ def add_or_replace_nodes(store, uris, source=None):
     added = 0
     for i, uri in enumerate(uris):
         uri = uri.strip()
+        if source and is_subscription_notice(uri):
+            continue
         nid = stable_id(uri)
         if nid in known_ids:
             continue
@@ -568,7 +605,33 @@ def outbound_from_uri(uri):
     raise ValueError("Unsupported URI. Supported: vless:// vmess:// trojan:// ss://")
 
 
-def xray_config(uri, server_ip=None):
+def routing_rules(policy):
+    policy = normalize_routing_policy(policy)
+    rules = [{"type": "field", "ip": PRIVATE_NETWORKS, "outboundTag": "direct"}]
+    target = "direct" if policy["mode"] == "bypass" else "proxy"
+    if policy["mode"] in ("bypass", "only"):
+        if policy["domains"]:
+            domains = []
+            ips = []
+            for value in policy["domains"]:
+                try:
+                    ipaddress.ip_address(value)
+                    ips.append(value)
+                except ValueError:
+                    domains.append("domain:" + value)
+            if domains:
+                rules.append({"type": "field", "domain": domains, "outboundTag": target})
+            if ips:
+                rules.append({"type": "field", "ip": ips, "outboundTag": target})
+        if policy["apps"]:
+            rules.append({"type": "field", "process": policy["apps"], "outboundTag": target})
+    if policy["mode"] == "only":
+        rules.append({"type": "field", "network": "tcp,udp", "outboundTag": "direct"})
+    return rules
+
+
+def xray_config(uri, server_ip=None, routing=None, platform=None):
+    policy = normalize_routing_policy(routing)
     proxy = outbound_from_uri(uri)
     # Pin the endpoint resolved before TUN starts. TLS SNI / WS Host still use
     # the original hostname. This avoids resolving the server through itself.
@@ -577,21 +640,28 @@ def xray_config(uri, server_ip=None):
         endpoints = settings.get("vnext") or settings.get("servers")
         endpoints[0]["address"] = server_ip
     direct = {"tag": "direct", "protocol": "freedom"}
+    platform = platform or ("windows" if os.name == "nt" else "linux")
     interface = os.environ.get("WPROXY_OUT_IFACE", "").strip()
-    if interface:
+    if interface and platform != "windows":
         if interface == "wproxy0" or not re.fullmatch(r"[a-zA-Z0-9_.:-]{1,15}", interface):
             raise ValueError("Invalid physical outbound interface")
         for outbound in (proxy, direct):
             outbound.setdefault("streamSettings", {}).setdefault("sockopt", {})["interface"] = interface
+    tun_settings = {"name": "wproxy0", "MTU": 1500}
+    if platform == "windows":
+        tun_settings = {
+            "name": "wproxy", "desc": "WProxy", "mtu": 1500,
+            "gateway": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
+            "dns": ["1.1.1.1", "8.8.8.8"],
+            "autoSystemRoutingTable": ["0.0.0.0/0", "::/0"],
+            "autoOutboundsInterface": "auto",
+        }
     return {
         "log": {"loglevel": "warning"},
         "inbounds": [{
             "tag": "tun-in",
             "protocol": "tun",
-            "settings": {
-                "name": "wproxy0",
-                "MTU": 1500
-            },
+            "settings": tun_settings,
             "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"]}
         }],
         "outbounds": [
@@ -601,9 +671,7 @@ def xray_config(uri, server_ip=None):
         ],
         "routing": {
             "domainStrategy": "AsIs",
-            "rules": [
-                {"type": "field", "ip": ["10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7", "fe80::/10"], "outboundTag": "direct"}
-            ]
+            "rules": routing_rules(policy)
         }
     }
 
@@ -634,16 +702,16 @@ def escape_keyfile_value(value):
     return value.replace("\\", "\\\\").replace("\n", "").replace("\r", "")
 
 
-def nm_keyfile(node):
-    u = original_user()
+def nm_keyfile(node, routing=None):
     cid = PREFIX + node["name"]
     cuuid = deterministic_uuid(node["id"])
     uri = escape_keyfile_value(node["uri"])
-    return f"""[connection]\nid={cid}\nuuid={cuuid}\ntype=vpn\nautoconnect=false\n\n[vpn]\nservice-type={SERVICE}\nuser-name={uri}\nuri={uri}\nwproxy-version=2.3.1\nnode-id={node['id']}\npersistent=false\n\n[ipv4]\nmethod=auto\nnever-default=false\n\n[ipv6]\nmethod=auto\nnever-default=false\n"""
+    routing64 = encode_routing_policy(routing)
+    return f"""[connection]\nid={cid}\nuuid={cuuid}\ntype=vpn\nautoconnect=false\n\n[vpn]\nservice-type={SERVICE}\nuser-name={uri}\nuri={uri}\nrouting64={routing64}\nwproxy-version={VERSION}\nnode-id={node['id']}\npersistent=false\n\n[ipv4]\nmethod=auto\nnever-default=false\n\n[ipv6]\nmethod=auto\nnever-default=false\n"""
 
 
 def require_root():
-    if os.geteuid() != 0:
+    if not _is_root():
         print("This command changes NetworkManager system connections. Run: sudo wproxyctl nm sync", file=sys.stderr)
         sys.exit(4)
 
@@ -652,37 +720,159 @@ def run(cmd, check=False, capture=False):
     return subprocess.run(cmd, check=check, text=True, capture_output=capture)
 
 
-def loaded_wproxy_uuids():
-    result = set()
+def windows_runtime_home():
+    base = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData/Local"))
+    return base / "WProxy" / "run"
+
+
+def find_windows_xray():
+    configured = os.environ.get("XRAY_BIN")
+    candidates = [
+        configured,
+        shutil.which("xray.exe"),
+        Path(__file__).resolve().parents[1] / "windows/bin/xray.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/WProxy/bin/xray.exe",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return str(Path(candidate))
+    raise RuntimeError("xray.exe was not found. Put the official Xray Windows files in windows\\bin or add xray.exe to PATH")
+
+
+def require_windows_admin():
+    if os.name != "nt":
+        raise RuntimeError("The windows command is only available on Windows")
+    import ctypes
+    if not ctypes.windll.shell32.IsUserAnAdmin():
+        raise RuntimeError("Administrator permission is required to create or stop the Windows TUN adapter")
+
+
+def resolve_server_ip(uri):
+    host, port = endpoint_from_uri(uri)
+    if not host or not port:
+        raise ValueError("The selected server has no valid endpoint")
+    try:
+        answers = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise RuntimeError(f"Could not resolve the selected server: {exc}") from exc
+    answers.sort(key=lambda entry: entry[0] != socket.AF_INET)
+    if not answers:
+        raise RuntimeError("No address was found for the selected server")
+    return answers[0][4][0]
+
+
+def windows_process_is_xray(pid):
+    if os.name != "nt" or not isinstance(pid, int) or pid <= 0:
+        return False
+    result = run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        return False
+    try:
+        row = next(csv.reader([result.stdout.splitlines()[0]]))
+    except (csv.Error, StopIteration):
+        return False
+    return bool(row and row[0].lower() == "xray.exe")
+
+
+def windows_state():
+    runtime = windows_runtime_home()
+    pid_file = runtime / "xray.pid"
+    state_file = runtime / "state.json"
+    try:
+        pid = int(pid_file.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return {"active": False, "node_id": None, "name": None}
+    if not windows_process_is_xray(pid):
+        return {"active": False, "node_id": None, "name": None}
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        state = {}
+    return {"active": True, "node_id": state.get("node_id"), "name": state.get("name")}
+
+
+def windows_down():
+    require_windows_admin()
+    runtime = windows_runtime_home()
+    pid_file = runtime / "xray.pid"
+    try:
+        pid = int(pid_file.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        pid = None
+    if pid and windows_process_is_xray(pid):
+        result = run(["taskkill", "/PID", str(pid), "/T", "/F"], capture=True)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Could not stop Xray")
+    for name in ("xray.pid", "state.json", "xray.json"):
+        try:
+            (runtime / name).unlink()
+        except FileNotFoundError:
+            pass
+
+
+def windows_up(store, node_id):
+    require_windows_admin()
+    node = next((item for item in store["nodes"] if item["id"] == node_id), None)
+    if not node:
+        raise ValueError("Unknown node id")
+    windows_down()
+    runtime = windows_runtime_home()
+    runtime.mkdir(parents=True, exist_ok=True)
+    config_path = runtime / "xray.json"
+    log_path = runtime / "xray.log"
+    config = xray_config(
+        node["uri"], resolve_server_ip(node["uri"]), store.get("routing"), platform="windows"
+    )
+    config_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    xray = find_windows_xray()
+    check = run([xray, "run", "-test", "-c", str(config_path)], capture=True)
+    if check.returncode != 0:
+        raise RuntimeError(check.stderr.strip() or check.stdout.strip() or "Xray rejected the generated Windows configuration")
+    flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    with log_path.open("w", encoding="utf-8") as log:
+        process = subprocess.Popen(
+            [xray, "run", "-c", str(config_path)],
+            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+            creationflags=flags, close_fds=True,
+        )
+    time.sleep(1.0)
+    if process.poll() is not None:
+        raise RuntimeError("Xray exited while starting the Windows tunnel; check %LOCALAPPDATA%\\WProxy\\run\\xray.log")
+    (runtime / "xray.pid").write_text(str(process.pid) + "\n", encoding="ascii")
+    (runtime / "state.json").write_text(json.dumps({
+        "node_id": node["id"], "name": node["name"]
+    }, ensure_ascii=False), encoding="utf-8")
+
+
+def node_id_from_nm_data(value):
+    match = re.search(r"(?:^|,\s*)node-id\s*=\s*([0-9a-f]+)(?:,|$)", value or "", re.I)
+    return match.group(1).lower() if match else None
+
+
+def loaded_owned_wproxy_uuids():
+    """Return loaded profiles generated for original_user(), never another user's."""
     listing = run(["nmcli", "-t", "-f", "UUID,TYPE", "connection", "show"], capture=True)
     if listing.returncode != 0:
         raise RuntimeError(listing.stderr.strip() or "Could not list NetworkManager connections")
+    owned = []
     for line in listing.stdout.splitlines():
-        cuuid, separator, connection_type = line.partition(":")
+        uuid_text, separator, connection_type = line.partition(":")
         if not separator or connection_type != "vpn":
             continue
-        details = run(["nmcli", "-g", "vpn.service-type,connection.id",
-                       "connection", "show", "uuid", cuuid], capture=True)
-        if details.returncode != 0:
+        service = run([
+            "nmcli", "-g", "vpn.service-type", "connection", "show", "uuid", uuid_text
+        ], capture=True)
+        if service.returncode != 0 or service.stdout.strip() != SERVICE:
             continue
-        values = details.stdout.splitlines()
-        if SERVICE in values or any(value.startswith(PREFIX) for value in values):
-            result.add(cuuid)
-    return result
-
-
-def remove_nm_tombstone(conn_dir, cuuid):
-    metadata = conn_dir / f"{cuuid}.nmmeta"
-    if not metadata.is_symlink():
-        return False
-    try:
-        target = os.readlink(metadata)
-    except OSError:
-        return False
-    if target != "/dev/null":
-        return False
-    metadata.unlink()
-    return True
+        data = run([
+            "nmcli", "-g", "vpn.data", "connection", "show", "uuid", uuid_text
+        ], capture=True)
+        if data.returncode != 0:
+            continue
+        node_id = node_id_from_nm_data(data.stdout)
+        if node_id and deterministic_uuid(node_id) == uuid_text:
+            owned.append(uuid_text)
+    return owned
 
 
 def nm_sync(store):
@@ -690,22 +880,17 @@ def nm_sync(store):
     conn_dir = Path("/etc/NetworkManager/system-connections")
     conn_dir.mkdir(parents=True, exist_ok=True)
     uid = original_user().pw_uid
-    wanted_names = set()
+    wanted = set()
     wanted_uuids = set()
-    profiles = []
-    existing_uuids = loaded_wproxy_uuids()
-
     for node in store["nodes"]:
         fn = conn_dir / f"wproxy-{uid}-{node['id']}.nmconnection"
-        cuuid = deterministic_uuid(node["id"])
-        wanted_names.add(fn.name)
-        wanted_uuids.add(cuuid)
-        profiles.append((fn, cuuid))
-        fn.write_text(nm_keyfile(node), encoding="utf-8")
+        wanted.add(fn.name)
+        wanted_uuids.add(deterministic_uuid(node["id"]))
+        fn.write_text(nm_keyfile(node, store.get("routing")), encoding="utf-8")
         os.chmod(fn, 0o600)
-
+        print(f"Synced {node['name']}")
     for old in conn_dir.glob(f"wproxy-{uid}-*.nmconnection"):
-        if old.name not in wanted_names:
+        if old.name not in wanted:
             old.unlink(missing_ok=True)
             print(f"Removed stale {old.name}")
     # Remove legacy profiles created by WProxy 1.0 if they contain our service marker.
@@ -717,58 +902,34 @@ def nm_sync(store):
                 old.unlink(missing_ok=True)
         except OSError:
             pass
-    # Deleting keyfiles alone does not evict their in-memory NetworkManager
-    # connections. Remove stale UUIDs explicitly so GNOME Settings cannot keep
-    # showing profiles that were removed from WProxy.
-    for cuuid in sorted(existing_uuids - wanted_uuids):
-        deleted = run(["nmcli", "connection", "delete", "uuid", cuuid], capture=True)
-        if deleted.returncode != 0:
-            raise RuntimeError(deleted.stderr.strip() or deleted.stdout.strip()
-                               or "Could not delete stale WProxy profile")
-        print(f"Removed stale NetworkManager profile {cuuid}")
-
-    for cuuid in sorted(wanted_uuids):
-        if remove_nm_tombstone(conn_dir, cuuid):
-            print(f"Removed NetworkManager deletion marker {cuuid}")
-
-    # Reload existing profiles in one NetworkManager transaction. Repeatedly
-    # loading and then modifying unchanged profiles can trip daemon assertions.
     reloaded = run(["nmcli", "connection", "reload"], capture=True)
     if reloaded.returncode != 0:
-        raise RuntimeError(reloaded.stderr.strip()
-                           or "Could not reload NetworkManager connections")
-
-    actual_uuids = loaded_wproxy_uuids()
-    missing_files = [
-        str(fn)
-        for fn, cuuid in profiles
-        if cuuid not in actual_uuids
-    ]
-    if missing_files:
-        loaded = run(["nmcli", "connection", "load", *missing_files], capture=True)
-        if loaded.returncode != 0:
-            raise RuntimeError(loaded.stderr.strip() or loaded.stdout.strip()
-                               or "Could not load new WProxy profiles")
-        actual_uuids = loaded_wproxy_uuids()
-
-    if actual_uuids != wanted_uuids:
-        raise RuntimeError(
-            "NetworkManager profile reconciliation failed: expected "
-            f"{len(wanted_uuids)}, loaded {len(actual_uuids)}")
-
-    # Generated keyfiles have no per-user ACL, so they must stay system-wide.
-    # Keeping ACL repair in the keyfile avoids a second mutation transaction.
-    for cuuid in sorted(wanted_uuids):
-        permissions = run(["nmcli", "-g", "connection.permissions",
-                           "connection", "show", "uuid", cuuid], capture=True)
-        if permissions.returncode != 0:
-            raise RuntimeError(permissions.stderr.strip()
-                               or "Could not verify WProxy profile permissions")
-        if permissions.stdout.strip():
-            raise RuntimeError(f"WProxy profile {cuuid} is not system-wide")
-
+        raise RuntimeError(reloaded.stderr.strip() or "NetworkManager reload failed")
+    # Removing a keyfile does not always remove its already-loaded connection.
+    # Delete only profiles whose deterministic UUID proves they belong to this
+    # user's WProxy store; unrelated VPNs and another user's WProxy stay intact.
+    for cuuid in loaded_owned_wproxy_uuids():
+        if cuuid in wanted_uuids:
+            continue
+        deleted = run([
+            "nmcli", "connection", "delete", "uuid", cuuid
+        ], capture=True)
+        if deleted.returncode != 0:
+            raise RuntimeError(deleted.stderr.strip() or f"Could not remove stale WProxy profile {cuuid}")
+        print(f"Removed stale NetworkManager profile {cuuid}")
+    # WProxy VPN service does not support NetworkManager private/user-only
+    # connections. Keep every generated profile system-wide. This also
+    # repairs profiles created by WProxy <= 2.2.3.
     for node in store["nodes"]:
-        print(f"Synced {node['name']}")
+        cuuid = deterministic_uuid(node["id"])
+        modified = run([
+            "nmcli", "connection", "modify", "uuid", cuuid, "connection.permissions", ""
+        ], capture=True)
+        if modified.returncode != 0:
+            raise RuntimeError(modified.stderr.strip() or f"Could not update WProxy profile {cuuid}")
+    reloaded = run(["nmcli", "connection", "reload"], capture=True)
+    if reloaded.returncode != 0:
+        raise RuntimeError(reloaded.stderr.strip() or "NetworkManager reload failed")
 
 
 def active_wproxy_names():
@@ -822,6 +983,7 @@ def status_json(store):
         "node_id": active_node.get("id") if active_node else None,
         "nodes": len(store["nodes"]),
         "subscriptions": len(store["subs"]),
+        "routing_mode": normalize_routing_policy(store.get("routing"))["mode"],
     }
 
 
@@ -959,9 +1121,48 @@ def cmd_node(args, store):
                 print(f"{r['id']}  {r['name']}  {r['latency_ms'] if r['latency_ms'] is not None else 'timeout'}")
 
 
+def cmd_routing(args, store):
+    policy = normalize_routing_policy(store.get("routing"))
+    if args.action == "show":
+        if args.json:
+            print(json.dumps(policy, ensure_ascii=False))
+        else:
+            print(f"mode: {policy['mode']}")
+            print("domains:")
+            for value in policy["domains"]:
+                print(f"  {value}")
+            print("apps:")
+            for value in policy["apps"]:
+                print(f"  {value}")
+        return
+    if args.action == "mode":
+        policy["mode"] = args.mode
+    elif args.action in ("domain", "app"):
+        key = "domains" if args.action == "domain" else "apps"
+        normalizer = normalize_domain if args.action == "domain" else normalize_app
+        if args.operation == "list":
+            if args.json:
+                print(json.dumps(policy[key], ensure_ascii=False))
+            else:
+                for value in policy[key]:
+                    print(value)
+            return
+        if args.operation == "clear":
+            policy[key] = []
+        else:
+            value = normalizer(args.value)
+            if args.operation == "add" and value not in policy[key]:
+                policy[key].append(value)
+            elif args.operation == "remove":
+                policy[key] = [item for item in policy[key] if item != value]
+    store["routing"] = normalize_routing_policy(policy)
+    save_store(store)
+    print(json.dumps(store["routing"], ensure_ascii=False))
+
+
 def build_parser():
-    p = argparse.ArgumentParser(prog="wproxyctl", description="WProxy configuration and NetworkManager controller")
-    p.add_argument("--version", action="version", version="WProxy 2.3.1")
+    p = argparse.ArgumentParser(prog="wproxyctl", description="WProxy configuration and Xray/NetworkManager controller")
+    p.add_argument("--version", action="version", version=f"WProxy {VERSION}")
     sp = p.add_subparsers(dest="cmd", required=True)
 
     ps = sp.add_parser("sub")
@@ -979,15 +1180,33 @@ def build_parser():
     a = ns.add_parser("rename"); a.add_argument("id"); a.add_argument("name")
     a = ns.add_parser("ping"); a.add_argument("id", nargs="?"); a.add_argument("--all", action="store_true"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0)
 
+    pr = sp.add_parser("routing")
+    rs = pr.add_subparsers(dest="action", required=True)
+    a = rs.add_parser("show"); a.add_argument("--json", action="store_true")
+    a = rs.add_parser("mode"); a.add_argument("mode", choices=ROUTING_MODES)
+    for kind in ("domain", "app"):
+        a = rs.add_parser(kind)
+        a.add_argument("operation", choices=("add", "remove", "list", "clear"))
+        a.add_argument("value", nargs="?")
+        a.add_argument("--json", action="store_true")
+
     pm = sp.add_parser("nm")
     ms = pm.add_subparsers(dest="action", required=True)
     ms.add_parser("sync")
     a = ms.add_parser("up"); a.add_argument("id")
     ms.add_parser("down")
 
+    pw = sp.add_parser("windows")
+    ws = pw.add_subparsers(dest="action", required=True)
+    a = ws.add_parser("up"); a.add_argument("id")
+    ws.add_parser("down")
+    a = ws.add_parser("status"); a.add_argument("--json", action="store_true")
+
     a = sp.add_parser("status"); a.add_argument("--json", action="store_true")
     a = sp.add_parser("render"); a.add_argument("uri"); a.add_argument("--output", "-o")
     a.add_argument('--gateway-output')
+    a.add_argument('--routing-file')
+    a.add_argument('--platform', choices=("linux", "windows"))
     return p
 
 
@@ -999,10 +1218,23 @@ def main():
             cmd_sub(args, store)
         elif args.cmd == "node":
             cmd_node(args, store)
+        elif args.cmd == "routing":
+            if args.action in ("domain", "app") and args.operation in ("add", "remove") and not args.value:
+                raise ValueError("A domain or application value is required")
+            cmd_routing(args, store)
         elif args.cmd == "nm":
             if args.action == "sync": nm_sync(store)
             elif args.action == "up": nm_up(store, args.id)
             elif args.action == "down": sys.exit(0 if nm_down() else 1)
+        elif args.cmd == "windows":
+            if args.action == "up": windows_up(store, args.id)
+            elif args.action == "down": windows_down()
+            elif args.action == "status":
+                data = windows_state()
+                if args.json:
+                    print(json.dumps(data, ensure_ascii=False))
+                else:
+                    print("connected" if data["active"] else "disconnected", data.get("name") or "")
         elif args.cmd == "status":
             data = status_json(store)
             if args.json: print(json.dumps(data, ensure_ascii=False))
@@ -1011,7 +1243,10 @@ def main():
             server_ip = None
             if args.gateway_output:
                 server_ip = write_gateway_metadata(args.uri, args.gateway_output)
-            cfg = json.dumps(xray_config(args.uri, server_ip), indent=2, ensure_ascii=False) + "\n"
+            routing = default_routing_policy()
+            if args.routing_file:
+                routing = decode_routing_policy(Path(args.routing_file).read_text(encoding="ascii"))
+            cfg = json.dumps(xray_config(args.uri, server_ip, routing, args.platform), indent=2, ensure_ascii=False) + "\n"
             if args.output:
                 Path(args.output).write_text(cfg, encoding="utf-8")
             else:

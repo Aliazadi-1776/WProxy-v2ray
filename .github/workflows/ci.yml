@@ -17,3 +17,18 @@ jobs:
           ./validate-plugin ./libnm-vpn-plugin-wproxy.so
       - name: Unit, syntax and release checks
         run: make test
+  windows-source:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Shared parser and routing tests
+        run: python -m unittest tests/test_routing.py -v
+      - name: Parse PowerShell frontends
+        shell: powershell
+        run: |
+          Get-ChildItem windows -Filter *.ps1 | ForEach-Object {
+            [void][ScriptBlock]::Create((Get-Content $_.FullName -Raw))
+          }

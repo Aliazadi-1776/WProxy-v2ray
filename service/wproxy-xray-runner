@@ -6,6 +6,7 @@ RUNNER_PID="$RUNTIME/runner.pid"
 XRAY_PID="$RUNTIME/xray.pid"
 READY="$RUNTIME/ready"
 CONFIG="$RUNTIME/xray.json"
+ROUTING_FILE="$RUNTIME/routing64"
 GATEWAY="$RUNTIME/gateway"
 LOG="$RUNTIME/xray.log"
 IFACE=wproxy0
@@ -113,22 +114,15 @@ configure_tun() {
         awk '/inet 172\.19\.0\.1\/30 / { ready=1 } END { exit !ready }'
 }
 
-remove_stale_tun() {
-    command -v ip >/dev/null 2>&1 || return 0
-    if ip link show dev "$IFACE" >/dev/null 2>&1; then
-        if ! ip link delete dev "$IFACE" >/dev/null 2>&1; then
-            ip link show dev "$IFACE" >/dev/null 2>&1 && return 1
-        fi
-    fi
-    return 0
-}
-
-
 render_and_test() {
     URI=$1
     umask 077
     detect_outbound_iface
-    "$CTL" render "$URI" -o "$CONFIG" --gateway-output "$GATEWAY"
+    if [ -s "$ROUTING_FILE" ]; then
+        "$CTL" render "$URI" -o "$CONFIG" --gateway-output "$GATEWAY" --routing-file "$ROUTING_FILE"
+    else
+        "$CTL" render "$URI" -o "$CONFIG" --gateway-output "$GATEWAY"
+    fi
     if ! "$XRAY_BIN" run -test -c "$CONFIG" >"$RUNTIME/test.log" 2>&1; then
         cat "$RUNTIME/test.log" >&2 || true
         echo "Xray rejected the generated configuration." >&2
@@ -152,30 +146,38 @@ cleanup() {
                 i=$((i + 1))
             done
             kill -9 "$XPID" 2>/dev/null || true
-            wait "$XPID" 2>/dev/null || true
         fi
     fi
-    # RUNNER_PID is the lifecycle guard. Remove it last so a new activation
-    # cannot start until old runtime files and the TUN device are gone.
-    remove_stale_tun || true
-    rm -f "$XRAY_PID" "$CONFIG" "$GATEWAY"
-    rm -f "$RUNNER_PID"
+    rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$ROUTING_FILE" "$GATEWAY"
+}
+
+prepare_routing() {
+    ROUTING64=${WPROXY_ROUTING64:-}
+    unset WPROXY_ROUTING64 2>/dev/null || true
+    rm -f "$ROUTING_FILE"
+    if [ -n "$ROUTING64" ]; then
+        umask 077
+        printf '%s\n' "$ROUTING64" > "$ROUTING_FILE"
+        chmod 600 "$ROUTING_FILE"
+    fi
 }
 
 case "${1:-}" in
   check)
     URI=${WPROXY_URI:-${2:-}}
     unset WPROXY_URI 2>/dev/null || true
+    prepare_routing
     [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
     need_root
     need_runtime
     render_and_test "$URI"
-    rm -f "$CONFIG"
+    rm -f "$CONFIG" "$ROUTING_FILE"
     ;;
 
   start)
     URI=${WPROXY_URI:-${2:-}}
     unset WPROXY_URI 2>/dev/null || true
+    prepare_routing
     [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
     need_root
     need_runtime
@@ -189,11 +191,6 @@ case "${1:-}" in
             exit 73
         fi
         rm -f "$RUNNER_PID"
-    fi
-
-    if ! remove_stale_tun; then
-        echo "Could not remove stale $IFACE before activation." >&2
-        exit 78
     fi
 
     render_and_test "$URI"

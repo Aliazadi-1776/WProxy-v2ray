@@ -18,6 +18,8 @@ xray.json
 gateway
 *.log
 verification.txt
+windows/bin/*
+!windows/bin/README.md
 *.pid
 
 # Release artifacts and local editor files

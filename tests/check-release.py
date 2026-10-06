@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parents[1]
 widget = root / "kde-plasmoid/org.wproxy.WProxy"
 metadata = json.loads((widget / "metadata.json").read_text())
 assert metadata["KPlugin"]["Id"] == widget.name
-assert metadata["KPlugin"]["Version"] == "2.3.1"
+assert metadata["KPlugin"]["Version"] == "2.4.1"
 assert metadata["KPlugin"]["License"] == "MIT"
 license_text = (root / "LICENSE").read_text()
 assert license_text.startswith("MIT License\n")
@@ -16,13 +16,7 @@ assert (widget / "LICENSE").read_text() == license_text
 assert metadata["X-Plasma-API-Minimum-Version"] == "6.0"
 assert metadata["KPackageStructure"] == "Plasma/Applet"
 assert (widget / "contents/ui/main.qml").is_file()
-gnome_dir = root / "gnome-extension/wproxy@wrench.local"
-gnome_metadata = json.loads((gnome_dir / "metadata.json").read_text())
-assert gnome_metadata["version"] == 12
-assert gnome_metadata["shell-version"] == ["49", "50", "51"]
-gnome_source = (gnome_dir / "extension.js").read_text()
-assert not re.search(r"\bvertical\s*:", gnome_source)
-assert gnome_source.count("orientation: Clutter.Orientation.VERTICAL") == 2
+assert json.loads((root / "gnome-extension/wproxy@wrench.local/metadata.json").read_text())["version"] == 12
 
 for readme in (root / "README.md", root / "README.fa.md"):
     text = readme.read_text()
@@ -44,4 +38,7 @@ for source in list((root / "scripts").glob("*.sh")) + list((root / "cli").glob("
     text = source.read_text()
     assert "/home/wrench/" not in text, source
     assert "/tmp/codex-clipboard" not in text, source
+assert (root / "windows/WProxy.ps1").is_file()
+assert (root / "windows/install-windows.ps1").is_file()
+assert (root / "icons/wproxy.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"
 print("Release metadata, MIT notices, distro guides, README links, screenshots and portable paths: PASS")

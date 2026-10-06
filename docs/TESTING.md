@@ -1,5 +1,11 @@
 # Test coverage
 
+## 2.4.1 routing, desktop hotfixes and Windows source
+
+Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN-route fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
+
+Windows GitHub Actions compile the shared Python code, run routing tests and parse each PowerShell file as a script block. That is static/logic evidence only. A real Windows TUN, UAC, tray, route, DNS and HTTPS connection test is still pending and the README labels Windows experimental.
+
 ## 2.3.1 transport correction
 
 See [connection-fix evidence](CONNECTION-FIX-2.3.1.md) for the 2026-09-24 controlled comparison and real proxy HTTPS/YouTube checks. The wire regression uses a loopback fake server and the installed Xray core to assert that a WebSocket Upgrade is actually sent. It is explicitly skipped when Xray is absent. These results must not be described as full-system TUN or video-playback verification.
@@ -14,15 +20,13 @@ The 2.2.10 host report dated 2026-09-22 recorded:
 - Route lookup through `wproxy0`: **PASS**.
 - HTTPS through the system tunnel: **PASS (204)**.
 
-Version 2.3.1 retains this TUN algorithm. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
+Version 2.4.1 retains this Linux TUN algorithm and adds routing rules before the existing default behavior. It also regression-tests GNOME 51 layout properties, announcement filtering and ownership-safe stale-profile selection. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
 
 Automated C/Python tests cover profile lookup, NetworkManager gateway/IP/default-route encoding, compatibility with Xray 26.3.27's TUN fields, outbound-interface binding, endpoint pinning/SNI, gateway-file permissions, and explicit interface/address setup failures. `make test` also checks JavaScript/shell syntax, KDE command quoting and repository assets.
 
 Release checks additionally parse every README Bash example without executing it, compare dependency commands between the English/Persian guides, and build temporary source/widget archives to verify MIT notices, screenshots and exclusion of generated data. These checks do not run APT, pacman, DNF or Zypper and do not certify installation on other distributions. Arch-family, Fedora and openSUSE recipes remain untested end to end.
 
-The extension metadata and installer tests cover exactly GNOME Shell 49, 50 and 51. They also reject the removed `St.Widget.vertical` property. The replacement `Clutter.Orientation.VERTICAL`, `QuickMenuToggle`, `SystemIndicator`, `setHeader()` and `quickSettingsItems` contracts were checked against the GNOME 49/50 upstream sources and the installed GNOME 51 source resource.
-
-An isolated GNOME Shell 51.0 test covers 0/1/4/5/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks four-row allocation, creation of every server row, mouse-wheel and smooth-touchpad scrolling, the last row, retained scroll position and fixed controls. It does not model every physical-device tile or theme.
+An isolated GNOME Shell 51 test covers 0/1/3/4/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks construction with GNOME 51's orientation API, three-row allocation, the last row, retained scroll position and fixed Ping/Update/Manager controls. It does not model every physical-device tile or theme.
 
 ## KDE
 

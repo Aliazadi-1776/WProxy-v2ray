@@ -27,6 +27,7 @@ typedef struct {
     GMainLoop *loop;
     GDBusConnection *bus;
     gchar *uri;
+    gchar *routing64;
     GPid child;
     guint state;
     guint ready_source;
@@ -229,8 +230,22 @@ static gboolean is_supported_uri(const gchar *value) {
         g_str_has_prefix(value, "ss://"));
 }
 
-static gchar *lookup_uri_in_profile_dir(const gchar *directory,
-                                        const gchar *wanted_uuid) {
+static gboolean is_supported_routing(const gchar *value) {
+    if (!value)
+        return FALSE;
+    gsize length = strlen(value);
+    if (length == 0 || length > 32768)
+        return FALSE;
+    for (gsize i = 0; i < length; i++) {
+        if (!(g_ascii_isalnum(value[i]) || value[i] == '_' || value[i] == '-'))
+            return FALSE;
+    }
+    return TRUE;
+}
+
+static gchar *lookup_profile_value_in_profile_dir(const gchar *directory,
+                                                  const gchar *wanted_uuid,
+                                                  const gchar *key) {
     if (!directory || !wanted_uuid || !*wanted_uuid)
         return NULL;
 
@@ -258,14 +273,14 @@ static gchar *lookup_uri_in_profile_dir(const gchar *directory,
         gchar *profile_uuid = g_key_file_get_string(
             keyfile, "connection", "uuid", NULL);
         if (g_strcmp0(profile_uuid, wanted_uuid) == 0) {
-            gchar *candidate = g_key_file_get_string(
-                keyfile, "vpn", "uri", NULL);
-            if (!is_supported_uri(candidate)) {
+            gchar *candidate = g_key_file_get_string(keyfile, "vpn", key, NULL);
+            if (g_strcmp0(key, "uri") == 0 && !is_supported_uri(candidate)) {
                 g_clear_pointer(&candidate, g_free);
                 candidate = g_key_file_get_string(
                     keyfile, "vpn", "user-name", NULL);
             }
-            if (is_supported_uri(candidate))
+            if ((g_strcmp0(key, "uri") == 0 && is_supported_uri(candidate)) ||
+                (g_strcmp0(key, "routing64") == 0 && is_supported_routing(candidate)))
                 result = g_steal_pointer(&candidate);
             g_free(candidate);
         }
@@ -279,6 +294,11 @@ static gchar *lookup_uri_in_profile_dir(const gchar *directory,
     return result;
 }
 
+static gchar *lookup_uri_in_profile_dir(const gchar *directory,
+                                        const gchar *wanted_uuid) {
+    return lookup_profile_value_in_profile_dir(directory, wanted_uuid, "uri");
+}
+
 static gchar *lookup_uri_from_profiles(const gchar *uuid) {
     gchar *uri = lookup_uri_in_profile_dir(
         WPROXY_SYSTEM_CONNECTIONS_DIR, uuid);
@@ -286,6 +306,15 @@ static gchar *lookup_uri_from_profiles(const gchar *uuid) {
         uri = lookup_uri_in_profile_dir(
             WPROXY_RUNTIME_CONNECTIONS_DIR, uuid);
     return uri;
+}
+
+static gchar *lookup_routing_from_profiles(const gchar *uuid) {
+    gchar *routing = lookup_profile_value_in_profile_dir(
+        WPROXY_SYSTEM_CONNECTIONS_DIR, uuid, "routing64");
+    if (!routing)
+        routing = lookup_profile_value_in_profile_dir(
+            WPROXY_RUNTIME_CONNECTIONS_DIR, uuid, "routing64");
+    return routing;
 }
 
 static gchar *extract_uri(GVariant *connection) {
@@ -328,6 +357,28 @@ static gchar *extract_uri(GVariant *connection) {
     if (!is_supported_uri(uri))
         g_clear_pointer(&uri, g_free);
     return uri;
+}
+
+static gchar *extract_routing(GVariant *connection) {
+    GError *error = NULL;
+    NMConnection *nm_connection = nm_simple_connection_new_from_dbus(connection, &error);
+    if (!nm_connection) {
+        g_clear_error(&error);
+        return NULL;
+    }
+    const gchar *connection_uuid = nm_connection_get_uuid(nm_connection);
+    NMSettingVpn *vpn = nm_connection_get_setting_vpn(nm_connection);
+    if (vpn) {
+        const gchar *value = nm_setting_vpn_get_data_item(vpn, "routing64");
+        if (is_supported_routing(value)) {
+            gchar *routing = g_strdup(value);
+            g_object_unref(nm_connection);
+            return routing;
+        }
+    }
+    gchar *routing = lookup_routing_from_profiles(connection_uuid);
+    g_object_unref(nm_connection);
+    return routing;
 }
 
 static void child_watch(GPid pid, gint status, gpointer user_data) {
@@ -404,6 +455,8 @@ static gboolean start_runner_async(App *app, gchar **message) {
     gchar *argv[] = { WPROXY_RUNNER_PATH, "start", NULL };
     gchar **envp = g_get_environ();
     envp = g_environ_setenv(envp, "WPROXY_URI", app->uri, TRUE);
+    if (app->routing64)
+        envp = g_environ_setenv(envp, "WPROXY_ROUTING64", app->routing64, TRUE);
     GError *error = NULL;
 
     gboolean spawned = g_spawn_async(
@@ -469,7 +522,9 @@ static void method_call(
         }
 
         g_free(app->uri);
+        g_free(app->routing64);
         app->uri = extract_uri(conn);
+        app->routing64 = extract_routing(conn);
         g_variant_unref(conn);
 
         emit_state(app, 3);
@@ -660,7 +715,7 @@ int main(int argc, char **argv) {
 
     for (int i = 1; i < argc; ++i) {
         if (g_str_equal(argv[i], "--version")) {
-            g_print("WProxy service 2.3.1\n");
+            g_print("WProxy service 2.4.1\n");
             g_free(service_name);
             return 0;
         }
@@ -698,6 +753,7 @@ int main(int argc, char **argv) {
         g_source_remove(app.ready_source);
     g_clear_object(&app.bus);
     g_free(app.uri);
+    g_free(app.routing64);
     g_free(service_name);
     g_main_loop_unref(app.loop);
     return 0;

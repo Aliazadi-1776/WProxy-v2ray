@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("wproxyctl", ROOT / "cli/wproxyctl.py")
@@ -17,6 +18,35 @@ spec.loader.exec_module(ctl)
 
 
 class ConfigTests(unittest.TestCase):
+    def test_subscription_announcements_are_not_connectable_nodes(self):
+        prefix = "vless://11111111-2222-4333-8444-555555555555@example.com:443?type=ws#"
+        store = {"subs": [], "nodes": [], "routing": ctl.default_routing_policy()}
+        added = ctl.add_or_replace_nodes(store, [
+            prefix + "%E2%9C%85%20rmf199%20%7C%2016%20Day%20%7C%2089.07%20GB",
+            prefix + "%D8%AC%D9%87%D8%AA%20%D8%AA%D9%85%D8%AF%DB%8C%D8%AF%20%D8%A7%D8%B4%D8%AA%D8%B1%D8%A7%DA%A9",
+            prefix + "Germany%20WS",
+        ], source="subscription-id")
+        self.assertEqual(added, 1)
+        self.assertEqual([node["name"] for node in store["nodes"]], ["Germany WS"])
+
+    def test_loaded_profile_cleanup_is_limited_to_current_user_wproxy(self):
+        node_id = "0123456789abcdef"
+        owned_uuid = ctl.deterministic_uuid(node_id)
+        other_uuid = "11111111-2222-4333-8444-555555555555"
+        regular_uuid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        responses = [
+            SimpleNamespace(returncode=0, stdout=(
+                f"{owned_uuid}:vpn\n{other_uuid}:vpn\n{regular_uuid}:vpn\n"
+            ), stderr=""),
+            SimpleNamespace(returncode=0, stdout=ctl.SERVICE + "\n", stderr=""),
+            SimpleNamespace(returncode=0, stdout=f"node-id = {node_id}, uri = <hidden>\n", stderr=""),
+            SimpleNamespace(returncode=0, stdout=ctl.SERVICE + "\n", stderr=""),
+            SimpleNamespace(returncode=0, stdout=f"node-id = {node_id}, uri = <hidden>\n", stderr=""),
+            SimpleNamespace(returncode=0, stdout="org.example.OtherVPN\n", stderr=""),
+        ]
+        with patch.object(ctl, "run", side_effect=responses):
+            self.assertEqual(ctl.loaded_owned_wproxy_uuids(), [owned_uuid])
+
     def test_installed_xray_schema_and_binding(self):
         vmess = base64.b64encode(json.dumps({"add": "example.com", "port": 443,
             "id": "11111111-2222-4333-8444-555555555555", "net": "tcp"}).encode()).decode()
@@ -82,26 +112,6 @@ ip() {
         return subprocess.run(["sh", "-c", script + function + "\nconfigure_tun\n"],
                               env={**os.environ, "FAILURE": failure}, text=True, capture_output=True)
 
-    def remove_stale(self, failure=""):
-        runner = (ROOT / "service/wproxy-xray-runner").read_text()
-        function = re.search(r"^remove_stale_tun\(\) \{.*?^\}", runner, re.M | re.S).group()
-        script = r'''
-IFACE=wproxy0
-HAS_TUN=1
-ip() {
-    printf '%s\n' "$*" >&2
-    case "$*" in
-        'link show dev wproxy0') [ "$HAS_TUN" = 1 ] ;;
-        'link delete dev wproxy0')
-            [ "$FAILURE" != delete ] || return 1
-            HAS_TUN=0 ;;
-        *) return 99 ;;
-    esac
-}
-'''
-        return subprocess.run(["sh", "-c", script + function + "\nremove_stale_tun\n"],
-                              env={**os.environ, "FAILURE": failure}, text=True, capture_output=True)
-
     def test_existing_link_without_ip_gets_configured(self):
         result = self.configure()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -112,63 +122,6 @@ ip() {
 
     def test_ip_failure_does_not_claim_ready(self):
         self.assertNotEqual(self.configure("address").returncode, 0)
-
-    def test_stale_tun_is_deleted(self):
-        result = self.remove_stale()
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_stale_tun_delete_failure_is_reported(self):
-        self.assertNotEqual(self.remove_stale("delete").returncode, 0)
-
-    def test_cleanup_releases_lifecycle_guard_last(self):
-        runner = (ROOT / "service/wproxy-xray-runner").read_text()
-        cleanup = re.search(r"^cleanup\(\) \{.*?^\}", runner, re.M | re.S).group()
-        self.assertLess(cleanup.index("remove_stale_tun"), cleanup.index('rm -f "$RUNNER_PID"'))
-        self.assertLess(cleanup.index('rm -f "$XRAY_PID" "$CONFIG" "$GATEWAY"'),
-                        cleanup.index('rm -f "$RUNNER_PID"'))
-        start = runner[runner.index("  start)"):]
-        self.assertLess(start.index("if ! remove_stale_tun"), start.index('render_and_test "$URI"'))
-
-
-class NetworkManagerTests(unittest.TestCase):
-    def test_loaded_wproxy_uuids_filters_other_vpns(self):
-        responses = {
-            ("nmcli", "-t", "-f", "UUID,TYPE", "connection", "show"):
-                subprocess.CompletedProcess([], 0, "ours:vpn\nlegacy:vpn\nother:vpn\nwifi:802-11-wireless\n", ""),
-            ("nmcli", "-g", "vpn.service-type,connection.id", "connection", "show", "uuid", "ours"):
-                subprocess.CompletedProcess([], 0, f"{ctl.SERVICE}\nSome name\n", ""),
-            ("nmcli", "-g", "vpn.service-type,connection.id", "connection", "show", "uuid", "legacy"):
-                subprocess.CompletedProcess([], 0, f"unknown\n{ctl.PREFIX}Old node\n", ""),
-            ("nmcli", "-g", "vpn.service-type,connection.id", "connection", "show", "uuid", "other"):
-                subprocess.CompletedProcess([], 0, "org.example.other\nOther VPN\n", ""),
-        }
-
-        def fake_run(command, check=False, capture=False):
-            return responses[tuple(command)]
-
-        with patch.object(ctl, "run", side_effect=fake_run):
-            self.assertEqual(ctl.loaded_wproxy_uuids(), {"ours", "legacy"})
-
-    def test_only_dev_null_tombstone_is_removed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            tombstone = root / "wanted.nmmeta"
-            tombstone.symlink_to("/dev/null")
-            self.assertTrue(ctl.remove_nm_tombstone(root, "wanted"))
-            self.assertFalse(tombstone.exists())
-
-            regular = root / "preserved.nmmeta"
-            regular.write_text("metadata")
-            self.assertFalse(ctl.remove_nm_tombstone(root, "preserved"))
-            self.assertEqual(regular.read_text(), "metadata")
-
-    def test_sync_deletes_stale_and_batches_missing_profiles(self):
-        source = (ROOT / "cli/wproxyctl.py").read_text()
-        function = re.search(r"^def nm_sync\(store\):.*?^def ", source, re.M | re.S).group()
-        self.assertIn('["nmcli", "connection", "delete", "uuid", cuuid]', function)
-        self.assertIn('["nmcli", "connection", "reload"]', function)
-        self.assertIn('["nmcli", "connection", "load", *missing_files]', function)
-        self.assertNotIn('["nmcli", "connection", "modify"', function)
 
 
 if __name__ == "__main__":

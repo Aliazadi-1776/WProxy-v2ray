@@ -7,5 +7,7 @@
 - Qt/KDE command arguments are individually shell-quoted. Do not replace this with raw string concatenation of node names, URLs or command arguments.
 - A successful TCP ping is not proof that a proxy works or protects all traffic. Run an end-to-end HTTPS/TUN check.
 - This release is not a security audit, a kill switch or an anonymity guarantee. DNS, IPv6, reconnect, suspend and network-change behavior should be tested for the target environment.
+- Routing mode `all` is the backward-compatible default. `bypass` and `only` intentionally send some traffic outside the VPN; review the list and reconnect before assuming protection.
+- Windows stores its generated Xray configuration under `%LOCALAPPDATA%\WProxy\run`; it contains proxy credentials. The Windows frontend is experimental and has not received a real-host security or leak test in this release.
 
 No project vulnerability-reporting address has been configured yet. Until a private reporting channel exists, do not publish credentials or exploitation details in public issues.

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Build clean source, GNOME extension and Plasma widget archives."""
+"""Build clean GitHub source and Plasma widget archives; never include user data."""
 import argparse
 from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.3.1"
+VERSION = "2.4.1"
 SOURCE_ENTRIES = [
     "README.md", "README.fa.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",
     "Makefile", ".gitignore", ".gitattributes", ".github", "docs", "cli", "data",
     "examples", "gnome-extension", "kde-plasmoid", "icons", "manager", "plugin",
-    "scripts", "service", "tests",
+    "scripts", "service", "tests", "windows",
 ]
 EXCLUDED = {"__pycache__", ".git", "store.json", "verification.txt", "xray.json", "gateway"}
 
@@ -21,7 +21,7 @@ def source_files(base):
             continue
         if EXCLUDED.intersection(path.relative_to(ROOT).parts):
             continue
-        if path.suffix in {".pyc", ".pyo", ".log", ".so", ".o", ".nmconnection", ".pid"}:
+        if path.suffix.lower() in {".pyc", ".pyo", ".log", ".so", ".o", ".nmconnection", ".pid", ".exe", ".dll"}:
             continue
         yield path
 
@@ -33,21 +33,16 @@ def build(output):
         raise ValueError("Widget and project license notices must match")
     output.mkdir(parents=True, exist_ok=True)
     source_zip = output / f"WProxy-{VERSION}-GitHub.zip"
-    gnome_zip = output / f"WProxy-{VERSION}-GNOME-49-51.shell-extension.zip"
     widget_zip = output / f"WProxy-{VERSION}-Plasma6.plasmoid"
-    extension = ROOT / "gnome-extension/wproxy@wrench.local"
     # Rebuilding a chosen release output is explicit; never touch the source tree.
     with zipfile.ZipFile(source_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for name in SOURCE_ENTRIES:
             for path in source_files(ROOT / name):
                 archive.write(path, f"WProxy-{VERSION}/{path.relative_to(ROOT).as_posix()}")
-    with zipfile.ZipFile(gnome_zip, "w", zipfile.ZIP_DEFLATED) as archive:
-        for path in source_files(extension):
-            archive.write(path, path.relative_to(extension).as_posix())
     with zipfile.ZipFile(widget_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in source_files(widget):
             archive.write(path, path.relative_to(widget).as_posix())
-    for path in (source_zip, gnome_zip, widget_zip):
+    for path in (source_zip, widget_zip):
         with zipfile.ZipFile(path) as archive:
             assert archive.testzip() is None
         print(path)

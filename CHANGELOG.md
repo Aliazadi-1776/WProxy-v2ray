@@ -1,17 +1,26 @@
+# 2.4.1
+
+- Restore the unchanged WProxy Quick Settings card on GNOME 51 by replacing the removed `St.BoxLayout.vertical` property with `Clutter.Orientation.VERTICAL`; Ping all, per-node ping, Update and Manager remain in their previous positions.
+- Remove already-loaded stale WProxy NetworkManager connections as well as their deleted keyfiles, while proving ownership from the deterministic UUID before deletion so unrelated VPNs and other users' WProxy profiles remain untouched.
+- Filter quota, expiry and renewal announcements encoded as fake proxy links by subscription providers so they cannot be selected as VPN servers.
+- Add regressions for GNOME 51 layout construction, subscription-announcement filtering and ownership-safe stale-profile discovery.
+
+# 2.4.0
+
+- Add validated split routing for sites and local applications with full-tunnel, bypass-list and only-list modes; full-tunnel remains the backward-compatible default.
+- Persist one versioned policy in the existing user store and embed it into every NetworkManager profile so the root runner receives the same policy without reading another user's home directory.
+- Add a GTK Routing page, CLI management commands, bounded input validation, automatic GUI profile synchronization and focused Python/C regression tests.
+- Add an experimental Windows 10/11 notification-area frontend using Xray native TUN, with per-user installer, UAC-scoped connect/disconnect, server/subscription/ping controls and shared routing rules.
+- Document that arbitrary Win+A Quick Settings tiles are not supported by a public Windows extension API; do not patch Explorer or claim native Quick Settings integration.
+- Synchronize version 2.4.0 across CLI, service, GNOME, Plasma, installers, source packager, tests, English/Persian guides and release artifacts.
+
 # 2.3.1
 
-- Fix the Quick Settings UI on GNOME Shell 51 by replacing the removed `vertical` St widget property with the orientation API shared by GNOME 49, 50 and 51.
-- Target GNOME Shell 49–51 explicitly and add compatibility regression tests for all three declared versions.
-- Show exactly four server rows in GNOME Quick Settings and WProxy Manager while keeping every remaining server reachable by mouse-wheel or touchpad scrolling.
-- Add installer version checks, a no-write `--check` preflight, post-copy verification and correct extension enabling for sudo-invoked installs.
-- Build a standalone `GNOME-49-51.shell-extension.zip` release artifact.
 - Fix Xray transport selection: emit streamSettings.network rather than the ignored method field, which caused WebSocket and other non-TCP links to run as plain TCP.
 - Preserve TCP HTTP camouflage Host/path fields, including VMess, and decode URI query fields only once.
 - Reject removed/unknown transports and unknown security values instead of silently downgrading to TCP/none.
 - Add per-node/custom-target HTTPS probes and a real loopback Xray WebSocket handshake regression test.
 - Record real before/after proxy HTTPS and YouTube response checks, separately from system TUN verification.
-- Reconcile WProxy profiles and deletion markers with one idempotent reload, so removals reach GNOME Settings without repeated mutations that can crash NetworkManager.
-- Close activation cleanup races that could delete the next Xray configuration or leave `wproxy0` busy during a quick server switch.
 
 # 2.3.0
 

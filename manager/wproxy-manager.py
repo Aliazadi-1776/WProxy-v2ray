@@ -19,7 +19,6 @@ def _resolve_ctl():
 
 
 CTL = _resolve_ctl()
-VISIBLE_NODE_ROWS = 4
 
 
 def run(args):
@@ -39,11 +38,16 @@ class WProxyManager(Gtk.Application):
         self.window = None
         self.status = None
         self.nodes_box = None
-        self.nodes_scroller = None
         self.subs_box = None
         self.uri_entry = None
         self.sub_entry = None
         self.stack = None
+        self.routing_mode = None
+        self.routing_domains = None
+        self.routing_apps = None
+        self.domain_entry = None
+        self.app_entry = None
+        self.routing_refreshing = False
 
     def do_activate(self):
         if self.window:
@@ -72,13 +76,13 @@ class WProxyManager(Gtk.Application):
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
-        self.stack.set_vexpand(True)
         switcher.set_stack(self.stack)
         root.append(self.stack)
 
         self.stack.add_titled(self._build_nodes_page(), 'nodes', 'Nodes')
         self.stack.add_titled(self._build_subs_page(), 'subscriptions', 'Subscriptions')
         self.stack.add_titled(self._build_add_page(), 'add', 'Add')
+        self.stack.add_titled(self._build_routing_page(), 'routing', 'Routing')
 
         self.status = Gtk.Label(label='')
         self.status.set_xalign(0)
@@ -104,12 +108,7 @@ class WProxyManager(Gtk.Application):
         return scroller, box
 
     def _build_nodes_page(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(12)
-        box.set_margin_bottom(18)
-        box.set_margin_start(18)
-        box.set_margin_end(18)
-
+        scroller, box = self._page()
         top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         refresh = Gtk.Button(label='Refresh')
         refresh.connect('clicked', lambda *_: self.refresh())
@@ -120,39 +119,11 @@ class WProxyManager(Gtk.Application):
         top.append(refresh); top.append(ping); top.append(disconnect)
         box.append(top)
 
-        self.nodes_scroller = Gtk.ScrolledWindow()
-        self.nodes_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        self.nodes_scroller.set_overlay_scrolling(False)
-        self.nodes_scroller.set_propagate_natural_height(True)
-        self.nodes_scroller.set_vexpand(False)
-        self.nodes_scroller.set_valign(Gtk.Align.START)
         self.nodes_box = Gtk.ListBox()
         self.nodes_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self.nodes_box.add_css_class('boxed-list')
-        self.nodes_scroller.set_child(self.nodes_box)
-        box.append(self.nodes_scroller)
-        return box
-
-    def _queue_nodes_viewport_resize(self):
-        GLib.idle_add(self._resize_nodes_viewport)
-
-    def _resize_nodes_viewport(self):
-        rows = []
-        child = self.nodes_box.get_first_child()
-        while child:
-            rows.append(child)
-            child = child.get_next_sibling()
-
-        if not rows:
-            return GLib.SOURCE_REMOVE
-
-        heights = [row.measure(Gtk.Orientation.VERTICAL, -1)[1] for row in rows]
-        list_height = self.nodes_box.measure(Gtk.Orientation.VERTICAL, -1)[1]
-        chrome = max(0, list_height - sum(heights))
-        viewport_height = chrome + sum(heights[:VISIBLE_NODE_ROWS])
-        self.nodes_scroller.set_min_content_height(viewport_height)
-        self.nodes_scroller.set_max_content_height(viewport_height)
-        return GLib.SOURCE_REMOVE
+        box.append(self.nodes_box)
+        return scroller
 
     def _build_subs_page(self):
         scroller, box = self._page()
@@ -207,6 +178,72 @@ class WProxyManager(Gtk.Application):
         box.append(btn2)
         return scroller
 
+    def _build_routing_page(self):
+        scroller, box = self._page()
+        title = Gtk.Label(label='Split routing')
+        title.set_xalign(0); title.add_css_class('title-3')
+        box.append(title)
+        description = Gtk.Label(label=(
+            'Choose which traffic uses the VPN. Changes are saved locally and synced to every '
+            'WProxy NetworkManager profile. Reconnect after changing an active connection.'
+        ))
+        description.set_wrap(True); description.set_xalign(0); description.add_css_class('dim-label')
+        box.append(description)
+
+        self.routing_mode = Gtk.DropDown.new_from_strings([
+            'All traffic through VPN',
+            'Bypass listed sites and applications',
+            'Only listed sites and applications use VPN',
+        ])
+        self.routing_mode.connect('notify::selected', self._routing_mode_changed)
+        box.append(self.routing_mode)
+
+        domains_title = Gtk.Label(label='Sites')
+        domains_title.set_xalign(0); domains_title.add_css_class('title-4')
+        box.append(domains_title)
+        domains_help = Gtk.Label(label='Enter a hostname or URL. Subdomains are included.')
+        domains_help.set_xalign(0); domains_help.add_css_class('dim-label')
+        box.append(domains_help)
+        domain_add = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.domain_entry = Gtk.Entry()
+        self.domain_entry.set_hexpand(True)
+        self.domain_entry.set_placeholder_text('youtube.com or https://example.org/path')
+        add_domain = Gtk.Button(label='Add site')
+        add_domain.connect('clicked', self._add_routing_domain)
+        domain_add.append(self.domain_entry); domain_add.append(add_domain)
+        box.append(domain_add)
+        self.routing_domains = Gtk.ListBox()
+        self.routing_domains.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.routing_domains.add_css_class('boxed-list')
+        box.append(self.routing_domains)
+
+        apps_title = Gtk.Label(label='Applications')
+        apps_title.set_xalign(0); apps_title.add_css_class('title-4')
+        box.append(apps_title)
+        apps_help = Gtk.Label(label='Use a process name such as firefox, or an absolute executable path.')
+        apps_help.set_wrap(True); apps_help.set_xalign(0); apps_help.add_css_class('dim-label')
+        box.append(apps_help)
+        app_add = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.app_entry = Gtk.Entry()
+        self.app_entry.set_hexpand(True)
+        self.app_entry.set_placeholder_text('firefox or /usr/bin/curl')
+        add_app = Gtk.Button(label='Add application')
+        add_app.connect('clicked', self._add_routing_app)
+        app_add.append(self.app_entry); app_add.append(add_app)
+        box.append(app_add)
+        self.routing_apps = Gtk.ListBox()
+        self.routing_apps.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.routing_apps.add_css_class('boxed-list')
+        box.append(self.routing_apps)
+
+        warning = Gtk.Label(label=(
+            'Process matching is case-sensitive. Domain matching depends on Xray sniffing; '
+            'encrypted DNS inside an application can limit site-only matching.'
+        ))
+        warning.set_wrap(True); warning.set_xalign(0); warning.add_css_class('dim-label')
+        box.append(warning)
+        return scroller
+
     def _set_status(self, text):
         if self.status:
             self.status.set_text(text or '')
@@ -229,8 +266,10 @@ class WProxyManager(Gtk.Application):
             nodes = self._load_json([CTL, 'node', 'list', '--json'])
             subs = self._load_json([CTL, 'sub', 'list', '--json'])
             status = self._load_json([CTL, 'status', '--json'])
+            routing = self._load_json([CTL, 'routing', 'show', '--json'])
             self._render_nodes(nodes, status)
             self._render_subs(subs)
+            self._render_routing(routing)
             self._set_status(status.get('name') if status.get('active') else 'Disconnected')
         except Exception as e:
             self._set_status(str(e))
@@ -243,9 +282,7 @@ class WProxyManager(Gtk.Application):
             label = Gtk.Label(label='No configurations yet')
             label.set_margin_top(16); label.set_margin_bottom(16)
             row.set_child(label); self.nodes_box.append(row)
-            self._queue_nodes_viewport_resize()
             return
-
         for n in nodes:
             row = Gtk.ListBoxRow()
             outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -268,7 +305,6 @@ class WProxyManager(Gtk.Application):
             delete.connect('clicked', lambda _b, nid=n['id']: self._remove_node(nid))
             outer.append(connect); outer.append(delete)
             row.set_child(outer); self.nodes_box.append(row)
-        self._queue_nodes_viewport_resize()
 
     def _render_subs(self, subs):
         self._clear_listbox(self.subs_box)
@@ -294,6 +330,32 @@ class WProxyManager(Gtk.Application):
             outer.append(update); outer.append(delete)
             row.set_child(outer); self.subs_box.append(row)
 
+    def _routing_row(self, value, kind):
+        row = Gtk.ListBoxRow()
+        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        outer.set_margin_top(8); outer.set_margin_bottom(8)
+        outer.set_margin_start(12); outer.set_margin_end(12)
+        label = Gtk.Label(label=value); label.set_xalign(0); label.set_hexpand(True)
+        remove = Gtk.Button.new_from_icon_name('user-trash-symbolic')
+        remove.set_tooltip_text('Remove')
+        remove.connect('clicked', lambda *_: self._change_routing(
+            [CTL, 'routing', kind, 'remove', value], 'Routing entry removed'))
+        outer.append(label); outer.append(remove)
+        row.set_child(outer)
+        return row
+
+    def _render_routing(self, routing):
+        self.routing_refreshing = True
+        mode_index = {'all': 0, 'bypass': 1, 'only': 2}.get(routing.get('mode'), 0)
+        self.routing_mode.set_selected(mode_index)
+        self.routing_refreshing = False
+        self._clear_listbox(self.routing_domains)
+        for value in routing.get('domains', []):
+            self.routing_domains.append(self._routing_row(value, 'domain'))
+        self._clear_listbox(self.routing_apps)
+        for value in routing.get('apps', []):
+            self.routing_apps.append(self._routing_row(value, 'app'))
+
     def _background(self, args, success, refresh=False):
         self._set_status('Working…')
         def worker():
@@ -308,6 +370,36 @@ class WProxyManager(Gtk.Application):
 
     def _sync_nm(self):
         self._background(['pkexec', CTL, 'nm', 'sync'], 'Synced to NetworkManager', True)
+
+    def _change_routing(self, args, success):
+        self._set_status('Saving and syncing routing…')
+        def worker():
+            code, out, err = run(args)
+            if code == 0:
+                code, out2, err2 = run(['pkexec', CTL, 'nm', 'sync'])
+                out = out2 or out; err = err2 or err
+            GLib.idle_add(self._after_background, code, out, err, success, True)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _routing_mode_changed(self, dropdown, _param):
+        if self.routing_refreshing:
+            return
+        mode = ('all', 'bypass', 'only')[dropdown.get_selected()]
+        self._change_routing([CTL, 'routing', 'mode', mode], 'Routing mode saved; reconnect to apply')
+
+    def _add_routing_domain(self, *_):
+        value = self.domain_entry.get_text().strip()
+        if not value:
+            return
+        self.domain_entry.set_text('')
+        self._change_routing([CTL, 'routing', 'domain', 'add', value], 'Site added; reconnect to apply')
+
+    def _add_routing_app(self, *_):
+        value = self.app_entry.get_text().strip()
+        if not value:
+            return
+        self.app_entry.set_text('')
+        self._change_routing([CTL, 'routing', 'app', 'add', value], 'Application added; reconnect to apply')
 
     def _add_node(self, *_):
         uri = self.uri_entry.get_text().strip()

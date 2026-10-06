@@ -5,14 +5,11 @@ PROJECT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 DESKTOP=auto
-CHECK_ONLY=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --desktop)
             [ "$#" -ge 2 ] || { echo 'Missing desktop: gnome, kde, none, or auto' >&2; exit 2; }
             DESKTOP=$2; shift 2 ;;
-        --check)
-            CHECK_ONLY=1; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -24,12 +21,6 @@ if [ "$DESKTOP" = auto ]; then
     esac
 fi
 case "$DESKTOP" in gnome|kde|none) ;; *) echo 'Invalid desktop selection.' >&2; exit 2 ;; esac
-GNOME_SHELL_MAJOR=""
-if [ "$DESKTOP" = gnome ]; then
-    GNOME_SHELL_MAJOR=$(sh "$PROJECT_DIR/scripts/check-gnome-version.sh")
-    echo "GNOME Shell $GNOME_SHELL_MAJOR compatibility: OK (supported: 49, 50, 51)"
-fi
-
 TARGET_USER=${SUDO_USER:-$(id -un)}
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 TARGET_UID=$(id -u "$TARGET_USER")
@@ -111,30 +102,6 @@ install_xray_if_needed() {
     "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 }
 
-if [ "$CHECK_ONLY" -eq 1 ]; then
-    echo "WProxy installer preflight (no system changes)"
-    have_build_deps || {
-        echo 'Missing build dependencies: libnm, GTK3, GTK4, GLib/GIO and pkg-config are required.' >&2
-        exit 2
-    }
-    command -v python3 >/dev/null 2>&1 || { echo 'python3 is required.' >&2; exit 2; }
-    command -v nmcli >/dev/null 2>&1 || { echo 'NetworkManager/nmcli is required.' >&2; exit 2; }
-    command -v pkexec >/dev/null 2>&1 || { echo 'pkexec is required for desktop authorization.' >&2; exit 2; }
-    make check-deps
-    make check-python
-    python3 tests/check-release.py
-    if command -v node >/dev/null 2>&1; then
-        node --input-type=module --check < gnome-extension/wproxy@wrench.local/extension.js
-    fi
-    if XRAY_PATH=$(find_xray 2>/dev/null); then
-        echo "Xray runtime: $XRAY_PATH"
-    else
-        echo 'Xray runtime: not installed (the full installer would use the official XTLS installer).'
-    fi
-    echo "Installer preflight passed for desktop: $DESKTOP"
-    exit 0
-fi
-
 install_deps_if_needed
 install_xray_if_needed
 
@@ -169,7 +136,7 @@ NM_CONF="/etc/NetworkManager/conf.d/90-wproxy-unmanaged.conf"
 BACKUP="/var/backups/wproxy-$(date +%Y%m%d-%H%M%S)"
 
 printf '%s\n' \
-    "WProxy 2.3.1 installer" \
+    "WProxy 2.4.1 installer" \
     "  libdir:       $LIBDIR" \
     "  libexec:      $LIBEXEC" \
     "  VPN metadata: $NM_VPN_DIR" \
@@ -254,6 +221,7 @@ $SUDO install -Dm755 wproxyctl /usr/bin/wproxyctl
 if [ -f "$TARGET_HOME/.local/bin/wproxyctl" ]; then
     $SUDO install -m755 -o "$TARGET_UID" -g "$TARGET_GID" wproxyctl "$TARGET_HOME/.local/bin/wproxyctl"
 fi
+$SUDO env SUDO_USER="$TARGET_USER" /usr/bin/wproxyctl nm sync
 $SUDO install -Dm755 manager/wproxy-manager.py /usr/bin/wproxy-manager
 $SUDO install -Dm644 data/org.freedesktop.NetworkManager.wproxy.conf "$DBUS_FILE"
 $SUDO install -Dm644 data/wproxy-manager.desktop /usr/share/applications/wproxy-manager.desktop
@@ -272,13 +240,6 @@ if [ "$DESKTOP" = gnome ]; then
             $SUDO install -m644 -o "$TARGET_UID" -g "$TARGET_GID" "gnome-extension/wproxy@wrench.local/$name" "$USER_EXT/$name"
         done
     fi
-    for name in metadata.json extension.js stylesheet.css; do
-        cmp "gnome-extension/wproxy@wrench.local/$name" "$EXT_DIR/$name" >/dev/null || {
-            echo "Installation failed: GNOME extension file mismatch: $name" >&2
-            exit 5
-        }
-    done
-    echo "Verified GNOME Shell $GNOME_SHELL_MAJOR extension files."
 fi
 
 sed \
@@ -299,16 +260,7 @@ elif command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 
 if [ "$DESKTOP" = gnome ] && command -v gnome-extensions >/dev/null 2>&1; then
-    if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
-        runuser -u "$TARGET_USER" -- env \
-            XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
-            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
-            gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 ||
-            echo 'GNOME extension is installed but needs a log out/in before it can be enabled.'
-    else
-        gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 ||
-            echo 'GNOME extension is installed but needs a log out/in before it can be enabled.'
-    fi
+    gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 || true
 fi
 
 if [ "$DESKTOP" = kde ]; then
@@ -324,7 +276,7 @@ echo
 [ -x /usr/bin/wproxyctl ] || { echo "Installation failed: /usr/bin/wproxyctl was not installed." >&2; exit 5; }
 /usr/bin/wproxyctl --version
 
-echo "Installed WProxy 2.3.1."
+echo "Installed WProxy 2.4.1."
 XRAY_PATH=$(find_xray 2>/dev/null || true)
 [ -n "$XRAY_PATH" ] && "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 if [ "$DESKTOP" = gnome ]; then

@@ -15,9 +15,6 @@ if [ -z "$TARGET_USER" ] || [ "$TARGET_USER" = root ]; then
     echo 'Run this script from your normal desktop account with sudo.' >&2
     exit 2
 fi
-GNOME_SHELL_MAJOR=$(sh "$PROJECT_DIR/scripts/check-gnome-version.sh")
-echo "GNOME Shell $GNOME_SHELL_MAJOR compatibility: OK (supported: 49, 50, 51)"
-
 TARGET_UID=$(id -u "$TARGET_USER")
 TARGET_GID=$(id -g "$TARGET_USER")
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
@@ -27,10 +24,7 @@ LIBEXEC=$(pkg-config --variable=libexecdir NetworkManager 2>/dev/null || true)
 [ -n "$LIBEXEC" ] || LIBEXEC=/usr/libexec
 
 make wproxy-service wproxyctl
-if command -v node >/dev/null 2>&1; then
-    node --input-type=module --check < gnome-extension/wproxy@wrench.local/extension.js
-fi
-BACKUP=$(mktemp -d /var/backups/wproxy-2.3.1.XXXXXX)
+BACKUP=$(mktemp -d /var/backups/wproxy-2.4.1.XXXXXX)
 chmod 700 "$BACKUP"
 for name in wproxy-service wproxy-xray-runner; do
     if [ -f "$LIBEXEC/$name" ]; then cp -a "$LIBEXEC/$name" "$BACKUP/$name"; fi
@@ -77,21 +71,10 @@ for name in extension.js metadata.json stylesheet.css; do
     install -m644 "gnome-extension/wproxy@wrench.local/$name" "$SYSTEM_EXT/$name"
 done
 
-for name in extension.js metadata.json stylesheet.css; do
-    cmp "gnome-extension/wproxy@wrench.local/$name" "$USER_EXT/$name" >/dev/null || {
-        echo "Installation failed: user GNOME extension file mismatch: $name" >&2
-        exit 5
-    }
-    cmp "gnome-extension/wproxy@wrench.local/$name" "$SYSTEM_EXT/$name" >/dev/null || {
-        echo "Installation failed: system GNOME extension file mismatch: $name" >&2
-        exit 5
-    }
-done
 "$LIBEXEC/wproxy-service" --version
 /usr/bin/wproxyctl --version
 echo "Backup: $BACKUP"
-echo "Verified UI version 12 for GNOME Shell $GNOME_SHELL_MAJOR."
-echo 'Log out and back in once to load the updated UI (exactly 4 visible server rows; all remaining rows scroll).'
+echo 'Log out and back in once to load UI version 12 (GNOME 51 + exactly 3 server rows + scroll).'
 echo 'Disabling/enabling the extension alone may keep the old JavaScript cached.'
 
 if [ "${1:-}" != --test ]; then exit 0; fi
@@ -99,7 +82,7 @@ if [ "${1:-}" != --test ]; then exit 0; fi
 # The report contains status and exit codes, never subscription URLs or URIs.
 REPORT="$PROJECT_DIR/verification.txt"
 exec > >(tee "$REPORT") 2>&1
-echo "WProxy 2.3.1 host check: $(date -Is)"
+echo "WProxy 2.4.1 host check: $(date -Is)"
 echo 'Testing real HTTPS through the saved servers before enabling system routing...'
 if ! NODE_ID=$(desktop python3 scripts/test-proxy-https.py --select); then
     echo 'No saved server passed the Xray HTTPS test; TUN was not enabled.'

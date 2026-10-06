@@ -10,6 +10,8 @@
 - Reject removed/unknown transports and unknown security values instead of silently downgrading to TCP/none.
 - Add per-node/custom-target HTTPS probes and a real loopback Xray WebSocket handshake regression test.
 - Record real before/after proxy HTTPS and YouTube response checks, separately from system TUN verification.
+- Reconcile WProxy profiles and deletion markers with one idempotent reload, so removals reach GNOME Settings without repeated mutations that can crash NetworkManager.
+- Close activation cleanup races that could delete the next Xray configuration or leave `wproxy0` busy during a quick server switch.
 
 # 2.3.0
 

@@ -113,6 +113,17 @@ configure_tun() {
         awk '/inet 172\.19\.0\.1\/30 / { ready=1 } END { exit !ready }'
 }
 
+remove_stale_tun() {
+    command -v ip >/dev/null 2>&1 || return 0
+    if ip link show dev "$IFACE" >/dev/null 2>&1; then
+        if ! ip link delete dev "$IFACE" >/dev/null 2>&1; then
+            ip link show dev "$IFACE" >/dev/null 2>&1 && return 1
+        fi
+    fi
+    return 0
+}
+
+
 render_and_test() {
     URI=$1
     umask 077
@@ -141,9 +152,14 @@ cleanup() {
                 i=$((i + 1))
             done
             kill -9 "$XPID" 2>/dev/null || true
+            wait "$XPID" 2>/dev/null || true
         fi
     fi
-    rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$GATEWAY"
+    # RUNNER_PID is the lifecycle guard. Remove it last so a new activation
+    # cannot start until old runtime files and the TUN device are gone.
+    remove_stale_tun || true
+    rm -f "$XRAY_PID" "$CONFIG" "$GATEWAY"
+    rm -f "$RUNNER_PID"
 }
 
 case "${1:-}" in
@@ -173,6 +189,11 @@ case "${1:-}" in
             exit 73
         fi
         rm -f "$RUNNER_PID"
+    fi
+
+    if ! remove_stale_tun; then
+        echo "Could not remove stale $IFACE before activation." >&2
+        exit 78
     fi
 
     render_and_test "$URI"

@@ -3,6 +3,7 @@ import argparse
 import base64
 import concurrent.futures
 import hashlib
+import ipaddress
 import json
 import os
 import pwd
@@ -21,6 +22,11 @@ APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
 USER_AGENT = "WProxy/2.3.1 (+NetworkManager; v2rayNG-compatible subscription reader)"
+SYSTEM_BYPASS_FILE = Path("/etc/wproxy/bypass.json")
+PRIVATE_BYPASS_NETWORKS = [
+    "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+    "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7", "fe80::/10",
+]
 
 
 def original_user():
@@ -52,18 +58,41 @@ def store_path():
     return config_home() / "store.json"
 
 
+def empty_store():
+    return {"subs": [], "nodes": [], "bypass": {"domains": [], "ips": [], "apps": []}}
+
+
+def normalized_bypass(value):
+    source = value if isinstance(value, dict) else {}
+    result = {"domains": [], "ips": [], "apps": []}
+    for key in result:
+        values = source.get(key, [])
+        if not isinstance(values, list):
+            continue
+        seen = set()
+        for item in values:
+            if not isinstance(item, str):
+                continue
+            item = item.strip()
+            if item and item not in seen and len(item) <= 512:
+                seen.add(item)
+                result[key].append(item)
+    return result
+
+
 def load_store():
     p = store_path()
     if not p.exists():
-        return {"subs": [], "nodes": []}
+        return empty_store()
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
         data.setdefault("subs", [])
         data.setdefault("nodes", [])
+        data["bypass"] = normalized_bypass(data.get("bypass"))
         return data
     except Exception as e:
         print(f"Could not read {p}: {e}", file=sys.stderr)
-        return {"subs": [], "nodes": []}
+        return empty_store()
 
 
 def save_store(data):
@@ -80,6 +109,30 @@ def save_store(data):
             os.chown(p.parent, u.pw_uid, u.pw_gid)
         except PermissionError:
             pass
+
+
+def runtime_bypass_path():
+    return Path(os.environ.get("WPROXY_BYPASS_FILE", str(SYSTEM_BYPASS_FILE)))
+
+
+def load_runtime_bypass(path=None):
+    target = Path(path) if path else runtime_bypass_path()
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return normalized_bypass(None)
+    return normalized_bypass(data)
+
+
+def write_runtime_bypass(store, path=None):
+    target = Path(path) if path else runtime_bypass_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    bypass = normalized_bypass(store.get("bypass"))
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(json.dumps(bypass, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    tmp.replace(target)
+    return bypass
 
 
 def stable_id(text):
@@ -118,6 +171,62 @@ def clean_name(name, fallback):
     name = re.sub(r"[\r\n\t]+", " ", name)
     name = re.sub(r"\s{2,}", " ", name)
     return name[:80] or fallback
+
+
+def normalize_bypass_target(value):
+    raw = (value or "").strip()
+    if not raw or len(raw) > 2048 or any(char in raw for char in "\r\n\0"):
+        raise ValueError("Enter a valid website, domain, IP address, or CIDR")
+    try:
+        network = ipaddress.ip_network(raw, strict=False)
+    except ValueError:
+        pass
+    else:
+        return "ips", str(network)
+
+    parsed_input = raw if "://" in raw else "//" + raw
+    try:
+        parsed = urllib.parse.urlsplit(parsed_input)
+    except ValueError as error:
+        raise ValueError("Invalid website or domain") from error
+    host = parsed.hostname
+    if not host:
+        raise ValueError("The website must contain a hostname")
+    host = host.rstrip(".")
+    if host.startswith("*."):
+        host = host[2:]
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return "ips", str(address)
+    try:
+        domain = host.encode("idna").decode("ascii").lower()
+    except UnicodeError as error:
+        raise ValueError("Invalid international domain name") from error
+    labels = domain.split(".")
+    if len(domain) > 253 or any(not label or len(label) > 63 for label in labels):
+        raise ValueError("Invalid domain name")
+    if any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in labels
+    ):
+        raise ValueError("Invalid domain name")
+    return "domains", domain
+
+
+def normalize_bypass_process(value):
+    process = (value or "").strip()
+    if not process or any(char in process for char in "\r\n\0"):
+        raise ValueError("Enter a process name or absolute executable path")
+    if len(process) > 512:
+        raise ValueError("Process matcher is too long")
+    if "/" in process and not process.startswith("/"):
+        raise ValueError("Executable paths must be absolute")
+    if process in {"/", ".", ".."}:
+        raise ValueError("Invalid process matcher")
+    return process
 
 
 def vmess_payload(uri):
@@ -543,20 +652,60 @@ def run(cmd, check=False, capture=False):
     return subprocess.run(cmd, check=check, text=True, capture_output=capture)
 
 
+def loaded_wproxy_uuids():
+    result = set()
+    listing = run(["nmcli", "-t", "-f", "UUID,TYPE", "connection", "show"], capture=True)
+    if listing.returncode != 0:
+        raise RuntimeError(listing.stderr.strip() or "Could not list NetworkManager connections")
+    for line in listing.stdout.splitlines():
+        cuuid, separator, connection_type = line.partition(":")
+        if not separator or connection_type != "vpn":
+            continue
+        details = run(["nmcli", "-g", "vpn.service-type,connection.id",
+                       "connection", "show", "uuid", cuuid], capture=True)
+        if details.returncode != 0:
+            continue
+        values = details.stdout.splitlines()
+        if SERVICE in values or any(value.startswith(PREFIX) for value in values):
+            result.add(cuuid)
+    return result
+
+
+def remove_nm_tombstone(conn_dir, cuuid):
+    metadata = conn_dir / f"{cuuid}.nmmeta"
+    if not metadata.is_symlink():
+        return False
+    try:
+        target = os.readlink(metadata)
+    except OSError:
+        return False
+    if target != "/dev/null":
+        return False
+    metadata.unlink()
+    return True
+
+
 def nm_sync(store):
     require_root()
     conn_dir = Path("/etc/NetworkManager/system-connections")
     conn_dir.mkdir(parents=True, exist_ok=True)
     uid = original_user().pw_uid
-    wanted = set()
+    wanted_names = set()
+    wanted_uuids = set()
+    profiles = []
+    existing_uuids = loaded_wproxy_uuids()
+
     for node in store["nodes"]:
         fn = conn_dir / f"wproxy-{uid}-{node['id']}.nmconnection"
-        wanted.add(fn.name)
+        cuuid = deterministic_uuid(node["id"])
+        wanted_names.add(fn.name)
+        wanted_uuids.add(cuuid)
+        profiles.append((fn, cuuid))
         fn.write_text(nm_keyfile(node), encoding="utf-8")
         os.chmod(fn, 0o600)
-        print(f"Synced {node['name']}")
+
     for old in conn_dir.glob(f"wproxy-{uid}-*.nmconnection"):
-        if old.name not in wanted:
+        if old.name not in wanted_names:
             old.unlink(missing_ok=True)
             print(f"Removed stale {old.name}")
     # Remove legacy profiles created by WProxy 1.0 if they contain our service marker.
@@ -568,14 +717,58 @@ def nm_sync(store):
                 old.unlink(missing_ok=True)
         except OSError:
             pass
-    run(["nmcli", "connection", "reload"])
-    # WProxy VPN service does not support NetworkManager private/user-only
-    # connections. Keep every generated profile system-wide. This also
-    # repairs profiles created by WProxy <= 2.2.3.
+    # Deleting keyfiles alone does not evict their in-memory NetworkManager
+    # connections. Remove stale UUIDs explicitly so GNOME Settings cannot keep
+    # showing profiles that were removed from WProxy.
+    for cuuid in sorted(existing_uuids - wanted_uuids):
+        deleted = run(["nmcli", "connection", "delete", "uuid", cuuid], capture=True)
+        if deleted.returncode != 0:
+            raise RuntimeError(deleted.stderr.strip() or deleted.stdout.strip()
+                               or "Could not delete stale WProxy profile")
+        print(f"Removed stale NetworkManager profile {cuuid}")
+
+    for cuuid in sorted(wanted_uuids):
+        if remove_nm_tombstone(conn_dir, cuuid):
+            print(f"Removed NetworkManager deletion marker {cuuid}")
+
+    # Reload existing profiles in one NetworkManager transaction. Repeatedly
+    # loading and then modifying unchanged profiles can trip daemon assertions.
+    reloaded = run(["nmcli", "connection", "reload"], capture=True)
+    if reloaded.returncode != 0:
+        raise RuntimeError(reloaded.stderr.strip()
+                           or "Could not reload NetworkManager connections")
+
+    actual_uuids = loaded_wproxy_uuids()
+    missing_files = [
+        str(fn)
+        for fn, cuuid in profiles
+        if cuuid not in actual_uuids
+    ]
+    if missing_files:
+        loaded = run(["nmcli", "connection", "load", *missing_files], capture=True)
+        if loaded.returncode != 0:
+            raise RuntimeError(loaded.stderr.strip() or loaded.stdout.strip()
+                               or "Could not load new WProxy profiles")
+        actual_uuids = loaded_wproxy_uuids()
+
+    if actual_uuids != wanted_uuids:
+        raise RuntimeError(
+            "NetworkManager profile reconciliation failed: expected "
+            f"{len(wanted_uuids)}, loaded {len(actual_uuids)}")
+
+    # Generated keyfiles have no per-user ACL, so they must stay system-wide.
+    # Keeping ACL repair in the keyfile avoids a second mutation transaction.
+    for cuuid in sorted(wanted_uuids):
+        permissions = run(["nmcli", "-g", "connection.permissions",
+                           "connection", "show", "uuid", cuuid], capture=True)
+        if permissions.returncode != 0:
+            raise RuntimeError(permissions.stderr.strip()
+                               or "Could not verify WProxy profile permissions")
+        if permissions.stdout.strip():
+            raise RuntimeError(f"WProxy profile {cuuid} is not system-wide")
+
     for node in store["nodes"]:
-        cuuid = deterministic_uuid(node["id"])
-        run(["nmcli", "connection", "modify", "uuid", cuuid, "connection.permissions", ""])
-    run(["nmcli", "connection", "reload"])
+        print(f"Synced {node['name']}")
 
 
 def active_wproxy_names():

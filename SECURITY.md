@@ -8,6 +8,6 @@
 - A successful TCP ping is not proof that a proxy works or protects all traffic. Run an end-to-end HTTPS/TUN check.
 - This release is not a security audit, a kill switch or an anonymity guarantee. DNS, IPv6, reconnect, suspend and network-change behavior should be tested for the target environment.
 - Routing mode `all` is the backward-compatible default. `bypass` and `only` intentionally send some traffic outside the VPN; review the list and reconnect before assuming protection.
-- Windows stores its generated Xray configuration under `%LOCALAPPDATA%\WProxy\run`; it contains proxy credentials. The Windows frontend is experimental and has not received a real-host security or leak test in this release.
+- Windows stores its generated Xray configuration under `%LOCALAPPDATA%\WProxy\run`; it contains proxy credentials. The installer pins and verifies the official Xray archive and connection startup checks adapter/route/HTTPS state, but a complete real-host DNS/IPv6/WFP/suspend leak test is still required.
 
 No project vulnerability-reporting address has been configured yet. Until a private reporting channel exists, do not publish credentials or exploitation details in public issues.

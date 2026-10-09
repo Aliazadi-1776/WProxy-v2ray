@@ -292,7 +292,7 @@ class WProxyManager(Gtk.Application):
             name = Gtk.Label(label=n.get('name', 'Proxy'))
             name.set_xalign(0)
             if n.get('id') == active: name.add_css_class('accent')
-            source = Gtk.Label(label='Subscription' if n.get('source') else 'Manual')
+            source = Gtk.Label(label=n.get('source_name') or ('Subscription' if n.get('source') else 'Manual'))
             source.set_xalign(0); source.add_css_class('dim-label')
             labels.append(name); labels.append(source)
             labels.set_hexpand(True)
@@ -319,7 +319,9 @@ class WProxyManager(Gtk.Application):
             outer.set_margin_start(12); outer.set_margin_end(12)
             labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             title = Gtk.Label(label=s.get('name') or 'Subscription'); title.set_xalign(0)
-            subtitle_text = s.get('remaining_human') or 'Traffic information unavailable'
+            count = int(s.get('node_count') or 0)
+            traffic = s.get('remaining_human') or 'traffic unavailable'
+            subtitle_text = f'{count} servers · {traffic}'
             subtitle = Gtk.Label(label=subtitle_text); subtitle.set_xalign(0); subtitle.add_css_class('dim-label')
             labels.append(title); labels.append(subtitle); labels.set_hexpand(True)
             outer.append(labels)

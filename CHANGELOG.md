@@ -1,3 +1,14 @@
+# 2.5.0
+
+- Add a one-click Windows x64 Inno Setup installer that bundles a standalone PyInstaller command engine and the pinned official Xray 26.9.30/Wintun runtime; end users no longer install Python or Xray separately.
+- Refuse false-positive Windows connections: require a supported Xray version, Wintun adapter, adapter-owned IPv4 default route and successful no-explicit-proxy HTTPS request before storing verified connected state.
+- Add Xray Windows automatic IPv4/IPv6 routes, outbound-interface selection, 1400 MTU and Windows Filtering Platform DNS/misconfiguration leak controls.
+- Add a Windows application picker for running processes and browsed EXE files; normalize name-only `.exe` selectors to Xray process-matching semantics.
+- Give subscription nodes source-scoped IDs so identical links from multiple subscriptions remain independently visible and cannot be removed by updating/deleting another subscription.
+- Show source subscription names on nodes and imported-server counts on subscription pages in the Windows and GTK managers.
+- Parse supported links from plain/base64, JSON and mixed subscription responses, deduplicate within one response, and reject responses larger than 8 MiB.
+- Add a tagged GitHub release workflow that builds `WProxy-2.5.0-Setup.exe`, verifies the upstream Xray SHA-256, uploads the installer/checksum artifact and publishes them on tag `v2.5.0`.
+
 # 2.4.1
 
 - Restore the unchanged WProxy Quick Settings card on GNOME 51 by replacing the removed `St.BoxLayout.vertical` property with `Clutter.Orientation.VERTICAL`; Ping all, per-node ping, Update and Manager remain in their previous positions.

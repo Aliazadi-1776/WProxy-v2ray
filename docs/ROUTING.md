@@ -1,6 +1,6 @@
 # Site and application routing
 
-WProxy 2.4.1 stores one routing policy in the existing private `store.json`. The field is additive: stores created by older releases load as `all`, so upgrading does not change which traffic uses the VPN.
+WProxy 2.5.0 stores one routing policy in the existing private `store.json`. The field is additive: stores created by older releases load as `all`, so upgrading does not change which traffic uses the VPN.
 
 ## Modes
 
@@ -37,7 +37,7 @@ sudo wproxyctl nm sync
 
 - A site entry accepts a hostname or URL. WProxy stores only the normalized hostname and matches it plus its subdomains.
 - Literal IPv4/IPv6 addresses are accepted. Credentials in URLs, invalid hostnames, control characters and lists above 256 entries are rejected.
-- An application entry is a case-sensitive process name or absolute executable path. Windows backslashes are normalized to forward slashes for Xray.
+- An application entry is a case-sensitive process name or absolute executable path. On Windows, use **Choose apps…** to enumerate running programs or browse for an EXE; exact paths are preferred. Backslashes are normalized to forward slashes and a name-only `.exe` suffix is removed to match Xray semantics.
 - Domain and application entries are separate Xray rules, so they form a union; an item does not need to match both.
 - Domain routing uses Xray protocol sniffing. Applications using encrypted DNS, unsupported protocols or IP-only connections may not expose a hostname. Use application routing or an IP entry where appropriate.
 

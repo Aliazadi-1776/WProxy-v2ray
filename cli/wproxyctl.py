@@ -26,9 +26,11 @@ from types import SimpleNamespace
 APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
-VERSION = "2.4.1"
+VERSION = "2.5.0"
 USER_AGENT = f"WProxy/{VERSION} (Xray; v2rayNG-compatible subscription reader)"
 ROUTING_MODES = ("all", "bypass", "only")
+MAX_SUBSCRIPTION_BYTES = 8 * 1024 * 1024
+MIN_WINDOWS_XRAY = (26, 9, 30)
 PRIVATE_NETWORKS = [
     "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
     "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7", "fe80::/10",
@@ -158,6 +160,11 @@ def normalize_app(value):
         raise ValueError("Reserved Xray process selectors are not allowed")
     if "/" in app and not (app.startswith("/") or re.match(r"^[A-Za-z]:/", app)):
         raise ValueError("Application paths must be absolute")
+    # Xray compares a name-only Windows selector with the executable name after
+    # removing its .exe suffix. Exact paths keep the suffix and are preferred by
+    # the Windows application picker.
+    if "/" not in app and app.lower().endswith(".exe"):
+        app = app[:-4]
     return app
 
 
@@ -239,6 +246,40 @@ def maybe_decode_subscription(body):
     except Exception:
         pass
     return text
+
+
+def extract_subscription_uris(text):
+    """Return supported links from plain, JSON, or mixed subscription bodies."""
+    candidates = []
+    try:
+        payload = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        payload = None
+
+    def collect(value):
+        if isinstance(value, str):
+            candidates.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+
+    if payload is not None:
+        collect(payload)
+    candidates.extend(text.splitlines())
+
+    uris = []
+    seen = set()
+    pattern = re.compile(r"(?:vless|vmess|trojan|ss)://[^\s\"'<>]+", re.I)
+    for candidate in candidates:
+        for match in pattern.finditer(candidate.strip()):
+            uri = match.group(0).rstrip(",;])}")
+            if uri not in seen:
+                seen.add(uri)
+                uris.append(uri)
+    return uris
 
 
 def clean_name(name, fallback):
@@ -383,17 +424,14 @@ def format_bytes(num):
 def fetch_subscription(sub):
     req = urllib.request.Request(sub["url"], headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
     with urllib.request.urlopen(req, timeout=20) as r:
-        body = r.read().decode("utf-8", errors="replace")
+        body = r.read(MAX_SUBSCRIPTION_BYTES + 1)
+        if len(body) > MAX_SUBSCRIPTION_BYTES:
+            raise ValueError("Subscription response is larger than 8 MiB")
+        body = body.decode("utf-8", errors="replace")
         userinfo = r.headers.get("subscription-userinfo") or r.headers.get("Subscription-Userinfo")
         profile_title = r.headers.get("profile-title") or r.headers.get("Profile-Title")
     text = maybe_decode_subscription(body)
-    uris = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if re.match(r"^(vless|vmess|trojan|ss)://", line, re.I):
-            uris.append(line)
+    uris = extract_subscription_uris(text)
     if not uris:
         raise ValueError("Subscription did not contain supported vless/vmess/trojan/ss links")
     return uris, parse_sub_userinfo(userinfo), profile_title
@@ -409,7 +447,10 @@ def add_or_replace_nodes(store, uris, source=None):
         uri = uri.strip()
         if source and is_subscription_notice(uri):
             continue
-        nid = stable_id(uri)
+        # A node belongs to a subscription, not merely to its URI. Two
+        # subscriptions may legitimately publish the same URI; source-scoped
+        # IDs keep both lists complete and make later updates/removal isolated.
+        nid = stable_id(f"{source}\0{uri}") if source else stable_id(uri)
         if nid in known_ids:
             continue
         name = make_unique_name(node_name(uri, i), existing_names)
@@ -650,11 +691,12 @@ def xray_config(uri, server_ip=None, routing=None, platform=None):
     tun_settings = {"name": "wproxy0", "MTU": 1500}
     if platform == "windows":
         tun_settings = {
-            "name": "wproxy", "desc": "WProxy", "mtu": 1500,
+            "name": "wproxy", "desc": "WProxy", "mtu": 1400,
             "gateway": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
             "dns": ["1.1.1.1", "8.8.8.8"],
             "autoSystemRoutingTable": ["0.0.0.0/0", "::/0"],
             "autoOutboundsInterface": "auto",
+            "autoSystemWfpBlockLeak": ["dns", "misconfigtun"],
         }
     return {
         "log": {"loglevel": "warning"},
@@ -730,6 +772,7 @@ def find_windows_xray():
     candidates = [
         configured,
         shutil.which("xray.exe"),
+        Path(sys.executable).resolve().parent / "bin/xray.exe",
         Path(__file__).resolve().parents[1] / "windows/bin/xray.exe",
         Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/WProxy/bin/xray.exe",
     ]
@@ -737,6 +780,26 @@ def find_windows_xray():
         if candidate and Path(candidate).is_file():
             return str(Path(candidate))
     raise RuntimeError("xray.exe was not found. Put the official Xray Windows files in windows\\bin or add xray.exe to PATH")
+
+
+def parse_xray_version(value):
+    match = re.search(r"\bXray\s+(\d+)\.(\d+)\.(\d+)\b", value or "", re.I)
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def ensure_windows_xray(xray):
+    wintun = Path(xray).with_name("wintun.dll")
+    if not wintun.is_file():
+        raise RuntimeError("wintun.dll is missing beside xray.exe; reinstall WProxy from the complete Setup.exe")
+    result = run([xray, "version"], capture=True)
+    version = parse_xray_version((result.stdout or "") + "\n" + (result.stderr or ""))
+    if result.returncode != 0 or version is None:
+        raise RuntimeError("Could not identify the bundled Xray version")
+    if version < MIN_WINDOWS_XRAY:
+        required = ".".join(str(part) for part in MIN_WINDOWS_XRAY)
+        actual = ".".join(str(part) for part in version)
+        raise RuntimeError(f"Xray {actual} is too old for reliable Windows routing; install WProxy with Xray {required} or newer")
+    return version
 
 
 def require_windows_admin():
@@ -781,14 +844,81 @@ def windows_state():
     try:
         pid = int(pid_file.read_text(encoding="ascii").strip())
     except (OSError, ValueError):
-        return {"active": False, "node_id": None, "name": None}
+        return {"active": False, "verified": False, "node_id": None, "name": None}
     if not windows_process_is_xray(pid):
-        return {"active": False, "node_id": None, "name": None}
+        return {"active": False, "verified": False, "node_id": None, "name": None}
     try:
         state = json.loads(state_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         state = {}
-    return {"active": True, "node_id": state.get("node_id"), "name": state.get("name")}
+    return {
+        "active": True,
+        "verified": bool(state.get("verified")),
+        "node_id": state.get("node_id"),
+        "name": state.get("name"),
+        "checked_at": state.get("checked_at"),
+    }
+
+
+def windows_tunnel_status():
+    """Confirm that the Wintun adapter is up and owns an IPv4 default route."""
+    if os.name != "nt":
+        return False, "Windows networking is unavailable"
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    if not powershell:
+        return False, "Windows PowerShell was not found"
+    script = (
+        "$ErrorActionPreference='Stop';"
+        "$a=Get-NetAdapter | Where-Object { $_.Name -eq 'wproxy' -or $_.InterfaceDescription -eq 'WProxy' } | Select-Object -First 1;"
+        "if(-not $a){throw 'WProxy Wintun adapter was not created'};"
+        "$r=Get-NetRoute -InterfaceIndex $a.ifIndex -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Select-Object -First 1;"
+        "[ordered]@{up=($a.Status -eq 'Up');route=[bool]$r;name=$a.Name}|ConvertTo-Json -Compress"
+    )
+    result = run([powershell, "-NoProfile", "-NonInteractive", "-Command", script], capture=True)
+    if result.returncode != 0:
+        return False, (result.stderr or result.stdout).strip() or "Could not inspect the WProxy adapter"
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False, "Windows returned an invalid adapter status"
+    if not data.get("up"):
+        return False, "WProxy Wintun adapter is not up"
+    if not data.get("route"):
+        return False, "WProxy adapter has no IPv4 default route"
+    return True, str(data.get("name") or "wproxy")
+
+
+def wait_for_windows_tunnel(process, timeout=20.0):
+    deadline = time.monotonic() + timeout
+    detail = "WProxy adapter did not become ready"
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            return False, "Xray exited while starting the Windows tunnel"
+        ready, detail = windows_tunnel_status()
+        if ready:
+            return True, detail
+        time.sleep(0.5)
+    return False, detail
+
+
+def windows_https_probe(timeout=5.0):
+    """Make an explicit no-HTTP-proxy request; success must come through TUN."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    errors = []
+    for url in (
+        "https://www.gstatic.com/generate_204",
+        "https://cp.cloudflare.com/generate_204",
+        "https://www.msftconnecttest.com/connecttest.txt",
+    ):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with opener.open(request, timeout=timeout) as response:
+                response.read(1)
+                if 200 <= response.status < 500:
+                    return True, url
+        except Exception as exc:
+            errors.append(str(exc))
+    return False, errors[-1] if errors else "HTTPS test failed"
 
 
 def windows_down():
@@ -803,7 +933,7 @@ def windows_down():
         result = run(["taskkill", "/PID", str(pid), "/T", "/F"], capture=True)
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Could not stop Xray")
-    for name in ("xray.pid", "state.json", "xray.json"):
+    for name in ("xray.pid", "state.json", "xray.json", "last-error.txt"):
         try:
             (runtime / name).unlink()
         except FileNotFoundError:
@@ -825,6 +955,7 @@ def windows_up(store, node_id):
     )
     config_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     xray = find_windows_xray()
+    ensure_windows_xray(xray)
     check = run([xray, "run", "-test", "-c", str(config_path)], capture=True)
     if check.returncode != 0:
         raise RuntimeError(check.stderr.strip() or check.stdout.strip() or "Xray rejected the generated Windows configuration")
@@ -835,13 +966,35 @@ def windows_up(store, node_id):
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
             creationflags=flags, close_fds=True,
         )
-    time.sleep(1.0)
-    if process.poll() is not None:
-        raise RuntimeError("Xray exited while starting the Windows tunnel; check %LOCALAPPDATA%\\WProxy\\run\\xray.log")
     (runtime / "xray.pid").write_text(str(process.pid) + "\n", encoding="ascii")
     (runtime / "state.json").write_text(json.dumps({
-        "node_id": node["id"], "name": node["name"]
+        "node_id": node["id"], "name": node["name"], "verified": False
     }, ensure_ascii=False), encoding="utf-8")
+    ready, detail = wait_for_windows_tunnel(process)
+    if ready:
+        ready, detail = windows_https_probe()
+    if not ready:
+        try:
+            if process.poll() is None:
+                process.kill()
+        finally:
+            for name in ("xray.pid", "state.json", "xray.json"):
+                try:
+                    (runtime / name).unlink()
+                except FileNotFoundError:
+                    pass
+        raise RuntimeError(
+            f"Windows tunnel verification failed: {detail}. "
+            "The connection was stopped; see %LOCALAPPDATA%\\WProxy\\run\\xray.log"
+        )
+    (runtime / "state.json").write_text(json.dumps({
+        "node_id": node["id"], "name": node["name"], "verified": True,
+        "checked_at": int(time.time()), "https_probe": detail,
+    }, ensure_ascii=False), encoding="utf-8")
+    try:
+        (runtime / "last-error.txt").unlink()
+    except FileNotFoundError:
+        pass
 
 
 def node_id_from_nm_data(value):
@@ -1016,6 +1169,7 @@ def cmd_sub(args, store):
             x = dict(s)
             rem = (s.get("usage") or {}).get("remaining")
             x["remaining_human"] = format_bytes(rem)
+            x["node_count"] = sum(1 for node in store["nodes"] if node.get("source") == s["id"])
             rows.append(x)
         if args.json:
             public_rows = []
@@ -1026,12 +1180,13 @@ def cmd_sub(args, store):
                     "usage": s.get("usage") or {},
                     "remaining_human": s.get("remaining_human"),
                     "updated_at": s.get("updated_at"),
+                    "node_count": s.get("node_count", 0),
                 })
             print(json.dumps(public_rows, ensure_ascii=False))
         else:
             for s in rows:
                 extra = f"  {s['remaining_human']} left" if s.get("remaining_human") else ""
-                print(f"{s['id']}  {s.get('name','Subscription')}  {s['url']}{extra}")
+                print(f"{s['id']}  {s.get('name','Subscription')}  {s['node_count']} nodes  {s['url']}{extra}")
     elif args.action == "remove":
         store["subs"] = [s for s in store["subs"] if s["id"] != args.id]
         store["nodes"] = [n for n in store["nodes"] if n.get("source") != args.id]
@@ -1078,8 +1233,12 @@ def cmd_node(args, store):
         print(nid)
     elif args.action == "list":
         if args.json:
+            source_names = {sub["id"]: sub.get("name", "Subscription") for sub in store["subs"]}
             public_rows = [
-                {"id": n["id"], "name": n["name"], "source": n.get("source")}
+                {
+                    "id": n["id"], "name": n["name"], "source": n.get("source"),
+                    "source_name": source_names.get(n.get("source"), "Manual"),
+                }
                 for n in store["nodes"]
             ]
             print(json.dumps(public_rows, ensure_ascii=False))
@@ -1252,6 +1411,13 @@ def main():
             else:
                 sys.stdout.write(cfg)
     except (ValueError, RuntimeError) as e:
+        if getattr(args, "cmd", None) == "windows" and os.name == "nt":
+            try:
+                runtime = windows_runtime_home()
+                runtime.mkdir(parents=True, exist_ok=True)
+                (runtime / "last-error.txt").write_text(str(e) + "\n", encoding="utf-8")
+            except OSError:
+                pass
         print(str(e), file=sys.stderr)
         sys.exit(2)
 

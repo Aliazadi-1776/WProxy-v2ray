@@ -18,6 +18,39 @@ spec.loader.exec_module(ctl)
 
 
 class ConfigTests(unittest.TestCase):
+    def test_windows_runtime_requires_wintun_and_recent_xray(self):
+        with tempfile.TemporaryDirectory() as directory:
+            xray = Path(directory) / "xray.exe"
+            xray.write_bytes(b"test")
+            with self.assertRaisesRegex(RuntimeError, "wintun.dll"):
+                ctl.ensure_windows_xray(str(xray))
+            (Path(directory) / "wintun.dll").write_bytes(b"test")
+            old = SimpleNamespace(returncode=0, stdout="Xray 26.3.27 (Xray)\n", stderr="")
+            with patch.object(ctl, "run", return_value=old), self.assertRaisesRegex(RuntimeError, "too old"):
+                ctl.ensure_windows_xray(str(xray))
+            current = SimpleNamespace(returncode=0, stdout="Xray 26.9.30 (Xray)\n", stderr="")
+            with patch.object(ctl, "run", return_value=current):
+                self.assertEqual(ctl.ensure_windows_xray(str(xray)), (26, 9, 30))
+
+    def test_same_uri_in_two_subscriptions_keeps_independent_nodes(self):
+        uri = "trojan://secret@example.com:443?security=tls#Shared"
+        store = {"subs": [], "nodes": [], "routing": ctl.default_routing_policy()}
+        self.assertEqual(ctl.add_or_replace_nodes(store, [uri], source="sub-one"), 1)
+        self.assertEqual(ctl.add_or_replace_nodes(store, [uri], source="sub-two"), 1)
+        self.assertEqual(len(store["nodes"]), 2)
+        self.assertEqual({node["source"] for node in store["nodes"]}, {"sub-one", "sub-two"})
+        self.assertEqual(len({node["id"] for node in store["nodes"]}), 2)
+
+        ctl.add_or_replace_nodes(store, [uri.replace("#Shared", "#Updated")], source="sub-one")
+        self.assertEqual(len(store["nodes"]), 2)
+        self.assertEqual(sum(node["source"] == "sub-two" for node in store["nodes"]), 1)
+
+    def test_subscription_extractor_accepts_json_and_multiple_links(self):
+        one = "trojan://one@example.com:443?security=tls#One"
+        two = "vless://11111111-2222-4333-8444-555555555555@example.net:443?security=tls#Two"
+        payload = json.dumps({"servers": [{"url": one}, two], "duplicate": one})
+        self.assertEqual(ctl.extract_subscription_uris(payload), [one, two])
+
     def test_subscription_announcements_are_not_connectable_nodes(self):
         prefix = "vless://11111111-2222-4333-8444-555555555555@example.com:443?type=ws#"
         store = {"subs": [], "nodes": [], "routing": ctl.default_routing_policy()}
@@ -86,6 +119,7 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
 
+@unittest.skipIf(os.name == "nt", "Linux TUN runner tests require a POSIX shell")
 class RunnerTests(unittest.TestCase):
     def configure(self, failure=""):
         # Execute the production shell function with only the OS ip command

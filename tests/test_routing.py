@@ -55,7 +55,7 @@ class RoutingPolicyTests(unittest.TestCase):
         })
         keyfile = ctl.nm_keyfile({"id": "node", "name": "Node", "uri": URI}, policy)
         self.assertIn(f"routing64={encoded}\n", keyfile)
-        self.assertIn("wproxy-version=2.4.1\n", keyfile)
+        self.assertIn("wproxy-version=2.5.0\n", keyfile)
 
     def test_invalid_or_oversized_policy_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -64,6 +64,9 @@ class RoutingPolicyTests(unittest.TestCase):
             ctl.normalize_domain("https://user:secret@example.com")
         with self.assertRaises(ValueError):
             ctl.normalize_app("relative/path")
+        self.assertEqual(ctl.normalize_app("chrome.exe"), "chrome")
+        self.assertEqual(ctl.normalize_app(r"C:\Program Files\Mozilla Firefox\firefox.exe"),
+                         "C:/Program Files/Mozilla Firefox/firefox.exe")
         with self.assertRaises(ValueError):
             ctl.normalize_routing_policy({"mode": "bypass", "domains": [f"x{i}.test" for i in range(257)], "apps": []})
         with self.assertRaises(ValueError):
@@ -88,6 +91,12 @@ class RoutingPolicyTests(unittest.TestCase):
         self.assertEqual(tun["desc"], "WProxy")
         self.assertEqual(tun["autoSystemRoutingTable"], ["0.0.0.0/0", "::/0"])
         self.assertEqual(tun["autoOutboundsInterface"], "auto")
+        self.assertEqual(tun["autoSystemWfpBlockLeak"], ["dns", "misconfigtun"])
+        self.assertEqual(tun["mtu"], 1400)
+
+    def test_windows_xray_version_gate(self):
+        self.assertEqual(ctl.parse_xray_version("Xray 26.9.30 (Xray) abc"), (26, 9, 30))
+        self.assertIsNone(ctl.parse_xray_version("not xray"))
 
     @unittest.skipUnless(shutil.which("xray"), "installed Xray is required")
     def test_installed_xray_accepts_domain_and_process_rules(self):

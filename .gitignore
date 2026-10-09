@@ -24,6 +24,8 @@ windows/bin/*
 
 # Release artifacts and local editor files
 /dist/
+/build/
+*.spec
 *.zip
 *.plasmoid
 .idea/

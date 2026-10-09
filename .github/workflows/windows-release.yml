@@ -1,0 +1,86 @@
+name: Windows installer
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WPROXY_VERSION: '2.5.0'
+  XRAY_VERSION: '26.9.30'
+  XRAY_SHA256: 'b17a619343c11b89d8faf36278298856749b15c52277d875d32051b33dcda617'
+
+jobs:
+  installer:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run shared Windows tests
+        run: python -m unittest tests/test_routing.py tests/test_runtime.py -v
+      - name: Build source and Plasma packages
+        run: python scripts/build-release.py --output dist
+      - name: Build standalone command engine
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.3
+          pyinstaller --noconfirm --clean --onefile --console --name wproxyctl --distpath build/windows cli/wproxyctl.py
+          .\build\windows\wproxyctl.exe --version
+      - name: Download and verify official Xray runtime
+        shell: powershell
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Xray-windows-64.zip'
+          $url = "https://github.com/XTLS/Xray-core/releases/download/v$env:XRAY_VERSION/Xray-windows-64.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($actual -ne $env:XRAY_SHA256) { throw "Xray archive hash mismatch: $actual" }
+          New-Item -ItemType Directory -Force build/windows/xray | Out-Null
+          Expand-Archive -Path $archive -DestinationPath build/windows/xray -Force
+          foreach ($name in @('xray.exe', 'wintun.dll', 'geoip.dat', 'geosite.dat', 'LICENSE', 'LICENSE-Wintun')) {
+            if (-not (Test-Path (Join-Path 'build/windows/xray' $name))) { throw "Xray archive is missing $name" }
+          }
+          python cli/wproxyctl.py render 'trojan://test-password@example.com:443?security=tls' --platform windows --output build/windows/xray-schema.json
+          & .\build\windows\xray\xray.exe run -test -c build/windows/xray-schema.json
+          if ($LASTEXITCODE -ne 0) { throw "Bundled Xray rejected the generated Windows TUN configuration" }
+      - name: Compile Setup.exe
+        shell: powershell
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup compiler is unavailable' }
+          $build = (Resolve-Path 'build/windows').Path
+          & $iscc "/DMyVersion=$env:WPROXY_VERSION" "/DMyBuildDir=$build" 'windows\WProxy.iss'
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+          $setup = "dist/WProxy-$env:WPROXY_VERSION-Setup.exe"
+          $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
+          "$hash  WProxy-$env:WPROXY_VERSION-Setup.exe" | Set-Content -Encoding ascii "$setup.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WProxy-${{ env.WPROXY_VERSION }}-release
+          path: |
+            dist/WProxy-${{ env.WPROXY_VERSION }}-Setup.exe
+            dist/WProxy-${{ env.WPROXY_VERSION }}-Setup.exe.sha256
+            dist/WProxy-${{ env.WPROXY_VERSION }}-GitHub.zip
+            dist/WProxy-${{ env.WPROXY_VERSION }}-Plasma6.plasmoid
+          if-no-files-found: error
+      - name: Publish tagged GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            "dist/WProxy-$env:WPROXY_VERSION-Setup.exe" `
+            "dist/WProxy-$env:WPROXY_VERSION-Setup.exe.sha256" `
+            "dist/WProxy-$env:WPROXY_VERSION-GitHub.zip" `
+            "dist/WProxy-$env:WPROXY_VERSION-Plasma6.plasmoid" `
+            --title "WProxy $env:WPROXY_VERSION" --generate-notes --verify-tag

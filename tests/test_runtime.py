@@ -89,7 +89,7 @@ class ConfigTests(unittest.TestCase):
         with patch.dict(os.environ, {"WPROXY_OUT_IFACE": "wlp58s0"}):
             for uri in uris:
                 with self.subTest(scheme=uri.split(":")[0]):
-                    config = ctl.xray_config(uri, "198.51.100.42")
+                    config = ctl.xray_config(uri, "198.51.100.42", platform="linux")
                     # v26.3.27 does NOT support automatic addresses/routes.
                     self.assertEqual(config["inbounds"][0]["settings"],
                                      {"name": "wproxy0", "MTU": 1500})
@@ -100,14 +100,17 @@ class ConfigTests(unittest.TestCase):
                     self.assertEqual(config["routing"]["domainStrategy"], "AsIs")
 
     def test_pinning_preserves_tls_hostname(self):
-        config = ctl.xray_config("trojan://test@example.com:443?security=tls", "198.51.100.42")
+        config = ctl.xray_config(
+            "trojan://test@example.com:443?security=tls", "198.51.100.42", platform="linux"
+        )
         self.assertEqual(config["outbounds"][0]["streamSettings"]["tlsSettings"]["serverName"], "example.com")
 
     def test_tunnel_must_not_be_outbound(self):
         with patch.dict(os.environ, {"WPROXY_OUT_IFACE": "wproxy0"}):
             with self.assertRaises(ValueError):
-                ctl.xray_config("trojan://test@example.com:443")
+                ctl.xray_config("trojan://test@example.com:443", platform="linux")
 
+    @unittest.skipIf(os.name == "nt", "POSIX file permission assertion")
     def test_gateway_is_same_pinned_ip_and_private_file(self):
         answers = [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:db8::42", 443, 0, 0)),
                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("198.51.100.42", 443))]

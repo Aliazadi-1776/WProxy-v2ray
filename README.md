@@ -1,14 +1,43 @@
-# WProxy
+<p align="center">
+  <img src="icons/wproxy.svg" width="112" alt="WProxy logo">
+</p>
 
-**Xray/V2Ray connections for Linux desktops and a Windows tray companion.**
+<h1 align="center">WProxy</h1>
 
-GNOME Quick Settings · KDE Plasma 6 widget · Windows tray · split routing · CLI
+<p align="center">
+  A desktop-first Xray/V2Ray client for Linux and Windows.<br>
+  GNOME Quick Settings · KDE Plasma 6 · Windows tray · split routing · CLI
+</p>
 
-[راهنمای فارسی](README.fa.md) · [Routing](docs/ROUTING.md) · [Windows](docs/WINDOWS.md) · [KDE setup](docs/KDE.md) · [Testing](docs/TESTING.md) · [Changelog](CHANGELOG.md)
+<p align="center">
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Aliazadi-1776/WProxy-v2ray?style=flat-square&color=2b8a78"></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/actions/workflows/ci.yml"><img alt="Build and test" src="https://img.shields.io/github/actions/workflow/status/Aliazadi-1776/WProxy-v2ray/ci.yml?branch=main&style=flat-square&label=Linux%20build"></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/actions/workflows/windows-release.yml"><img alt="Windows installer" src="https://img.shields.io/github/actions/workflow/status/Aliazadi-1776/WProxy-v2ray/windows-release.yml?style=flat-square&label=Windows%20installer"></a>
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2b8a78?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.5.0"><strong>Download v2.5.0</strong></a>
+  · <a href="README.fa.md">راهنمای فارسی</a>
+  · <a href="docs/ROUTING.md">Routing</a>
+  · <a href="docs/WINDOWS.md">Windows</a>
+  · <a href="docs/KDE.md">KDE setup</a>
+  · <a href="docs/TESTING.md">Testing</a>
+  · <a href="CHANGELOG.md">Changelog</a>
+</p>
 
 WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.5.0** adds a one-click Windows installer, verifies the Windows adapter/default route/HTTPS before reporting a connection, provides an application picker for split routing, and keeps duplicate servers independently owned by each subscription so a second subscription is never hidden by the first.
 
-**Upgrade notice:** install this version to update the actual runtime; replacing a ZIP alone is not an upgrade. See the [connection fix and before/after tests](docs/CONNECTION-FIX-2.3.1.md).
+## Get WProxy
+
+| Windows 10/11 x64 | GNOME 45–51 | KDE Plasma 6 |
+| --- | --- | --- |
+| Download **`WProxy-2.5.0-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
+
+The Windows installer includes WProxy, Xray and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [compatibility matrix](#compatibility) before installing on a new platform.
+
+> [!IMPORTANT]
+> Install this version to update the actual runtime; replacing a ZIP alone is not an upgrade. See the [connection fix and before/after tests](docs/CONNECTION-FIX-2.3.1.md).
 
 ## Screenshots
 

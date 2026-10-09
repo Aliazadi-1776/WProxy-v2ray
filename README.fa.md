@@ -1,12 +1,43 @@
-# WProxy
+<p align="center">
+  <img src="icons/wproxy.svg" width="112" alt="لوگوی WProxy">
+</p>
 
-**مدیریت Xray/V2Ray در لینوکس و پنل کنار ساعت ویندوز**
+<h1 align="center">WProxy</h1>
 
-[English](README.md) · [مسیریابی](docs/ROUTING.md) · [ویندوز](docs/WINDOWS.md) · [راهنمای KDE](docs/KDE.md) · [تست‌ها](docs/TESTING.md)
+<p align="center" dir="rtl">
+  کلاینت دسکتاپ Xray/V2Ray برای لینوکس و ویندوز<br>
+  تنظیمات سریع GNOME · ویجت KDE Plasma 6 · آیکن کنار ساعت ویندوز · مسیریابی تفکیکی · خط فرمان
+</p>
+
+<p align="center">
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest"><img alt="آخرین نسخه" src="https://img.shields.io/github/v/release/Aliazadi-1776/WProxy-v2ray?style=flat-square&color=2b8a78"></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/actions/workflows/ci.yml"><img alt="ساخت و تست لینوکس" src="https://img.shields.io/github/actions/workflow/status/Aliazadi-1776/WProxy-v2ray/ci.yml?branch=main&style=flat-square&label=Linux%20build"></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/actions/workflows/windows-release.yml"><img alt="نصب‌کننده ویندوز" src="https://img.shields.io/github/actions/workflow/status/Aliazadi-1776/WProxy-v2ray/windows-release.yml?style=flat-square&label=Windows%20installer"></a>
+  <a href="LICENSE"><img alt="مجوز MIT" src="https://img.shields.io/badge/license-MIT-2b8a78?style=flat-square"></a>
+</p>
+
+<p align="center" dir="rtl">
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.5.0"><strong>دانلود نسخهٔ 2.5.0</strong></a>
+  · <a href="README.md">English</a>
+  · <a href="docs/ROUTING.md">مسیریابی</a>
+  · <a href="docs/WINDOWS.md">ویندوز</a>
+  · <a href="docs/KDE.md">راهنمای KDE</a>
+  · <a href="docs/TESTING.md">تست‌ها</a>
+  · <a href="CHANGELOG.md">تغییرات</a>
+</p>
 
 نسخهٔ **2.5.0** نصب‌کنندهٔ آمادهٔ ویندوز، بررسی واقعی آداپتور/Route/HTTPS قبل از اعلام اتصال، پنجرهٔ انتخاب برنامه برای Routing و جداسازی کامل کانفیگ‌های هر Subscription را اضافه می‌کند. اگر دو ساب لینک یکسان داشته باشند، دیگر ساب دوم روی اولی نمی‌افتد و حذف یا آپدیت یکی، سرورهای دیگری را پاک نمی‌کند.
 
-**نکتهٔ ارتقا:** تغییر فایل ZIP به‌تنهایی نسخهٔ نصب‌شده را عوض نمی‌کند؛ باید دستور نصب همین نسخه را اجرا کنی. [شرح اصلاح و تست‌های قبل/بعد](docs/CONNECTION-FIX-2.3.1.md)
+## دریافت WProxy
+
+| Windows 10/11 x64 | GNOME 45–51 | KDE Plasma 6 |
+| --- | --- | --- |
+| فایل **`WProxy-2.5.0-Setup.exe`** را از [آخرین Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest) دانلود کن. | وابستگی‌های توزیع را طبق ادامهٔ راهنما نصب کن و سپس `bash scripts/install.sh --desktop gnome` را بزن. | وابستگی‌های توزیع و Plasma را نصب کن و سپس `bash scripts/install.sh --desktop kde` را بزن. |
+
+نصب‌کنندهٔ ویندوز WProxy، Xray و Wintun را همراه خود دارد. نسخهٔ لینوکس از NetworkManager و TUN سیستم استفاده می‌کند. پیش از نصب روی سیستم جدید، [جدول پشتیبانی](#چه-سیستمهایی-پشتیبانی-میشوند) را بخوان.
+
+> [!IMPORTANT]
+> تغییر فایل ZIP به‌تنهایی نسخهٔ نصب‌شده را عوض نمی‌کند؛ باید دستور نصب همین نسخه را اجرا کنی. [شرح اصلاح و تست‌های قبل/بعد](docs/CONNECTION-FIX-2.3.1.md)
 
 ## تصاویر
 

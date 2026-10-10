@@ -1,6 +1,6 @@
 # Windows 10/11 x64
 
-WProxy 2.5.0 ships as a per-user `Setup.exe`. It includes a standalone WProxy command engine, the notification-area manager, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately.
+WProxy 2.5.1 ships as a per-user `Setup.exe`. It includes a standalone WProxy command engine, the notification-area manager, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately.
 
 The manager uses a dark, DPI-aware application shell with a persistent connection-status card and dedicated pages for servers, imports, subscriptions and split routing. Server names containing emoji or non-Latin text are carried over UTF-8; a failed command is shown as an operation error and no longer terminates the manager. Closing or minimizing the window keeps WProxy available from the notification area.
 
@@ -12,13 +12,13 @@ References: [Microsoft answer about the missing Quick Settings extension API](ht
 
 ## Install
 
-1. Open the [WProxy v2.5.0 release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.5.0).
-2. Download `WProxy-2.5.0-Setup.exe` and `WProxy-2.5.0-Setup.exe.sha256`.
+1. Open the [WProxy v2.5.1 release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.5.1).
+2. Download `WProxy-2.5.1-Setup.exe` and `WProxy-2.5.1-Setup.exe.sha256`.
 3. In PowerShell, verify the download:
 
 ```powershell
-Get-FileHash .\WProxy-2.5.0-Setup.exe -Algorithm SHA256
-Get-Content .\WProxy-2.5.0-Setup.exe.sha256
+Get-FileHash .\WProxy-2.5.1-Setup.exe -Algorithm SHA256
+Get-Content .\WProxy-2.5.1-Setup.exe.sha256
 ```
 
 The two hexadecimal hashes must match. Run Setup, optionally enable **Start WProxy when I sign in**, then leave **Launch WProxy** checked. Program files are installed under `%LOCALAPPDATA%\Programs\WProxy`; saved servers stay under `%APPDATA%\WProxy`. The current installer is not Authenticode-signed, so Windows SmartScreen may show an unknown-publisher warning; verify the release checksum before continuing.
@@ -69,4 +69,4 @@ A CI runner cannot prove behavior on every physical network. A final Windows 10 
 
 ## خلاصهٔ فارسی
 
-برای ویندوز فقط `WProxy-2.5.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط جدید وضعیت اتصال را همیشه بالای پنجره نشان می‌دهد، نام‌های فارسی و ایموجی را با UTF-8 می‌خواند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. تب **Subscriptions** تعداد سرورهای هر ساب را نشان می‌دهد و کانفیگ‌های دو ساب با هم قاطی نمی‌شوند. در **Split routing → Choose apps…** برنامه‌های در حال اجرا یا فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و کنار ساعت اجرا می‌شود.
+برای ویندوز فقط `WProxy-2.5.1-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط جدید وضعیت اتصال را همیشه بالای پنجره نشان می‌دهد، نام‌های فارسی و ایموجی را با UTF-8 می‌خواند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. تب **Subscriptions** تعداد سرورهای هر ساب را نشان می‌دهد و کانفیگ‌های دو ساب با هم قاطی نمی‌شوند. در **Split routing → Choose apps…** برنامه‌های در حال اجرا یا فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و کنار ساعت اجرا می‌شود.

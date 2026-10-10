@@ -1,6 +1,6 @@
 # Site and application routing
 
-WProxy 2.5.0 stores one routing policy in the existing private `store.json`. The field is additive: stores created by older releases load as `all`, so upgrading does not change which traffic uses the VPN.
+WProxy 2.5.1 stores one routing policy in the existing private `store.json`. The field is additive: stores created by older releases load as `all`, so upgrading does not change which traffic uses the VPN.
 
 ## Modes
 

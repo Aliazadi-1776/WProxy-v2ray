@@ -63,9 +63,9 @@ class ReleaseTests(unittest.TestCase):
     def test_archives_include_license_assets_and_no_generated_data(self):
         with tempfile.TemporaryDirectory(prefix="wproxy-release-test-") as directory:
             BUILDER.build(Path(directory))
-            with zipfile.ZipFile(Path(directory) / "WProxy-2.5.0-GitHub.zip") as archive:
+            with zipfile.ZipFile(Path(directory) / "WProxy-2.5.1-GitHub.zip") as archive:
                 self.assertIsNone(archive.testzip())
-                prefix = "WProxy-2.5.0/"
+                prefix = "WProxy-2.5.1/"
                 self.assertEqual(archive.read(prefix + "LICENSE"), (ROOT / "LICENSE").read_bytes())
                 for name in ("README.md", "README.fa.md", ".github/workflows/ci.yml",
                              ".github/workflows/windows-release.yml",
@@ -79,7 +79,7 @@ class ReleaseTests(unittest.TestCase):
                     self.assertFalse(BUILDER.EXCLUDED.intersection(path.parts), name)
                     self.assertNotIn(path.suffix.lower(), {".pyc", ".pyo", ".so", ".o", ".log", ".nmconnection", ".pid", ".exe", ".dll"})
                     self.assertNotIn("dist", path.parts)
-            with zipfile.ZipFile(Path(directory) / "WProxy-2.5.0-Plasma6.plasmoid") as archive:
+            with zipfile.ZipFile(Path(directory) / "WProxy-2.5.1-Plasma6.plasmoid") as archive:
                 self.assertIsNone(archive.testzip())
                 self.assertEqual(archive.read("LICENSE"), (ROOT / "LICENSE").read_bytes())
                 self.assertIn("metadata.json", archive.namelist())

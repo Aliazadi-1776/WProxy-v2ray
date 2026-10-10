@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  WPROXY_VERSION: '2.5.0'
+  WPROXY_VERSION: '2.5.1'
   XRAY_VERSION: '26.9.30'
   XRAY_SHA256: 'b17a619343c11b89d8faf36278298856749b15c52277d875d32051b33dcda617'
 

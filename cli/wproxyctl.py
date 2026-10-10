@@ -26,7 +26,7 @@ from types import SimpleNamespace
 APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 USER_AGENT = f"WProxy/{VERSION} (Xray; v2rayNG-compatible subscription reader)"
 ROUTING_MODES = ("all", "bypass", "only")
 MAX_SUBSCRIPTION_BYTES = 8 * 1024 * 1024

@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parents[1]
 widget = root / "kde-plasmoid/org.wproxy.WProxy"
 metadata = json.loads((widget / "metadata.json").read_text())
 assert metadata["KPlugin"]["Id"] == widget.name
-assert metadata["KPlugin"]["Version"] == "2.5.0"
+assert metadata["KPlugin"]["Version"] == "2.5.1"
 assert metadata["KPlugin"]["License"] == "MIT"
 license_text = (root / "LICENSE").read_text()
 assert license_text.startswith("MIT License\n")

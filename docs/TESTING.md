@@ -1,6 +1,6 @@
 # Test coverage
 
-## 2.5.0 Windows installer, multi-subscription ownership and routing
+## 2.5.1 Windows installer, multi-subscription ownership and routing
 
 Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, Windows executable-name normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, same-URI ownership across multiple subscriptions, JSON/mixed subscription extraction, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN/WFP fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
 
@@ -20,7 +20,7 @@ The 2.2.10 host report dated 2026-09-22 recorded:
 - Route lookup through `wproxy0`: **PASS**.
 - HTTPS through the system tunnel: **PASS (204)**.
 
-Version 2.5.0 retains this Linux TUN algorithm and routing behavior. It also regression-tests GNOME 51 layout properties, announcement filtering, subscription-scoped node ownership and ownership-safe stale-profile selection. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
+Version 2.5.1 retains this Linux TUN algorithm and routing behavior. It also regression-tests GNOME 51 layout properties, announcement filtering, subscription-scoped node ownership and ownership-safe stale-profile selection. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
 
 Automated C/Python tests cover profile lookup, NetworkManager gateway/IP/default-route encoding, compatibility with Xray 26.3.27's TUN fields, outbound-interface binding, endpoint pinning/SNI, gateway-file permissions, and explicit interface/address setup failures. `make test` also checks JavaScript/shell syntax, KDE command quoting and repository assets.
 

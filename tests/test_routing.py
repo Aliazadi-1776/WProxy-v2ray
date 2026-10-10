@@ -55,7 +55,7 @@ class RoutingPolicyTests(unittest.TestCase):
         })
         keyfile = ctl.nm_keyfile({"id": "node", "name": "Node", "uri": URI}, policy)
         self.assertIn(f"routing64={encoded}\n", keyfile)
-        self.assertIn("wproxy-version=2.5.0\n", keyfile)
+        self.assertIn("wproxy-version=2.5.1\n", keyfile)
 
     def test_invalid_or_oversized_policy_is_rejected(self):
         with self.assertRaises(ValueError):

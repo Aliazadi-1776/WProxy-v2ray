@@ -1,4 +1,4 @@
-# Unreleased
+# 2.5.1
 
 - Redesign the Windows manager as a DPI-aware dark desktop application with a persistent tunnel-status card, clearer server/subscription/routing pages, improved list and action styling, keyboard shortcuts, double-click connect and direct server removal.
 - Prevent Unicode server or subscription names from closing the Windows manager by forcing UTF-8 command streams, treating native stderr as an operation result and catching UI-thread failures without terminating the tray process.

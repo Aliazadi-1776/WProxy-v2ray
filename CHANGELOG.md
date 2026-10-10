@@ -1,3 +1,9 @@
+# Unreleased
+
+- Redesign the Windows manager as a DPI-aware dark desktop application with a persistent tunnel-status card, clearer server/subscription/routing pages, improved list and action styling, keyboard shortcuts, double-click connect and direct server removal.
+- Prevent Unicode server or subscription names from closing the Windows manager by forcing UTF-8 command streams, treating native stderr as an operation result and catching UI-thread failures without terminating the tray process.
+- Add a Windows CI smoke test that round-trips an emoji server name through the frozen command engine and PowerShell JSON parser.
+
 # 2.5.0
 
 - Add a one-click Windows x64 Inno Setup installer that bundles a standalone PyInstaller command engine and the pinned official Xray 26.9.30/Wintun runtime; end users no longer install Python or Xray separately.

@@ -18,6 +18,20 @@ spec.loader.exec_module(ctl)
 
 
 class ConfigTests(unittest.TestCase):
+    def test_windows_text_streams_are_reconfigured_as_utf8(self):
+        class FakeStream:
+            def __init__(self):
+                self.settings = None
+
+            def reconfigure(self, **settings):
+                self.settings = settings
+
+        stream = FakeStream()
+        ctl.configure_text_streams(platform="nt", streams=(stream,))
+        self.assertEqual(stream.settings, {
+            "encoding": "utf-8", "errors": "backslashreplace",
+        })
+
     def test_windows_runtime_requires_wintun_and_recent_xray(self):
         with tempfile.TemporaryDirectory() as directory:
             xray = Path(directory) / "xray.exe"

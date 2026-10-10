@@ -33,6 +33,18 @@ jobs:
           python -m pip install --disable-pip-version-check pyinstaller==6.22.3
           pyinstaller --noconfirm --clean --onefile --console --name wproxyctl --distpath build/windows cli/wproxyctl.py
           .\build\windows\wproxyctl.exe --version
+      - name: Verify Unicode server names through PowerShell
+        shell: powershell
+        run: |
+          $env:APPDATA = Join-Path $env:RUNNER_TEMP 'wproxy-unicode-profile'
+          $uri = 'trojan://test-password@example.com:443?security=tls#%F0%9F%87%A9%F0%9F%87%AA%20Berlin'
+          & .\build\windows\wproxyctl.exe node add $uri
+          if ($LASTEXITCODE -ne 0) { throw 'Could not add the Unicode smoke-test server' }
+          $nodes = @(& .\build\windows\wproxyctl.exe node list --json | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or $nodes.Count -ne 1) { throw 'Could not read the Unicode smoke-test server' }
+          $expected = [char]::ConvertFromUtf32(0x1F1E9) + [char]::ConvertFromUtf32(0x1F1EA) + ' Berlin'
+          if ($nodes[0].name -ne $expected) { throw "Unicode server name was corrupted: $($nodes[0].name)" }
+          [void][ScriptBlock]::Create((Get-Content windows/WProxy.ps1 -Raw))
       - name: Download and verify official Xray runtime
         shell: powershell
         run: |

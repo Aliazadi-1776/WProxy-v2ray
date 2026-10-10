@@ -37,6 +37,26 @@ PRIVATE_NETWORKS = [
 ]
 
 
+def configure_text_streams(platform=None, streams=None):
+    """Keep Windows CLI output Unicode-safe when launched behind PowerShell."""
+    if (platform or os.name) != "nt":
+        return
+    streams = streams or (sys.stdout, sys.stderr)
+    for stream in streams:
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not reconfigure:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            # Frozen/redirected runtimes may expose a stream that cannot be
+            # reconfigured. The GUI also requests UTF-8 before spawning us.
+            pass
+
+
+configure_text_streams()
+
+
 def _is_root():
     return hasattr(os, "geteuid") and os.geteuid() == 0
 

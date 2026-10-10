@@ -15,6 +15,23 @@ SPEC.loader.exec_module(BUILDER)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_windows_manager_handles_unicode_engine_failures_without_closing(self):
+        source = (ROOT / "windows/WProxy.ps1").read_text()
+        self.assertIn("$env:PYTHONIOENCODING = 'utf-8'", source)
+        self.assertIn("$ErrorActionPreference = 'Continue'", source)
+        self.assertIn("Application]::add_ThreadException", source)
+        self.assertIn("WProxy is still running", source)
+
+    def test_windows_manager_exposes_app_style_primary_workflows(self):
+        source = (ROOT / "windows/WProxy.ps1").read_text()
+        for label in (
+            "Servers", "Add connection", "Subscriptions", "Split routing",
+            "Choose apps...", "Ping all", "Connect", "Remove",
+        ):
+            self.assertIn(label, source)
+        self.assertIn("Servers, subscriptions and split routing in one place", source)
+        self.assertIn("$nodeList.Add_DoubleClick", source)
+
     def test_gnome_51_layout_uses_orientation_property(self):
         source = (ROOT / "gnome-extension/wproxy@wrench.local/extension.js").read_text()
         self.assertNotIn("vertical:", source)

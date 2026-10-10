@@ -65,7 +65,7 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 - Display remaining subscription traffic when the provider supplies usage information.
 - Separate GTK manager, CLI, and GTK3/GTK4 NetworkManager editors.
 - Three routing modes: all traffic through VPN, bypass listed sites/apps, or only listed sites/apps through VPN.
-- Windows 10/11 x64 Setup.exe with no separate Python install, a tray manager, subscription counts/source labels, application picker, ping, verified connect/disconnect and Xray native TUN control.
+- Windows 10/11 x64 Setup.exe with no separate Python install, an app-style UTF-8-safe tray manager, live tunnel status, subscription counts/source labels, application picker, ping, verified connect/disconnect and Xray native TUN control.
 
 **Ping measures TCP connection latency to a server endpoint, not end-to-end VPN health.** A successful HTTPS-through-TUN test is stronger evidence than a ping result.
 

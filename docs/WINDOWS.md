@@ -2,6 +2,8 @@
 
 WProxy 2.5.0 ships as a per-user `Setup.exe`. It includes a standalone WProxy command engine, the notification-area manager, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately.
 
+The manager uses a dark, DPI-aware application shell with a persistent connection-status card and dedicated pages for servers, imports, subscriptions and split routing. Server names containing emoji or non-Latin text are carried over UTF-8; a failed command is shown as an operation error and no longer terminates the manager. Closing or minimizing the window keeps WProxy available from the notification area.
+
 ## Why it is beside the clock, not inside Win+A
 
 Windows 11 has no public extension API for arbitrary third-party Quick Settings controls. Microsoft's native VPN integration uses a restricted VPN Provider capability and cannot host WProxy's custom subscription, server, ping and routing interface. WProxy therefore uses the supported notification area and its own manager window; it does not patch Explorer.
@@ -25,7 +27,8 @@ The build workflow downloads `Xray-windows-64.zip` from the official XTLS v26.9.
 
 ## Subscriptions and servers
 
-- Use **Add** to paste a single share link or subscription URL.
+- Use **Add connection** to paste a single share link or subscription URL. Links stay masked unless you choose to reveal them.
+- On **Servers**, double-click a row to connect, or use **Ping all**, **Connect**, **Disconnect** and **Remove**. Press `F5` to refresh or `Ctrl+P` to ping.
 - **Subscriptions** shows every subscription and its imported server count. Update or remove one subscription independently.
 - **Nodes** shows each server's source subscription. Identical links from two subscriptions remain two source-owned entries; updating/removing one subscription cannot delete the other's entry.
 - The provider's quota/expiry announcement links are filtered from connectable nodes.
@@ -66,4 +69,4 @@ A CI runner cannot prove behavior on every physical network. A final Windows 10 
 
 ## خلاصهٔ فارسی
 
-برای ویندوز فقط `WProxy-2.5.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. تب **Subscriptions** تعداد سرورهای هر ساب را نشان می‌دهد و کانفیگ‌های دو ساب با هم قاطی نمی‌شوند. در **Routing → Choose apps…** برنامه‌های در حال اجرا یا فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و کنار ساعت اجرا می‌شود.
+برای ویندوز فقط `WProxy-2.5.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط جدید وضعیت اتصال را همیشه بالای پنجره نشان می‌دهد، نام‌های فارسی و ایموجی را با UTF-8 می‌خواند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. تب **Subscriptions** تعداد سرورهای هر ساب را نشان می‌دهد و کانفیگ‌های دو ساب با هم قاطی نمی‌شوند. در **Split routing → Choose apps…** برنامه‌های در حال اجرا یا فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و کنار ساعت اجرا می‌شود.

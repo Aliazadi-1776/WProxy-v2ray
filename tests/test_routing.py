@@ -94,6 +94,17 @@ class RoutingPolicyTests(unittest.TestCase):
         self.assertEqual(tun["autoSystemWfpBlockLeak"], ["dns", "misconfigtun"])
         self.assertEqual(tun["mtu"], 1400)
 
+    def test_windows_picker_path_reaches_xray_process_rule_unchanged(self):
+        app = r"C:\Program Files\Mozilla Firefox\firefox.exe"
+        config = ctl.xray_config(URI, routing={
+            "mode": "only", "domains": [], "apps": [app],
+        }, platform="windows")
+        self.assertIn({
+            "type": "field",
+            "process": ["C:/Program Files/Mozilla Firefox/firefox.exe"],
+            "outboundTag": "proxy",
+        }, config["routing"]["rules"])
+
     def test_windows_xray_version_gate(self):
         self.assertEqual(ctl.parse_xray_version("Xray 26.9.30 (Xray) abc"), (26, 9, 30))
         self.assertIsNone(ctl.parse_xray_version("not xray"))

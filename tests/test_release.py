@@ -25,10 +25,11 @@ class ReleaseTests(unittest.TestCase):
     def test_windows_manager_exposes_app_style_primary_workflows(self):
         source = (ROOT / "windows/WProxy.ps1").read_text()
         for label in (
-            "Servers", "Add connection", "Subscriptions", "Split routing",
-            "Choose apps...", "Ping all", "Connect", "Remove",
+            "Servers", "Add connection", "Subscriptions", "Routing",
+            "Choose application...", "Ping all", "Connect", "Remove",
         ):
             self.assertIn(label, source)
+        self.assertNotIn("Add typed path", source)
         self.assertIn("Private routing", source)
         self.assertIn("$nodeList.Add_DoubleClick", source)
 
@@ -58,8 +59,9 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("root.append(header)", linux)
 
         for token in (
-            "Set-RoundedRegion", "New-RoundedPath", "NavigationRail", "PageHost",
-            "OnAccent", "Online", "Private routing",
+            "WProxy.SmoothButton", "WProxy.SmoothPanel", "SmoothingMode.AntiAlias",
+            "NavigationRail", "PageHost", "OnAccent", "Online", "Private routing",
+            "Windows routing actions are clipped",
         ):
             self.assertIn(token, windows)
 

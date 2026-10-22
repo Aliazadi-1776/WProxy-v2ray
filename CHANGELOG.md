@@ -1,3 +1,12 @@
+# 2.6.0
+
+- Redesign the GTK4 manager with a spacious Material You-inspired shell, clear navigation, status and content cards, masked import fields, responsive action placement and an explicit empty-only routing warning.
+- Add a searchable Linux installed-application picker plus executable browsing; resolve selected commands to absolute paths for reliable Xray process matching.
+- Fix stale in-memory NetworkManager routing policies by updating `routing64` through `nmcli`, and map/stop active WProxy profiles by deterministic UUID when NetworkManager suffixes duplicate names.
+- Make Linux application routing functional by running only the official Xray process outside NetworkManager's capability sandbox, with deterministic transient-unit cleanup and rapid reconnect race protection.
+- Require and verify Xray 26.9.30 or newer during Linux installation; add a reversible live routing smoke test that preserves the user's original policy and never prints public IPs or credentials.
+- Bring the Windows manager into the same palette, rounded component language and roomier default layout while retaining its UAC-scoped TUN backend and verified adapter/route/HTTPS connection state.
+
 # 2.5.1
 
 - Redesign the Windows manager as a DPI-aware dark desktop application with a persistent tunnel-status card, clearer server/subscription/routing pages, improved list and action styling, keyboard shortcuts, double-click connect and direct server removal.

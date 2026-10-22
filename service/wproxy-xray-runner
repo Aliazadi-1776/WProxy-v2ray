@@ -10,6 +10,9 @@ ROUTING_FILE="$RUNTIME/routing64"
 GATEWAY="$RUNTIME/gateway"
 LOG="$RUNTIME/xray.log"
 IFACE=wproxy0
+SYSTEMD_UNIT="wproxy-xray-runtime-$$.service"
+XRAY_MANAGED_BY_SYSTEMD=0
+SYSTEMD_RUN_PID=
 CTL=${WPROXYCTL:-/usr/bin/wproxyctl}
 XRAY_BIN=${XRAY_BIN:-}
 
@@ -130,13 +133,99 @@ render_and_test() {
     fi
 }
 
+needs_process_visibility() {
+    grep -q '"process"[[:space:]]*:' "$CONFIG"
+}
+
+wait_for_tun_removal() {
+    i=0
+    while ip link show dev "$IFACE" >/dev/null 2>&1 && [ "$i" -lt 50 ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+}
+
+remove_stale_tun() {
+    wait_for_tun_removal
+    if ip link show dev "$IFACE" >/dev/null 2>&1; then
+        ip link delete dev "$IFACE" >/dev/null 2>&1 || true
+        wait_for_tun_removal
+    fi
+}
+
+start_xray() {
+    : > "$LOG"
+    if needs_process_visibility; then
+        if ! command -v systemd-run >/dev/null 2>&1 ||
+            ! command -v systemctl >/dev/null 2>&1; then
+            echo 'Application routing requires systemd-run on Linux.' >&2
+            exit 69
+        fi
+        # NetworkManager intentionally drops CAP_SYS_PTRACE. Xray's Linux
+        # process matcher needs it to map a TUN socket back to a desktop app.
+        # Ask PID 1 to start only the official Xray binary outside
+        # NetworkManager's capability sandbox instead of broadening
+        # NetworkManager itself.
+        systemctl stop "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
+        systemctl reset-failed "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
+        remove_stale_tun
+        systemd-run --quiet --wait --collect --unit="${SYSTEMD_UNIT%.service}" \
+            --property='Type=exec' \
+            --property='UMask=0077' \
+            --property="StandardOutput=append:$LOG" \
+            --property="StandardError=append:$LOG" \
+            "$XRAY_BIN" run -c "$CONFIG" &
+        SYSTEMD_RUN_PID=$!
+        XRAY_MANAGED_BY_SYSTEMD=1
+
+        i=0
+        XPID=0
+        while [ "$i" -lt 50 ]; do
+            XPID=$(systemctl show -p MainPID --value "$SYSTEMD_UNIT" 2>/dev/null || printf 0)
+            [ "${XPID:-0}" -gt 0 ] 2>/dev/null && break
+            kill -0 "$SYSTEMD_RUN_PID" 2>/dev/null || break
+            sleep 0.1
+            i=$((i + 1))
+        done
+        if [ "${XPID:-0}" -le 0 ] 2>/dev/null; then
+            wait "$SYSTEMD_RUN_PID" 2>/dev/null || true
+            cat "$LOG" >&2 || true
+            echo 'Could not start the process-aware Xray runtime.' >&2
+            exit 78
+        fi
+    else
+        "$XRAY_BIN" run -c "$CONFIG" >>"$LOG" 2>&1 &
+        XPID=$!
+    fi
+    echo "$XPID" > "$XRAY_PID"
+}
+
+xray_is_alive() {
+    # MainPID can be available a few milliseconds before systemd reports the
+    # transient unit as fully active.  Checking `systemctl is-active` here
+    # made fast reconnects tear down a healthy Xray process during that gap.
+    kill -0 "$XPID" 2>/dev/null
+}
+
+wait_for_xray() {
+    if [ "$XRAY_MANAGED_BY_SYSTEMD" -eq 1 ]; then
+        wait "$SYSTEMD_RUN_PID"
+    else
+        wait "$XPID"
+    fi
+}
+
 cleanup() {
     trap - INT TERM EXIT
     rm -f "$READY"
     if command -v resolvectl >/dev/null 2>&1; then
         resolvectl revert "$IFACE" >/dev/null 2>&1 || true
     fi
-    if [ -f "$XRAY_PID" ]; then
+    if [ "$XRAY_MANAGED_BY_SYSTEMD" -eq 1 ]; then
+        systemctl stop "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
+        [ -n "${SYSTEMD_RUN_PID:-}" ] && wait "$SYSTEMD_RUN_PID" 2>/dev/null || true
+        systemctl reset-failed "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
+    elif [ -f "$XRAY_PID" ]; then
         XPID=$(cat "$XRAY_PID" 2>/dev/null || true)
         if [ -n "${XPID:-}" ]; then
             kill "$XPID" 2>/dev/null || true
@@ -148,6 +237,7 @@ cleanup() {
             kill -9 "$XPID" 2>/dev/null || true
         fi
     fi
+    remove_stale_tun
     rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$ROUTING_FILE" "$GATEWAY"
 }
 

@@ -1,6 +1,6 @@
 # Site and application routing
 
-WProxy 2.5.1 stores one routing policy in the existing private `store.json`. The field is additive: stores created by older releases load as `all`, so upgrading does not change which traffic uses the VPN.
+WProxy 2.6.0 stores one routing policy in the existing private `store.json`. The field is additive: stores created by older releases load as `all`, so upgrading does not change which traffic uses the VPN.
 
 ## Modes
 
@@ -37,11 +37,13 @@ sudo wproxyctl nm sync
 
 - A site entry accepts a hostname or URL. WProxy stores only the normalized hostname and matches it plus its subdomains.
 - Literal IPv4/IPv6 addresses are accepted. Credentials in URLs, invalid hostnames, control characters and lists above 256 entries are rejected.
-- An application entry is a case-sensitive process name or absolute executable path. On Windows, use **Choose apps…** to enumerate running programs or browse for an EXE; exact paths are preferred. Backslashes are normalized to forward slashes and a name-only `.exe` suffix is removed to match Xray semantics.
+- An application entry is a case-sensitive process name or absolute executable path. On Linux, use **Choose application…** to search installed desktop applications or browse to an executable. On Windows, use **Choose apps…** to enumerate running programs or browse for an EXE. Exact paths are preferred; the Linux picker resolves them automatically. Backslashes are normalized to forward slashes and a name-only `.exe` suffix is removed to match Xray semantics.
 - Domain and application entries are separate Xray rules, so they form a union; an item does not need to match both.
 - Domain routing uses Xray protocol sniffing. Applications using encrypted DNS, unsupported protocols or IP-only connections may not expose a hostname. Use application routing or an IP entry where appropriate.
 
 The policy is encoded into every generated NetworkManager profile. The root VPN service accepts only a bounded base64url value and passes it to the runner through a root-only runtime file. Xray rejects the generated configuration before the tunnel is marked ready.
+
+Linux process matching needs visibility that NetworkManager intentionally removes from its service sandbox. WProxy 2.6.0 launches only the official Xray process in a short-lived systemd unit when an application rule exists; full-tunnel and domain-only connections keep the normal runner path. The installer requires `systemd-run` and Xray 26.9.30 or newer.
 
 ## فارسیِ کوتاه
 

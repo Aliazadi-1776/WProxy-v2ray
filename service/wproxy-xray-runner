@@ -277,8 +277,19 @@ case "${1:-}" in
     if [ -f "$RUNNER_PID" ]; then
         OLD=$(cat "$RUNNER_PID" 2>/dev/null || true)
         if [ -n "${OLD:-}" ] && kill -0 "$OLD" 2>/dev/null; then
-            echo "another WProxy tunnel is already active" >&2
-            exit 73
+            # NetworkManager may start the replacement profile immediately
+            # after sending SIGTERM to the previous helper.  Give that helper
+            # time to finish its trap, stop Xray, and remove wproxy0 instead of
+            # turning a normal server switch into a spurious activation error.
+            i=0
+            while kill -0 "$OLD" 2>/dev/null && [ "$i" -lt 80 ]; do
+                sleep 0.1
+                i=$((i + 1))
+            done
+            if kill -0 "$OLD" 2>/dev/null; then
+                echo "another WProxy tunnel is already active" >&2
+                exit 73
+            fi
         fi
         rm -f "$RUNNER_PID"
     fi

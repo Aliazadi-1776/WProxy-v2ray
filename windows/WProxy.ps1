@@ -3,17 +3,200 @@ param([switch]$Show, [switch]$LayoutSmokeTest)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+try {
+    [System.Windows.Forms.Application]::SetHighDpiMode(
+        [System.Windows.Forms.HighDpiMode]::PerMonitorV2) | Out-Null
+} catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [System.Windows.Forms.Application]::SetUnhandledExceptionMode([System.Windows.Forms.UnhandledExceptionMode]::CatchException)
 try {
     Add-Type -TypeDefinition @'
 using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 namespace WProxy {
     public static class NativeTheme {
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(
             IntPtr window, int attribute, ref int value, int size);
+    }
+
+    public sealed class SmoothButton : Control {
+        private bool hovered;
+        private bool pressed;
+
+        public Color FillColor { get; set; }
+        public Color HoverColor { get; set; }
+        public Color PressedColor { get; set; }
+        public Color BorderColor { get; set; }
+        public int BorderSize { get; set; }
+        public int CornerRadius { get; set; }
+        public ContentAlignment TextAlign { get; set; }
+
+        public SmoothButton() {
+            SetStyle(ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw |
+                     ControlStyles.UserPaint |
+                     ControlStyles.SupportsTransparentBackColor, true);
+            AccessibleRole = AccessibleRole.PushButton;
+            BackColor = Color.Transparent;
+            FillColor = Color.FromArgb(40, 43, 50);
+            HoverColor = Color.FromArgb(48, 52, 61);
+            PressedColor = Color.FromArgb(34, 37, 44);
+            BorderColor = Color.Transparent;
+            BorderSize = 0;
+            CornerRadius = 12;
+            TextAlign = ContentAlignment.MiddleCenter;
+            TabStop = true;
+        }
+
+        private GraphicsPath RoundedPath(Rectangle bounds, int radius) {
+            GraphicsPath path = new GraphicsPath();
+            int diameter = Math.Max(2, Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height)));
+            Rectangle arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
+            path.AddArc(arc, 180, 90);
+            arc.X = bounds.Right - diameter;
+            path.AddArc(arc, 270, 90);
+            arc.Y = bounds.Bottom - diameter;
+            path.AddArc(arc, 0, 90);
+            arc.X = bounds.Left;
+            path.AddArc(arc, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        protected override void OnPaint(PaintEventArgs e) {
+            Color parentColor = Parent == null ? Color.FromArgb(17, 19, 24) : Parent.BackColor;
+            e.Graphics.Clear(parentColor);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle bounds = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
+            Color fill = pressed ? PressedColor : (hovered ? HoverColor : FillColor);
+            if (!Enabled) {
+                fill = Color.FromArgb(
+                    (fill.R + parentColor.R * 2) / 3,
+                    (fill.G + parentColor.G * 2) / 3,
+                    (fill.B + parentColor.B * 2) / 3);
+            }
+            using (GraphicsPath path = RoundedPath(bounds, CornerRadius))
+            using (SolidBrush brush = new SolidBrush(fill)) {
+                e.Graphics.FillPath(brush, path);
+                if (BorderSize > 0 && BorderColor.A > 0) {
+                    using (Pen pen = new Pen(BorderColor, BorderSize)) {
+                        pen.Alignment = PenAlignment.Inset;
+                        e.Graphics.DrawPath(pen, path);
+                    }
+                }
+                if (Focused && ShowFocusCues) {
+                    using (Pen pen = new Pen(Color.FromArgb(150, ForeColor), 1)) {
+                        pen.DashStyle = DashStyle.Dot;
+                        Rectangle focus = Rectangle.Inflate(bounds, -4, -4);
+                        using (GraphicsPath focusPath = RoundedPath(focus, Math.Max(4, CornerRadius - 4))) {
+                            e.Graphics.DrawPath(pen, focusPath);
+                        }
+                    }
+                }
+            }
+
+            Rectangle textBounds = new Rectangle(
+                Padding.Left, Padding.Top,
+                Math.Max(0, Width - Padding.Horizontal),
+                Math.Max(0, Height - Padding.Vertical));
+            TextFormatFlags flags = TextFormatFlags.SingleLine |
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis;
+            if (TextAlign == ContentAlignment.MiddleLeft) flags |= TextFormatFlags.Left;
+            else if (TextAlign == ContentAlignment.MiddleRight) flags |= TextFormatFlags.Right;
+            else flags |= TextFormatFlags.HorizontalCenter;
+            Color textColor = Enabled ? ForeColor : Color.FromArgb(105, 112, 124);
+            TextRenderer.DrawText(e.Graphics, Text, Font, textBounds, textColor, flags);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) {
+            hovered = true;
+            Invalidate();
+            base.OnMouseEnter(e);
+        }
+        protected override void OnMouseLeave(EventArgs e) {
+            hovered = false;
+            pressed = false;
+            Invalidate();
+            base.OnMouseLeave(e);
+        }
+        protected override void OnMouseDown(MouseEventArgs e) {
+            if (e.Button == MouseButtons.Left) {
+                pressed = true;
+                Focus();
+                Invalidate();
+            }
+            base.OnMouseDown(e);
+        }
+        protected override void OnMouseUp(MouseEventArgs e) {
+            pressed = false;
+            Invalidate();
+            base.OnMouseUp(e);
+        }
+        protected override void OnKeyDown(KeyEventArgs e) {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) {
+                PerformClick();
+                e.Handled = true;
+            }
+            base.OnKeyDown(e);
+        }
+        protected override void OnEnabledChanged(EventArgs e) {
+            Invalidate();
+            base.OnEnabledChanged(e);
+        }
+        public void PerformClick() {
+            if (Enabled) OnClick(EventArgs.Empty);
+        }
+    }
+
+    public sealed class SmoothPanel : Panel {
+        public Color FillColor { get; set; }
+        public Color BorderColor { get; set; }
+        public int BorderSize { get; set; }
+        public int CornerRadius { get; set; }
+
+        public SmoothPanel() {
+            SetStyle(ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw |
+                     ControlStyles.UserPaint |
+                     ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            FillColor = Color.FromArgb(31, 34, 40);
+            BorderColor = Color.Transparent;
+            BorderSize = 0;
+            CornerRadius = 18;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e) {
+            Color parentColor = Parent == null ? Color.FromArgb(17, 19, 24) : Parent.BackColor;
+            e.Graphics.Clear(parentColor);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle bounds = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
+            int diameter = Math.Max(2, Math.Min(CornerRadius * 2, Math.Min(bounds.Width, bounds.Height)));
+            using (GraphicsPath path = new GraphicsPath()) {
+                Rectangle arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
+                path.AddArc(arc, 180, 90);
+                arc.X = bounds.Right - diameter;
+                path.AddArc(arc, 270, 90);
+                arc.Y = bounds.Bottom - diameter;
+                path.AddArc(arc, 0, 90);
+                arc.X = bounds.Left;
+                path.AddArc(arc, 90, 90);
+                path.CloseFigure();
+                using (SolidBrush brush = new SolidBrush(FillColor)) e.Graphics.FillPath(brush, path);
+                if (BorderSize > 0 && BorderColor.A > 0) {
+                    using (Pen pen = new Pen(BorderColor, BorderSize)) {
+                        pen.Alignment = PenAlignment.Inset;
+                        e.Graphics.DrawPath(pen, path);
+                    }
+                }
+            }
+        }
     }
 }
 '@
@@ -90,20 +273,22 @@ function Invoke-AdminCtl([string[]]$Arguments) {
 }
 
 $script:Ui = @{
-    Canvas = [System.Drawing.Color]::FromArgb(17, 19, 24)
-    Sidebar = [System.Drawing.Color]::FromArgb(25, 27, 32)
-    Surface = [System.Drawing.Color]::FromArgb(27, 27, 31)
-    Raised = [System.Drawing.Color]::FromArgb(40, 42, 50)
-    Border = [System.Drawing.Color]::FromArgb(70, 72, 80)
-    Accent = [System.Drawing.Color]::FromArgb(190, 194, 255)
-    AccentHover = [System.Drawing.Color]::FromArgb(216, 218, 255)
-    OnAccent = [System.Drawing.Color]::FromArgb(37, 43, 97)
-    Blue = [System.Drawing.Color]::FromArgb(194, 198, 221)
-    Online = [System.Drawing.Color]::FromArgb(140, 224, 200)
-    Text = [System.Drawing.Color]::FromArgb(244, 241, 248)
-    Muted = [System.Drawing.Color]::FromArgb(197, 197, 207)
-    Danger = [System.Drawing.Color]::FromArgb(255, 178, 191)
-    DangerSurface = [System.Drawing.Color]::FromArgb(74, 37, 48)
+    Canvas = [System.Drawing.Color]::FromArgb(15, 17, 21)
+    Sidebar = [System.Drawing.Color]::FromArgb(21, 24, 29)
+    Surface = [System.Drawing.Color]::FromArgb(26, 29, 35)
+    Raised = [System.Drawing.Color]::FromArgb(34, 38, 45)
+    RaisedHover = [System.Drawing.Color]::FromArgb(43, 48, 57)
+    Border = [System.Drawing.Color]::FromArgb(49, 54, 64)
+    Accent = [System.Drawing.Color]::FromArgb(166, 190, 255)
+    AccentHover = [System.Drawing.Color]::FromArgb(190, 207, 255)
+    AccentSurface = [System.Drawing.Color]::FromArgb(37, 46, 72)
+    OnAccent = [System.Drawing.Color]::FromArgb(20, 39, 77)
+    Blue = [System.Drawing.Color]::FromArgb(157, 183, 255)
+    Online = [System.Drawing.Color]::FromArgb(103, 218, 179)
+    Text = [System.Drawing.Color]::FromArgb(239, 242, 247)
+    Muted = [System.Drawing.Color]::FromArgb(166, 173, 184)
+    Danger = [System.Drawing.Color]::FromArgb(255, 177, 190)
+    DangerSurface = [System.Drawing.Color]::FromArgb(48, 34, 39)
 }
 $script:Brushes = @{
     Canvas = New-Object System.Drawing.SolidBrush($script:Ui.Canvas)
@@ -112,86 +297,64 @@ $script:Brushes = @{
     Accent = New-Object System.Drawing.SolidBrush($script:Ui.Accent)
 }
 $script:BodyFont = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Regular)
-$script:StrongFont = New-Object System.Drawing.Font('Segoe UI Semibold', 10, [System.Drawing.FontStyle]::Bold)
-$script:TitleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 20, [System.Drawing.FontStyle]::Bold)
-$script:PageTitleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 17, [System.Drawing.FontStyle]::Bold)
+$script:StrongFont = New-Object System.Drawing.Font('Segoe UI Semibold', 10, [System.Drawing.FontStyle]::Regular)
+$script:TitleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 20, [System.Drawing.FontStyle]::Regular)
+$script:PageTitleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 18, [System.Drawing.FontStyle]::Regular)
 $script:CaptionFont = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Regular)
-
-function Set-RoundedRegion {
-    param([System.Windows.Forms.Control]$Control, [int]$Radius = 18)
-    if ($Control.Width -le 0 -or $Control.Height -le 0) { return }
-    $diameter = $Radius * 2
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddArc(0, 0, $diameter, $diameter, 180, 90)
-    $path.AddArc(($Control.Width - $diameter), 0, $diameter, $diameter, 270, 90)
-    $path.AddArc(($Control.Width - $diameter), ($Control.Height - $diameter), $diameter, $diameter, 0, 90)
-    $path.AddArc(0, ($Control.Height - $diameter), $diameter, $diameter, 90, 90)
-    $path.CloseFigure()
-    if ($Control.Region) { $Control.Region.Dispose() }
-    $Control.Region = New-Object System.Drawing.Region($path)
-    $path.Dispose()
-}
-
-function New-RoundedPath {
-    param([System.Drawing.Rectangle]$Bounds, [int]$Radius = 16)
-    $diameter = $Radius * 2
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddArc($Bounds.X, $Bounds.Y, $diameter, $diameter, 180, 90)
-    $path.AddArc(($Bounds.Right - $diameter), $Bounds.Y, $diameter, $diameter, 270, 90)
-    $path.AddArc(($Bounds.Right - $diameter), ($Bounds.Bottom - $diameter), $diameter, $diameter, 0, 90)
-    $path.AddArc($Bounds.X, ($Bounds.Bottom - $diameter), $diameter, $diameter, 90, 90)
-    $path.CloseFigure()
-    return $path
-}
 
 function Set-ActionButton {
     param(
-        [System.Windows.Forms.Button]$Button,
+        [WProxy.SmoothButton]$Button,
         [ValidateSet('Primary', 'Secondary', 'Danger', 'Navigation')][string]$Kind = 'Secondary'
     )
-    $Button.FlatStyle = 'Flat'
-    $Button.FlatAppearance.BorderSize = 1
     $Button.Cursor = [System.Windows.Forms.Cursors]::Hand
     $Button.Font = $script:StrongFont
-    $Button.Height = 36
+    $Button.Height = 40
     $Button.AutoSize = $false
-    $Button.Padding = New-Object System.Windows.Forms.Padding(12, 0, 12, 0)
+    $Button.Padding = New-Object System.Windows.Forms.Padding(14, 0, 14, 0)
+    $Button.CornerRadius = 12
+    $Button.BorderSize = 0
+    $Button.BorderColor = [System.Drawing.Color]::Transparent
     switch ($Kind) {
         'Primary' {
-            $Button.BackColor = $script:Ui.Accent
+            $Button.FillColor = $script:Ui.Accent
+            $Button.HoverColor = $script:Ui.AccentHover
+            $Button.PressedColor = [System.Drawing.Color]::FromArgb(143, 172, 248)
             $Button.ForeColor = $script:Ui.OnAccent
-            $Button.FlatAppearance.BorderColor = $script:Ui.Accent
-            $Button.FlatAppearance.MouseOverBackColor = $script:Ui.AccentHover
         }
         'Danger' {
-            $Button.BackColor = $script:Ui.DangerSurface
+            $Button.FillColor = $script:Ui.DangerSurface
+            $Button.HoverColor = [System.Drawing.Color]::FromArgb(61, 39, 45)
+            $Button.PressedColor = [System.Drawing.Color]::FromArgb(40, 28, 32)
             $Button.ForeColor = $script:Ui.Danger
-            $Button.FlatAppearance.BorderColor = $script:Ui.DangerSurface
-            $Button.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(88, 39, 48)
         }
         'Navigation' {
-            $Button.BackColor = $script:Ui.Sidebar
+            $Button.FillColor = $script:Ui.Sidebar
+            $Button.HoverColor = $script:Ui.Raised
+            $Button.PressedColor = $script:Ui.Surface
             $Button.ForeColor = $script:Ui.Muted
-            $Button.FlatAppearance.BorderSize = 0
-            $Button.FlatAppearance.MouseOverBackColor = $script:Ui.Raised
             $Button.TextAlign = 'MiddleLeft'
-            $Button.Padding = New-Object System.Windows.Forms.Padding(16, 0, 8, 0)
+            $Button.Padding = New-Object System.Windows.Forms.Padding(18, 0, 10, 0)
+            $Button.CornerRadius = 10
         }
         default {
-            $Button.BackColor = $script:Ui.Raised
+            $Button.FillColor = $script:Ui.Raised
+            $Button.HoverColor = $script:Ui.RaisedHover
+            $Button.PressedColor = $script:Ui.Surface
             $Button.ForeColor = $script:Ui.Text
-            $Button.FlatAppearance.BorderColor = $script:Ui.Border
-            $Button.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(34, 49, 73)
         }
     }
-    Set-RoundedRegion $Button 18
-    $Button.Add_Resize({ param($sender, $eventArgs) Set-RoundedRegion $sender 18 })
+    $Button.Invalidate()
 }
 
 function Set-InputStyle([System.Windows.Forms.Control]$Control) {
-    $Control.BackColor = $script:Ui.Canvas
+    $Control.BackColor = $script:Ui.Surface
     $Control.ForeColor = $script:Ui.Text
     $Control.Font = $script:BodyFont
+    if ($Control -is [System.Windows.Forms.TextBoxBase] -or
+        $Control -is [System.Windows.Forms.ListBox]) {
+        $Control.BorderStyle = 'FixedSingle'
+    }
 }
 
 function Enable-DarkTitleBar([System.Windows.Forms.Form]$Window) {
@@ -208,7 +371,7 @@ function Enable-DarkTitleBar([System.Windows.Forms.Form]$Window) {
 function Set-ListStyle([System.Windows.Forms.ListView]$List) {
     $List.BackColor = $script:Ui.Surface
     $List.ForeColor = $script:Ui.Text
-    $List.BorderStyle = 'FixedSingle'
+    $List.BorderStyle = 'None'
     $List.Font = $script:BodyFont
     $List.HideSelection = $false
     $List.OwnerDraw = $true
@@ -265,8 +428,8 @@ function New-PageHeader([string]$Title, [string]$Subtitle) {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'WProxy 2.6.1'
-$form.Size = New-Object System.Drawing.Size(1120, 760)
-$form.MinimumSize = New-Object System.Drawing.Size(900, 620)
+$form.Size = New-Object System.Drawing.Size(1180, 800)
+$form.MinimumSize = New-Object System.Drawing.Size(980, 680)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = $script:Ui.Canvas
 $form.ForeColor = $script:Ui.Text
@@ -285,7 +448,7 @@ $shell.Padding = New-Object System.Windows.Forms.Padding(0)
 $shell.ColumnCount = 2
 $shell.RowCount = 1
 $shell.BackColor = $script:Ui.Canvas
-$shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Absolute', 236)))
+$shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Absolute', 220)))
 $shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 100)))
 $shell.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Percent', 100)))
 $form.Controls.Add($shell)
@@ -294,11 +457,11 @@ $navigationRail = New-Object System.Windows.Forms.TableLayoutPanel
 $navigationRail.Name = 'NavigationRail'
 $navigationRail.Dock = 'Fill'
 $navigationRail.Margin = New-Object System.Windows.Forms.Padding(0)
-$navigationRail.Padding = New-Object System.Windows.Forms.Padding(14, 18, 14, 12)
+$navigationRail.Padding = New-Object System.Windows.Forms.Padding(18, 22, 18, 14)
 $navigationRail.ColumnCount = 1
 $navigationRail.RowCount = 3
 $navigationRail.BackColor = $script:Ui.Sidebar
-$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 116)))
+$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 112)))
 $navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Percent', 100)))
 $navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 38)))
 $shell.Controls.Add($navigationRail, 0, 0)
@@ -307,29 +470,34 @@ $brandPanel = New-Object System.Windows.Forms.Panel
 $brandPanel.Dock = 'Fill'
 $brandPanel.BackColor = $script:Ui.Sidebar
 $navigationRail.Controls.Add($brandPanel, 0, 0)
-$brandMark = New-Object System.Windows.Forms.Label
-$brandMark.Text = 'W'
-$brandMark.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 18, [System.Drawing.FontStyle]::Bold)
-$brandMark.TextAlign = 'MiddleCenter'
-$brandMark.BackColor = $script:Ui.Accent
-$brandMark.ForeColor = $script:Ui.OnAccent
-$brandMark.Size = New-Object System.Drawing.Size(52, 52)
+$brandMark = New-Object WProxy.SmoothPanel
+$brandMark.FillColor = $script:Ui.Accent
+$brandMark.BorderColor = [System.Drawing.Color]::Transparent
+$brandMark.CornerRadius = 14
+$brandMark.Size = New-Object System.Drawing.Size(48, 48)
 $brandMark.Location = New-Object System.Drawing.Point(0, 0)
-Set-RoundedRegion $brandMark 17
+$brandMarkLabel = New-Object System.Windows.Forms.Label
+$brandMarkLabel.Text = 'W'
+$brandMarkLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 17, [System.Drawing.FontStyle]::Regular)
+$brandMarkLabel.TextAlign = 'MiddleCenter'
+$brandMarkLabel.BackColor = [System.Drawing.Color]::Transparent
+$brandMarkLabel.ForeColor = $script:Ui.OnAccent
+$brandMarkLabel.Dock = 'Fill'
+$brandMark.Controls.Add($brandMarkLabel)
 $brandPanel.Controls.Add($brandMark)
 $brandTitle = New-Object System.Windows.Forms.Label
 $brandTitle.Text = 'WProxy'
 $brandTitle.Font = $script:StrongFont
 $brandTitle.ForeColor = $script:Ui.Text
 $brandTitle.AutoSize = $true
-$brandTitle.Location = New-Object System.Drawing.Point(0, 64)
+$brandTitle.Location = New-Object System.Drawing.Point(0, 60)
 $brandPanel.Controls.Add($brandTitle)
 $brandSubtitle = New-Object System.Windows.Forms.Label
 $brandSubtitle.Text = 'Private routing'
 $brandSubtitle.Font = $script:CaptionFont
 $brandSubtitle.ForeColor = $script:Ui.Muted
 $brandSubtitle.AutoSize = $true
-$brandSubtitle.Location = New-Object System.Drawing.Point(0, 88)
+$brandSubtitle.Location = New-Object System.Drawing.Point(0, 84)
 $brandPanel.Controls.Add($brandSubtitle)
 
 $navigationButtons = New-Object System.Windows.Forms.FlowLayoutPanel
@@ -337,24 +505,24 @@ $navigationButtons.Dock = 'Fill'
 $navigationButtons.FlowDirection = 'TopDown'
 $navigationButtons.WrapContents = $false
 $navigationButtons.BackColor = $script:Ui.Sidebar
-$navigationButtons.Padding = New-Object System.Windows.Forms.Padding(0, 8, 0, 0)
+$navigationButtons.Padding = New-Object System.Windows.Forms.Padding(0, 10, 0, 0)
 $navigationRail.Controls.Add($navigationButtons, 0, 1)
 $script:NavButtons = @{}
 foreach ($definition in @(
-    @('servers', 'Servers', [char]0x25A3),
-    @('subscriptions', 'Subscriptions', [char]0x21BB),
-    @('add', 'Add connection', '+'),
-    @('routing', 'Split routing', [char]0x2194)
+    @('servers', 'Servers'),
+    @('subscriptions', 'Subscriptions'),
+    @('add', 'Add connection'),
+    @('routing', 'Routing')
 )) {
-    $button = New-Object System.Windows.Forms.Button
+    $button = New-Object WProxy.SmoothButton
     $button.Name = 'Nav' + $definition[0]
     $button.Tag = $definition[0]
-    $button.Text = ([string]$definition[2]) + '   ' + $definition[1]
-    $button.Width = 204
-    $button.Height = 48
-    $button.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
+    $button.Text = $definition[1]
+    $button.Width = 184
+    $button.Height = 44
+    $button.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
     Set-ActionButton $button 'Navigation'
-    $button.Height = 48
+    $button.Height = 44
     $button.Add_Click({ param($sender, $eventArgs) Show-Page ([string]$sender.Tag) })
     $navigationButtons.Controls.Add($button)
     $script:NavButtons[$definition[0]] = $button
@@ -378,32 +546,34 @@ $shell.Controls.Add($contentRoot, 1, 0)
 $pageHost = New-Object System.Windows.Forms.Panel
 $pageHost.Name = 'PageHost'
 $pageHost.Dock = 'Fill'
-$pageHost.Padding = New-Object System.Windows.Forms.Padding(24, 8, 24, 16)
+$pageHost.Padding = New-Object System.Windows.Forms.Padding(28, 6, 28, 18)
 $pageHost.BackColor = $script:Ui.Canvas
 $contentRoot.Controls.Add($pageHost)
 
 $header = New-Object System.Windows.Forms.Panel
 $header.Dock = 'Top'
-$header.Height = 144
+$header.Height = 136
 $header.BackColor = $script:Ui.Canvas
-$header.Padding = New-Object System.Windows.Forms.Padding(24, 20, 24, 12)
+$header.Padding = New-Object System.Windows.Forms.Padding(28, 22, 28, 12)
 $contentRoot.Controls.Add($header)
 
-$connectionCard = New-Object System.Windows.Forms.Panel
+$connectionCard = New-Object WProxy.SmoothPanel
 $connectionCard.Dock = 'Fill'
-$connectionCard.BackColor = $script:Ui.Raised
-Set-RoundedRegion $connectionCard 24
+$connectionCard.FillColor = $script:Ui.Surface
+$connectionCard.BorderColor = $script:Ui.Border
+$connectionCard.BorderSize = 1
+$connectionCard.CornerRadius = 20
 $connectionCard.Add_Resize({
     param($sender, $eventArgs)
-    Set-RoundedRegion $sender 24
-    $connectionState.Width = [Math]::Max(100, $sender.ClientSize.Width - 116)
-    $connectionDetail.Width = [Math]::Max(100, $sender.ClientSize.Width - 116)
+    $connectionState.Width = [Math]::Max(100, $sender.ClientSize.Width - 120)
+    $connectionDetail.Width = [Math]::Max(100, $sender.ClientSize.Width - 120)
 })
-$connectionDotPanel = New-Object System.Windows.Forms.Panel
-$connectionDotPanel.Size = New-Object System.Drawing.Size(56, 56)
-$connectionDotPanel.Location = New-Object System.Drawing.Point(24, 24)
-$connectionDotPanel.BackColor = [System.Drawing.Color]::FromArgb(55, 59, 108)
-Set-RoundedRegion $connectionDotPanel 18
+$connectionDotPanel = New-Object WProxy.SmoothPanel
+$connectionDotPanel.Size = New-Object System.Drawing.Size(48, 48)
+$connectionDotPanel.Location = New-Object System.Drawing.Point(24, 25)
+$connectionDotPanel.FillColor = $script:Ui.AccentSurface
+$connectionDotPanel.BorderColor = [System.Drawing.Color]::Transparent
+$connectionDotPanel.CornerRadius = 14
 $connectionCard.Controls.Add($connectionDotPanel)
 $connectionDot = New-Object System.Windows.Forms.Label
 $connectionDot.Text = [char]0x25CF
@@ -413,11 +583,11 @@ $connectionDot.Dock = 'Fill'
 $connectionDot.TextAlign = 'MiddleCenter'
 $connectionDotPanel.Controls.Add($connectionDot)
 $connectionEyebrow = New-Object System.Windows.Forms.Label
-$connectionEyebrow.Text = 'S Y S T E M   T U N N E L'
-$connectionEyebrow.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 7, [System.Drawing.FontStyle]::Bold)
+$connectionEyebrow.Text = 'SYSTEM TUNNEL'
+$connectionEyebrow.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8, [System.Drawing.FontStyle]::Regular)
 $connectionEyebrow.ForeColor = $script:Ui.AccentHover
 $connectionEyebrow.AutoSize = $true
-$connectionEyebrow.Location = New-Object System.Drawing.Point(96, 20)
+$connectionEyebrow.Location = New-Object System.Drawing.Point(92, 20)
 $connectionCard.Controls.Add($connectionEyebrow)
 $connectionState = New-Object System.Windows.Forms.Label
 $connectionState.Text = 'Not connected'
@@ -425,7 +595,7 @@ $connectionState.Font = $script:PageTitleFont
 $connectionState.ForeColor = $script:Ui.Text
 $connectionState.AutoEllipsis = $true
 $connectionState.Size = New-Object System.Drawing.Size(640, 32)
-$connectionState.Location = New-Object System.Drawing.Point(94, 37)
+$connectionState.Location = New-Object System.Drawing.Point(90, 38)
 $connectionCard.Controls.Add($connectionState)
 $connectionDetail = New-Object System.Windows.Forms.Label
 $connectionDetail.Text = 'Choose a server from Servers to start your private route'
@@ -433,7 +603,7 @@ $connectionDetail.Font = $script:CaptionFont
 $connectionDetail.ForeColor = $script:Ui.Muted
 $connectionDetail.AutoEllipsis = $true
 $connectionDetail.Size = New-Object System.Drawing.Size(640, 20)
-$connectionDetail.Location = New-Object System.Drawing.Point(96, 73)
+$connectionDetail.Location = New-Object System.Drawing.Point(92, 73)
 $connectionCard.Controls.Add($connectionDetail)
 $header.Controls.Add($connectionCard)
 $header.BringToFront()
@@ -445,8 +615,10 @@ function Show-Page([string]$Name) {
     foreach ($key in @($script:NavButtons.Keys)) {
         $active = ($key -eq $Name)
         $button = $script:NavButtons[$key]
-        $button.BackColor = if ($active) { [System.Drawing.Color]::FromArgb(55, 59, 108) } else { $script:Ui.Sidebar }
+        $button.FillColor = if ($active) { $script:Ui.AccentSurface } else { $script:Ui.Sidebar }
+        $button.HoverColor = if ($active) { $script:Ui.AccentSurface } else { $script:Ui.Raised }
         $button.ForeColor = if ($active) { $script:Ui.AccentHover } else { $script:Ui.Muted }
+        $button.Invalidate()
     }
     $page = $script:Pages[$Name]
     $page.Visible = $true
@@ -455,9 +627,9 @@ function Show-Page([string]$Name) {
 
 $nodesTab = New-Object System.Windows.Forms.Panel
 $nodesTab.Name = 'ServersPage'
-$nodesTab.BackColor = $script:Ui.Surface
+$nodesTab.BackColor = $script:Ui.Canvas
 $nodesTab.ForeColor = $script:Ui.Text
-$nodesTab.Padding = New-Object System.Windows.Forms.Padding(18, 14, 18, 12)
+$nodesTab.Padding = New-Object System.Windows.Forms.Padding(0)
 $nodesTab.Dock = 'Fill'
 $nodesTab.Visible = $false
 $pageHost.Controls.Add($nodesTab)
@@ -466,12 +638,12 @@ $script:Pages['servers'] = $nodesTab
 $nodesHeader = New-PageHeader 'Servers' 'Choose a server. The active connection is always marked clearly.'
 $nodesHeader.Dock = 'Top'
 $nodesHeader.Height = 64
-$nodesHeader.BackColor = $script:Ui.Surface
+$nodesHeader.BackColor = $script:Ui.Canvas
 $nodesTab.Controls.Add($nodesHeader)
 
 $nodeBody = New-Object System.Windows.Forms.Panel
 $nodeBody.Dock = 'Fill'
-$nodeBody.BackColor = $script:Ui.Surface
+$nodeBody.BackColor = $script:Ui.Canvas
 $nodesTab.Controls.Add($nodeBody)
 
 $nodeList = New-Object System.Windows.Forms.ListView
@@ -488,7 +660,7 @@ $nodeBody.Controls.Add($nodeList)
 $nodeEmpty = New-Object System.Windows.Forms.Panel
 $nodeEmpty.Name = 'ServersEmptyState'
 $nodeEmpty.Dock = 'Fill'
-$nodeEmpty.BackColor = $script:Ui.Surface
+$nodeEmpty.BackColor = $script:Ui.Canvas
 $nodeEmpty.Visible = $false
 $emptyTitle = New-Object System.Windows.Forms.Label
 $emptyTitle.Text = 'No servers yet'
@@ -502,7 +674,7 @@ $emptyHint.Font = $script:CaptionFont
 $emptyHint.ForeColor = $script:Ui.Muted
 $emptyHint.AutoSize = $true
 $nodeEmpty.Controls.Add($emptyHint)
-$emptyAddButton = New-Object System.Windows.Forms.Button
+$emptyAddButton = New-Object WProxy.SmoothButton
 $emptyAddButton.Text = 'Add connection'
 $emptyAddButton.Size = New-Object System.Drawing.Size(156, 40)
 Set-ActionButton $emptyAddButton 'Primary'
@@ -521,32 +693,34 @@ $nodeEmpty.Add_Resize({
 $nodeBody.Controls.Add($nodeEmpty)
 
 $nodeButtons = New-Object System.Windows.Forms.FlowLayoutPanel
-$nodeButtons.Dock = 'Bottom'
-$nodeButtons.Height = 62
-$nodeButtons.Padding = New-Object System.Windows.Forms.Padding(0, 13, 0, 8)
-$nodeButtons.BackColor = $script:Ui.Surface
+$nodeButtons.Dock = 'Top'
+$nodeButtons.Height = 56
+$nodeButtons.FlowDirection = 'RightToLeft'
+$nodeButtons.WrapContents = $false
+$nodeButtons.Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 8)
+$nodeButtons.BackColor = $script:Ui.Canvas
 $nodesTab.Controls.Add($nodeButtons)
 foreach ($definition in @(
-    @('Refresh', 'Refresh', 'Secondary', 84),
-    @('Ping all', 'Ping', 'Secondary', 88),
-    @('Connect', 'Connect', 'Primary', 96),
-    @('Disconnect', 'Disconnect', 'Danger', 104),
-    @('Remove', 'Remove', 'Secondary', 84)
+    @('Connect', 'Connect', 'Primary', 108),
+    @('Ping all', 'Ping', 'Secondary', 96),
+    @('Refresh', 'Refresh', 'Secondary', 92),
+    @('Disconnect', 'Disconnect', 'Danger', 112),
+    @('Remove', 'Remove', 'Secondary', 92)
 )) {
-    $button = New-Object System.Windows.Forms.Button
+    $button = New-Object WProxy.SmoothButton
     $button.Text = $definition[0]
     $button.Name = $definition[1]
     $button.Width = $definition[3]
-    $button.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 0)
+    $button.Margin = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
     Set-ActionButton $button $definition[2]
     $nodeButtons.Controls.Add($button)
 }
-$nodesHeader.BringToFront()
 $nodeButtons.BringToFront()
+$nodesHeader.BringToFront()
 
 $addTab = New-Object System.Windows.Forms.Panel
 $addTab.Name = 'AddConnectionPage'
-$addTab.BackColor = $script:Ui.Surface
+$addTab.BackColor = $script:Ui.Canvas
 $addTab.ForeColor = $script:Ui.Text
 $addTab.Dock = 'Fill'
 $addTab.Visible = $false
@@ -558,7 +732,7 @@ $addPanel.Padding = New-Object System.Windows.Forms.Padding(28, 22, 28, 22)
 $addPanel.ColumnCount = 1
 $addPanel.RowCount = 11
 $addPanel.AutoScroll = $true
-$addPanel.BackColor = $script:Ui.Surface
+$addPanel.BackColor = $script:Ui.Canvas
 $addPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 42)))
 $addPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 34)))
 $addPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 30)))
@@ -598,7 +772,7 @@ $uriBox.UseSystemPasswordChar = $true
 $uriBox.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 5)
 Set-InputStyle $uriBox
 $addPanel.Controls.Add($uriBox, 0, 3)
-$addNodeButton = New-Object System.Windows.Forms.Button
+$addNodeButton = New-Object WProxy.SmoothButton
 $addNodeButton.Text = 'Add configuration'
 $addNodeButton.Width = 170
 $addNodeButton.Anchor = 'Left,Top'
@@ -617,7 +791,7 @@ $subBox.UseSystemPasswordChar = $true
 $subBox.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 5)
 Set-InputStyle $subBox
 $addPanel.Controls.Add($subBox, 0, 7)
-$addSubButton = New-Object System.Windows.Forms.Button
+$addSubButton = New-Object WProxy.SmoothButton
 $addSubButton.Text = 'Add and update subscription'
 $addSubButton.Width = 230
 $addSubButton.Anchor = 'Left,Top'
@@ -637,9 +811,9 @@ $addPanel.Controls.Add($showSecrets, 0, 9)
 
 $subsTab = New-Object System.Windows.Forms.Panel
 $subsTab.Name = 'SubscriptionsPage'
-$subsTab.BackColor = $script:Ui.Surface
+$subsTab.BackColor = $script:Ui.Canvas
 $subsTab.ForeColor = $script:Ui.Text
-$subsTab.Padding = New-Object System.Windows.Forms.Padding(18, 16, 18, 12)
+$subsTab.Padding = New-Object System.Windows.Forms.Padding(0)
 $subsTab.Dock = 'Fill'
 $subsTab.Visible = $false
 $pageHost.Controls.Add($subsTab)
@@ -647,7 +821,7 @@ $script:Pages['subscriptions'] = $subsTab
 $subsHeader = New-PageHeader 'Subscriptions' 'Update providers independently and see how many servers each source owns.'
 $subsHeader.Dock = 'Top'
 $subsHeader.Height = 64
-$subsHeader.BackColor = $script:Ui.Surface
+$subsHeader.BackColor = $script:Ui.Canvas
 $subsTab.Controls.Add($subsHeader)
 $subList = New-Object System.Windows.Forms.ListView
 $subList.Dock = 'Fill'
@@ -663,14 +837,14 @@ $subButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $subButtons.Dock = 'Bottom'
 $subButtons.Height = 62
 $subButtons.Padding = New-Object System.Windows.Forms.Padding(0, 13, 0, 8)
-$subButtons.BackColor = $script:Ui.Surface
+$subButtons.BackColor = $script:Ui.Canvas
 $subsTab.Controls.Add($subButtons)
 foreach ($definition in @(
     @('Update selected', 'UpdateSelected', 'Primary', 148),
     @('Update all', 'UpdateAll', 'Secondary', 112),
     @('Remove', 'RemoveSelected', 'Danger', 104)
 )) {
-    $button = New-Object System.Windows.Forms.Button
+    $button = New-Object WProxy.SmoothButton
     $button.Text = $definition[0]
     $button.Name = $definition[1]
     $button.Width = $definition[3]
@@ -681,22 +855,22 @@ foreach ($definition in @(
 
 $routingTab = New-Object System.Windows.Forms.Panel
 $routingTab.Name = 'SplitRoutingPage'
-$routingTab.BackColor = $script:Ui.Surface
+$routingTab.BackColor = $script:Ui.Canvas
 $routingTab.ForeColor = $script:Ui.Text
-$routingTab.Padding = New-Object System.Windows.Forms.Padding(18, 16, 18, 12)
+$routingTab.Padding = New-Object System.Windows.Forms.Padding(0)
 $routingTab.Dock = 'Fill'
 $routingTab.Visible = $false
 $pageHost.Controls.Add($routingTab)
 $script:Pages['routing'] = $routingTab
-$routingHeader = New-PageHeader 'Split routing' 'Decide which sites and Windows applications use the tunnel.'
+$routingHeader = New-PageHeader 'Routing' 'Choose what uses the tunnel. Changes apply on the next connection.'
 $routingHeader.Dock = 'Top'
 $routingHeader.Height = 64
-$routingHeader.BackColor = $script:Ui.Surface
+$routingHeader.BackColor = $script:Ui.Canvas
 $routingTab.Controls.Add($routingHeader)
 $routingPanel = New-Object System.Windows.Forms.TableLayoutPanel
 $routingPanel.Dock = 'Fill'
 $routingPanel.Padding = New-Object System.Windows.Forms.Padding(0)
-$routingPanel.BackColor = $script:Ui.Surface
+$routingPanel.BackColor = $script:Ui.Canvas
 $routingPanel.ColumnCount = 2
 $routingPanel.RowCount = 7
 $routingPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 50)))
@@ -734,7 +908,7 @@ $domainLabel.ForeColor = $script:Ui.Text
 $domainLabel.AutoSize = $true
 $domainLabel.Anchor = 'Left,Bottom'
 $appLabel = New-Object System.Windows.Forms.Label
-$appLabel.Text = 'Applications (process or absolute path)'
+$appLabel.Text = 'Applications'
 $appLabel.Font = $script:StrongFont
 $appLabel.ForeColor = $script:Ui.Text
 $appLabel.AutoSize = $true
@@ -755,42 +929,44 @@ $domainBox = New-Object System.Windows.Forms.TextBox
 $domainBox.Dock = 'Fill'
 $domainBox.Margin = New-Object System.Windows.Forms.Padding(0, 3, 8, 5)
 Set-InputStyle $domainBox
-$appBox = New-Object System.Windows.Forms.TextBox
-$appBox.Dock = 'Fill'
-$appBox.Margin = New-Object System.Windows.Forms.Padding(8, 3, 0, 5)
-Set-InputStyle $appBox
+$appHint = New-Object System.Windows.Forms.Label
+$appHint.Text = 'Pick a running app or browse to its .exe file.'
+$appHint.Dock = 'Fill'
+$appHint.Margin = New-Object System.Windows.Forms.Padding(8, 3, 0, 5)
+$appHint.Padding = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
+$appHint.TextAlign = 'MiddleLeft'
+$appHint.Font = $script:CaptionFont
+$appHint.ForeColor = $script:Ui.Muted
+$appHint.BackColor = $script:Ui.Surface
 $routingPanel.Controls.Add($domainBox, 0, 4)
-$routingPanel.Controls.Add($appBox, 1, 4)
+$routingPanel.Controls.Add($appHint, 1, 4)
 $domainButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $domainButtons.Dock = 'Fill'
-$domainButtons.BackColor = $script:Ui.Surface
+$domainButtons.BackColor = $script:Ui.Canvas
 $domainButtons.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
-$addDomainButton = New-Object System.Windows.Forms.Button
+$addDomainButton = New-Object WProxy.SmoothButton
 $addDomainButton.Text = 'Add site'
 $addDomainButton.Width = 104
 Set-ActionButton $addDomainButton 'Primary'
-$removeDomainButton = New-Object System.Windows.Forms.Button
+$removeDomainButton = New-Object WProxy.SmoothButton
 $removeDomainButton.Text = 'Remove'
 $removeDomainButton.Width = 104
 Set-ActionButton $removeDomainButton 'Secondary'
 $domainButtons.Controls.Add($addDomainButton); $domainButtons.Controls.Add($removeDomainButton)
 $appButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $appButtons.Dock = 'Fill'
-$appButtons.BackColor = $script:Ui.Surface
+$appButtons.BackColor = $script:Ui.Canvas
 $appButtons.Padding = New-Object System.Windows.Forms.Padding(8, 4, 0, 0)
-$addAppButton = New-Object System.Windows.Forms.Button
-$addAppButton.Text = 'Add app'
-$addAppButton.Width = 72
-Set-ActionButton $addAppButton 'Primary'
-$pickAppButton = New-Object System.Windows.Forms.Button
-$pickAppButton.Text = 'Choose apps...'
-$pickAppButton.Width = 96
-Set-ActionButton $pickAppButton 'Secondary'
-$removeAppButton = New-Object System.Windows.Forms.Button
+$appButtons.WrapContents = $false
+$pickAppButton = New-Object WProxy.SmoothButton
+$pickAppButton.Text = 'Choose application...'
+$pickAppButton.Width = 164
+Set-ActionButton $pickAppButton 'Primary'
+$removeAppButton = New-Object WProxy.SmoothButton
 $removeAppButton.Text = 'Remove'
-$removeAppButton.Width = 72
+$removeAppButton.Width = 92
 Set-ActionButton $removeAppButton 'Secondary'
-$appButtons.Controls.Add($addAppButton); $appButtons.Controls.Add($pickAppButton); $appButtons.Controls.Add($removeAppButton)
+$appButtons.Controls.Add($pickAppButton); $appButtons.Controls.Add($removeAppButton)
 $routingPanel.Controls.Add($domainButtons, 0, 5)
 $routingPanel.Controls.Add($appButtons, 1, 5)
 $routingNote = New-Object System.Windows.Forms.Label
@@ -801,20 +977,27 @@ $routingNote.AutoSize = $true
 $routingPanel.SetColumnSpan($routingNote, 2)
 $routingPanel.Controls.Add($routingNote, 0, 6)
 
-$statusBar = New-Object System.Windows.Forms.StatusStrip
-$statusBar.BackColor = $script:Ui.Raised
-$statusBar.ForeColor = $script:Ui.Muted
-$statusBar.Font = $script:CaptionFont
-$statusBar.SizingGrip = $false
-$statusLabel = New-Object System.Windows.Forms.ToolStripStatusLabel
+$statusBar = New-Object System.Windows.Forms.Panel
+$statusBar.Dock = 'Bottom'
+$statusBar.Height = 30
+$statusBar.BackColor = $script:Ui.Canvas
+$statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Text = 'Ready  |  Disconnected'
-$statusLabel.Spring = $true
+$statusLabel.Dock = 'Fill'
+$statusLabel.Padding = New-Object System.Windows.Forms.Padding(28, 0, 0, 0)
 $statusLabel.TextAlign = 'MiddleLeft'
-$statusBar.Items.Add($statusLabel) | Out-Null
-$versionLabel = New-Object System.Windows.Forms.ToolStripStatusLabel
-$versionLabel.Text = 'WProxy 2.6.1  |  Windows TUN'
+$statusLabel.Font = $script:CaptionFont
+$statusLabel.ForeColor = $script:Ui.Muted
+$versionLabel = New-Object System.Windows.Forms.Label
+$versionLabel.Text = 'Windows TUN'
+$versionLabel.Dock = 'Right'
+$versionLabel.Width = 126
+$versionLabel.Padding = New-Object System.Windows.Forms.Padding(0, 0, 24, 0)
+$versionLabel.TextAlign = 'MiddleRight'
+$versionLabel.Font = $script:CaptionFont
 $versionLabel.ForeColor = $script:Ui.Muted
-$statusBar.Items.Add($versionLabel) | Out-Null
+$statusBar.Controls.Add($statusLabel)
+$statusBar.Controls.Add($versionLabel)
 $form.Controls.Add($statusBar)
 $shell.SendToBack()
 $statusBar.BringToFront()
@@ -837,6 +1020,17 @@ if ($LayoutSmokeTest) {
         throw 'Windows navigation did not create all primary pages.'
     }
     if ($script:NavButtons['servers'].Height -lt 40) { throw 'Windows navigation targets are too small.' }
+    Show-Page 'routing'
+    $routingTab.PerformLayout()
+    $routingPanel.PerformLayout()
+    $appButtons.PerformLayout()
+    if (-not $pickAppButton.Visible -or $pickAppButton.Width -lt 150) {
+        throw 'Windows application picker is not usable in the routing layout.'
+    }
+    if (($pickAppButton.Right -gt $appButtons.ClientSize.Width) -or
+        ($removeAppButton.Right -gt $appButtons.ClientSize.Width)) {
+        throw 'Windows routing actions are clipped at the default window size.'
+    }
     Write-Output ('Windows layout smoke test: PASS ({0}x{1} navigation, {2}x{3} content)' -f `
         $navigationRail.Width, $navigationRail.Height, $pageHost.Width, $pageHost.Height)
     $form.Dispose()
@@ -941,9 +1135,9 @@ function Show-AppPicker {
     $buttons.Dock = 'Bottom'; $buttons.Height = 64; $buttons.Padding = New-Object System.Windows.Forms.Padding(18, 14, 18, 10)
     $buttons.BackColor = $script:Ui.Canvas
     $picker.Controls.Add($buttons)
-    $browse = New-Object System.Windows.Forms.Button; $browse.Text = 'Browse .exe...'; $browse.Width = 132
-    $addSelected = New-Object System.Windows.Forms.Button; $addSelected.Text = 'Add selected'; $addSelected.Width = 132
-    $cancel = New-Object System.Windows.Forms.Button; $cancel.Text = 'Cancel'; $cancel.Width = 96
+    $browse = New-Object WProxy.SmoothButton; $browse.Text = 'Browse .exe...'; $browse.Width = 132
+    $addSelected = New-Object WProxy.SmoothButton; $addSelected.Text = 'Add selected'; $addSelected.Width = 132
+    $cancel = New-Object WProxy.SmoothButton; $cancel.Text = 'Cancel'; $cancel.Width = 96
     Set-ActionButton $browse 'Secondary'
     Set-ActionButton $addSelected 'Primary'
     Set-ActionButton $cancel 'Secondary'
@@ -1132,12 +1326,6 @@ $removeDomainButton.Add_Click({
     $result = Invoke-Ctl @('routing', 'domain', 'remove', [string]$domainList.SelectedItem)
     if ($result.Code -ne 0) { Show-Error $result.Output; return }
     Refresh-Routing
-})
-$addAppButton.Add_Click({
-    if (-not $appBox.Text.Trim()) { return }
-    $result = Invoke-Ctl @('routing', 'app', 'add', $appBox.Text.Trim())
-    if ($result.Code -ne 0) { Show-Error $result.Output; return }
-    $appBox.Clear(); Refresh-Routing
 })
 $pickAppButton.Add_Click({ Show-AppPicker })
 $removeAppButton.Add_Click({

@@ -90,18 +90,20 @@ function Invoke-AdminCtl([string[]]$Arguments) {
 }
 
 $script:Ui = @{
-    Canvas = [System.Drawing.Color]::FromArgb(11, 18, 32)
-    Sidebar = [System.Drawing.Color]::FromArgb(15, 25, 43)
-    Surface = [System.Drawing.Color]::FromArgb(17, 27, 46)
-    Raised = [System.Drawing.Color]::FromArgb(24, 36, 58)
-    Border = [System.Drawing.Color]::FromArgb(45, 59, 82)
-    Accent = [System.Drawing.Color]::FromArgb(45, 212, 191)
-    AccentHover = [System.Drawing.Color]::FromArgb(94, 234, 212)
-    Blue = [System.Drawing.Color]::FromArgb(96, 165, 250)
-    Text = [System.Drawing.Color]::FromArgb(248, 250, 252)
-    Muted = [System.Drawing.Color]::FromArgb(148, 163, 184)
-    Danger = [System.Drawing.Color]::FromArgb(248, 113, 113)
-    DangerSurface = [System.Drawing.Color]::FromArgb(69, 31, 40)
+    Canvas = [System.Drawing.Color]::FromArgb(17, 19, 24)
+    Sidebar = [System.Drawing.Color]::FromArgb(25, 27, 32)
+    Surface = [System.Drawing.Color]::FromArgb(27, 27, 31)
+    Raised = [System.Drawing.Color]::FromArgb(40, 42, 50)
+    Border = [System.Drawing.Color]::FromArgb(70, 72, 80)
+    Accent = [System.Drawing.Color]::FromArgb(190, 194, 255)
+    AccentHover = [System.Drawing.Color]::FromArgb(216, 218, 255)
+    OnAccent = [System.Drawing.Color]::FromArgb(37, 43, 97)
+    Blue = [System.Drawing.Color]::FromArgb(194, 198, 221)
+    Online = [System.Drawing.Color]::FromArgb(140, 224, 200)
+    Text = [System.Drawing.Color]::FromArgb(244, 241, 248)
+    Muted = [System.Drawing.Color]::FromArgb(197, 197, 207)
+    Danger = [System.Drawing.Color]::FromArgb(255, 178, 191)
+    DangerSurface = [System.Drawing.Color]::FromArgb(74, 37, 48)
 }
 $script:Brushes = @{
     Canvas = New-Object System.Drawing.SolidBrush($script:Ui.Canvas)

@@ -3,6 +3,7 @@ set -eu
 
 PROJECT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
+MIN_XRAY_VERSION=26.9.30
 
 DESKTOP=auto
 while [ "$#" -gt 0 ]; do
@@ -67,11 +68,24 @@ find_xray() {
     command -v xray 2>/dev/null || return 1
 }
 
+xray_version() {
+    "$1" version 2>/dev/null | sed -n '1s/^Xray \([0-9][0-9.]*\).*/\1/p'
+}
+
+version_at_least() {
+    [ -n "$1" ] &&
+    [ "$(printf '%s\n%s\n' "$MIN_XRAY_VERSION" "$1" | sort -V | head -n 1)" = "$MIN_XRAY_VERSION" ]
+}
+
 install_xray_if_needed() {
     if XRAY_PATH=$(find_xray 2>/dev/null); then
-        echo "Xray already installed: $XRAY_PATH"
-        "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
-        return 0
+        INSTALLED_XRAY_VERSION=$(xray_version "$XRAY_PATH")
+        if version_at_least "$INSTALLED_XRAY_VERSION"; then
+            echo "Xray already installed: $XRAY_PATH"
+            "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
+            return 0
+        fi
+        echo "Xray $INSTALLED_XRAY_VERSION is too old for reliable app routing; upgrading to $MIN_XRAY_VERSION..."
     fi
 
     command -v curl >/dev/null 2>&1 || {
@@ -83,13 +97,13 @@ install_xray_if_needed() {
         exit 2
     }
 
-    echo "Xray is missing. Installing the official XTLS Xray-core release..."
+    echo "Installing the verified official XTLS Xray-core $MIN_XRAY_VERSION release..."
     TMP_SCRIPT=$(mktemp)
     trap 'rm -f "$TMP_SCRIPT"' EXIT INT TERM
     curl -fL --retry 3 --connect-timeout 15 \
         https://github.com/XTLS/Xray-install/raw/main/install-release.sh \
         -o "$TMP_SCRIPT"
-    $SUDO bash "$TMP_SCRIPT" install
+    $SUDO bash "$TMP_SCRIPT" install --version "v$MIN_XRAY_VERSION"
     rm -f "$TMP_SCRIPT"
     trap - EXIT INT TERM
 
@@ -98,6 +112,11 @@ install_xray_if_needed() {
 
     XRAY_PATH=$(find_xray 2>/dev/null || true)
     [ -n "$XRAY_PATH" ] || { echo "Xray installation finished but no xray binary was found." >&2; exit 3; }
+    INSTALLED_XRAY_VERSION=$(xray_version "$XRAY_PATH")
+    version_at_least "$INSTALLED_XRAY_VERSION" || {
+        echo "Xray $MIN_XRAY_VERSION or newer is required; found ${INSTALLED_XRAY_VERSION:-unknown}." >&2
+        exit 3
+    }
     echo "Installed Xray: $XRAY_PATH"
     "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 }

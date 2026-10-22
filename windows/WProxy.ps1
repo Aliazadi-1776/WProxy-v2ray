@@ -199,8 +199,10 @@ namespace WProxy {
         }
     }
 }
-'@
-} catch { }
+'@ -ReferencedAssemblies @('System.Drawing.dll', 'System.Windows.Forms.dll')
+} catch {
+    throw ('WProxy visual controls could not be compiled: ' + $_.Exception.Message)
+}
 
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8

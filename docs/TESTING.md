@@ -1,8 +1,8 @@
 # Test coverage
 
-## 2.6.1 Windows layout hotfix
+## 2.6.2 Windows UI and routing regression checks
 
-The Windows release runner now constructs the WinForms shell and fails if the navigation rail, page host, page map or click targets collapse. Source regression checks also prohibit the owner-drawn `TabControl`/`TabPage` layout that failed on a physical Windows display. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test.
+The Windows release runner constructs the WinForms shell and fails if the navigation rail, page host, page map or click targets collapse. It also opens the Routing page and rejects a clipped or missing application picker. Source regressions require the double-buffered anti-aliased controls and prohibit the owner-drawn `TabControl`/`TabPage` layout that failed on a physical Windows display. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test.
 
 ## 2.6.0 desktop UI, Windows installer and live routing
 

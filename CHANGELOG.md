@@ -1,3 +1,11 @@
+# 2.6.2
+
+- Rebuild the Windows shell with double-buffered, anti-aliased controls so rounded cards and buttons no longer render with the jagged outlines seen on physical Windows displays.
+- Replace the crowded per-server card stack with a quieter table layout, simplify navigation labels, improve spacing and hierarchy, and keep all primary actions visible at the supported window size.
+- Simplify Windows application routing to one **Choose application** flow that lists running executables or browses for an `.exe`, while preserving exact-path Xray selectors and the existing backend behavior.
+- Extend the Windows layout smoke test to open the Routing page and fail if the application picker actions are missing or clipped; add an exact Windows executable-path routing regression.
+- Preserve the tested Linux backend and its installed-application picker unchanged.
+
 # 2.6.1
 
 - Replace the Windows owner-drawn tab strip, which could collapse into a thin line on real Windows DPI/theme combinations, with a fixed navigation rail and independent page host matching the Linux manager structure.

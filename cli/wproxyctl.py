@@ -1055,6 +1055,7 @@ def nm_sync(store):
     uid = original_user().pw_uid
     wanted = set()
     wanted_uuids = set()
+    routing64 = encode_routing_policy(store.get("routing"))
     for node in store["nodes"]:
         fn = conn_dir / f"wproxy-{uid}-{node['id']}.nmconnection"
         wanted.add(fn.name)
@@ -1092,9 +1093,20 @@ def nm_sync(store):
         print(f"Removed stale NetworkManager profile {cuuid}")
     # WProxy VPN service does not support NetworkManager private/user-only
     # connections. Keep every generated profile system-wide. This also
-    # repairs profiles created by WProxy <= 2.2.3.
+    # repairs profiles created by WProxy <= 2.2.3.  Update routing64 through
+    # NetworkManager as well as the keyfile: on some keyfile/netplan backends,
+    # `connection reload` retains the old in-memory VPN dictionary even though
+    # the file on disk has changed.
     for node in store["nodes"]:
         cuuid = deterministic_uuid(node["id"])
+        routing_update = run([
+            "nmcli", "connection", "modify", "uuid", cuuid,
+            "+vpn.data", f"routing64={routing64}"
+        ], capture=True)
+        if routing_update.returncode != 0:
+            raise RuntimeError(
+                routing_update.stderr.strip() or f"Could not update routing for WProxy profile {cuuid}"
+            )
         modified = run([
             "nmcli", "connection", "modify", "uuid", cuuid, "connection.permissions", ""
         ], capture=True)

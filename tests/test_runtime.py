@@ -175,6 +175,12 @@ class ConfigTests(unittest.TestCase):
 
 @unittest.skipIf(os.name == "nt", "Linux TUN runner tests require a POSIX shell")
 class RunnerTests(unittest.TestCase):
+    def test_process_routing_escapes_networkmanager_capability_sandbox(self):
+        source = (ROOT / "service/wproxy-xray-runner").read_text()
+        self.assertIn("needs_process_visibility", source)
+        self.assertIn("systemd-run --quiet --wait --collect", source)
+        self.assertIn("Application routing requires systemd-run", source)
+
     def configure(self, failure=""):
         # Execute the production shell function with only the OS ip command
         # mocked. Simulate the exact failure: Xray's link exists without an IP.

@@ -295,18 +295,15 @@ case "${1:-}" in
     fi
 
     render_and_test "$URI"
-    : > "$LOG"
     echo $$ > "$RUNNER_PID"
     trap cleanup INT TERM EXIT
 
-    "$XRAY_BIN" run -c "$CONFIG" >>"$LOG" 2>&1 &
-    XPID=$!
-    echo "$XPID" > "$XRAY_PID"
+    start_xray
 
     READY_OK=0
     i=0
     while [ "$i" -lt 80 ]; do
-        if ! kill -0 "$XPID" 2>/dev/null; then
+        if ! xray_is_alive; then
             cat "$LOG" >&2 || true
             exit 78
         fi
@@ -328,7 +325,7 @@ case "${1:-}" in
         echo "Created $IFACE, but failed to bring it up / assign its IP address." >&2
         exit 78
     fi
-    if ! kill -0 "$XPID" 2>/dev/null; then
+    if ! xray_is_alive; then
         echo 'Xray exited while configuring the tunnel.' >&2
         exit 78
     fi
@@ -340,7 +337,7 @@ case "${1:-}" in
 
     : > "$READY"
     chmod 600 "$READY"
-    wait "$XPID"
+    wait_for_xray
     ;;
 
   stop)

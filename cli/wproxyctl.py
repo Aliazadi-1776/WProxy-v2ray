@@ -1117,27 +1117,52 @@ def nm_sync(store):
         raise RuntimeError(reloaded.stderr.strip() or "NetworkManager reload failed")
 
 
-def active_wproxy_names():
-    p = run(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"], capture=True)
-    names = []
+def active_wproxy_connections():
+    """Return active WProxy profiles by UUID, not their mutable display name.
+
+    NetworkManager appends suffixes such as ``(2)`` when an older profile has
+    the same connection ID.  The generated UUID is stable, so it is the only
+    reliable way to map an active profile back to a saved node.
+    """
+    p = run([
+        "nmcli", "-t", "-f", "NAME,UUID,TYPE", "connection", "show", "--active"
+    ], capture=True)
+    connections = []
     if p.returncode != 0:
-        return names
+        return connections
     for line in p.stdout.splitlines():
-        # nmcli escapes literal colons as \:
-        parts = re.split(r"(?<!\\):", line, maxsplit=1)
-        if len(parts) == 2 and parts[1] == "vpn":
-            name = parts[0].replace("\\:", ":").replace("\\\\", "\\")
-            if name.startswith(PREFIX):
-                names.append(name)
-    return names
+        # Parse from the right because nmcli escapes literal colons in names.
+        match = re.match(r"^(.*):([0-9a-fA-F-]{36}):vpn$", line)
+        if not match:
+            continue
+        name = match.group(1).replace("\\:", ":").replace("\\\\", "\\")
+        if name.startswith(PREFIX):
+            connections.append({"name": name, "uuid": match.group(2).lower()})
+    return connections
+
+
+def active_wproxy_names():
+    return [connection["name"] for connection in active_wproxy_connections()]
+
+
+def wait_for_linux_tun_removal(timeout=8.0):
+    if os.name == "nt" or not shutil.which("ip"):
+        return True
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = run(["ip", "link", "show", "dev", "wproxy0"], capture=True)
+        if result.returncode != 0:
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def nm_down():
     ok = True
-    for name in active_wproxy_names():
-        p = run(["nmcli", "connection", "down", "id", name])
+    for connection in active_wproxy_connections():
+        p = run(["nmcli", "connection", "down", "uuid", connection["uuid"]])
         ok = ok and p.returncode == 0
-    return ok
+    return wait_for_linux_tun_removal() and ok
 
 
 def nm_up(store, node_id):
@@ -1156,15 +1181,20 @@ def nm_up(store, node_id):
 
 
 def status_json(store):
-    active = active_wproxy_names()
-    active_name = active[0] if active else None
+    active = active_wproxy_connections()
+    connection = active[0] if active else None
     active_node = None
-    if active_name:
-        short = active_name[len(PREFIX):]
-        active_node = next((n for n in store["nodes"] if n.get("name") == short), None)
+    if connection:
+        active_node = next((
+            node for node in store["nodes"]
+            if deterministic_uuid(node["id"]) == connection["uuid"]
+        ), None)
+        if active_node is None:
+            short = re.sub(r" \(\d+\)$", "", connection["name"][len(PREFIX):])
+            active_node = next((node for node in store["nodes"] if node.get("name") == short), None)
     return {
         "active": bool(active),
-        "name": active_name,
+        "name": (PREFIX + active_node["name"]) if active_node else (connection or {}).get("name"),
         "node_id": active_node.get("id") if active_node else None,
         "nodes": len(store["nodes"]),
         "subscriptions": len(store["subs"]),

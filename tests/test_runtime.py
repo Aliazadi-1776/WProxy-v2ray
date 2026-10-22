@@ -94,6 +94,43 @@ class ConfigTests(unittest.TestCase):
         with patch.object(ctl, "run", side_effect=responses):
             self.assertEqual(ctl.loaded_owned_wproxy_uuids(), [owned_uuid])
 
+    def test_active_profile_maps_by_uuid_when_networkmanager_suffixes_its_name(self):
+        node = {
+            "id": "0123456789abcdef",
+            "name": "Berlin",
+            "uri": "trojan://test@example.com:443?security=tls",
+        }
+        profile_uuid = ctl.deterministic_uuid(node["id"])
+        active = SimpleNamespace(
+            returncode=0,
+            stdout=f"WProxy · Berlin (2):{profile_uuid}:vpn\n",
+            stderr="",
+        )
+        store = {"subs": [], "nodes": [node], "routing": ctl.default_routing_policy()}
+
+        with patch.object(ctl, "run", return_value=active):
+            status = ctl.status_json(store)
+
+        self.assertTrue(status["active"])
+        self.assertEqual(status["node_id"], node["id"])
+        self.assertEqual(status["name"], "WProxy · Berlin")
+
+    def test_disconnect_uses_uuid_when_connection_names_collide(self):
+        profile_uuid = "11111111-2222-4333-8444-555555555555"
+        active = SimpleNamespace(
+            returncode=0,
+            stdout=f"WProxy · Berlin (2):{profile_uuid}:vpn\n",
+            stderr="",
+        )
+        stopped = SimpleNamespace(returncode=0, stdout="", stderr="")
+        with patch.object(ctl, "run", side_effect=(active, stopped)) as mocked, \
+                patch.object(ctl, "wait_for_linux_tun_removal", return_value=True):
+            self.assertTrue(ctl.nm_down())
+        self.assertEqual(
+            mocked.call_args_list[1].args[0],
+            ["nmcli", "connection", "down", "uuid", profile_uuid],
+        )
+
     def test_installed_xray_schema_and_binding(self):
         vmess = base64.b64encode(json.dumps({"add": "example.com", "port": 443,
             "id": "11111111-2222-4333-8444-555555555555", "net": "tcp"}).encode()).decode()

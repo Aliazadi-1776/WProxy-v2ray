@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-echo "=== WProxy 2.6.1 diagnostic ==="
+echo "=== WProxy 2.6.2 diagnostic ==="
 echo
 
 echo "[NetworkManager]"

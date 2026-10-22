@@ -427,7 +427,7 @@ function New-PageHeader([string]$Title, [string]$Subtitle) {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'WProxy 2.6.1'
+$form.Text = 'WProxy 2.6.2'
 $form.Size = New-Object System.Drawing.Size(1180, 800)
 $form.MinimumSize = New-Object System.Drawing.Size(980, 680)
 $form.StartPosition = 'CenterScreen'
@@ -528,7 +528,7 @@ foreach ($definition in @(
     $script:NavButtons[$definition[0]] = $button
 }
 $sidebarVersion = New-Object System.Windows.Forms.Label
-$sidebarVersion.Text = 'WProxy 2.6.1'
+$sidebarVersion.Text = 'WProxy 2.6.2'
 $sidebarVersion.Dock = 'Fill'
 $sidebarVersion.TextAlign = 'MiddleLeft'
 $sidebarVersion.Font = $script:CaptionFont

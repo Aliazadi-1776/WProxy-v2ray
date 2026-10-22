@@ -413,7 +413,7 @@ class WProxyManager(Gtk.Application):
         spacer = Gtk.Box()
         spacer.set_vexpand(True)
         rail.append(spacer)
-        version = Gtk.Label(label='WProxy 2.6.1')
+        version = Gtk.Label(label='WProxy 2.6.2')
         version.set_xalign(0)
         version.add_css_class('meta-label')
         rail.append(version)

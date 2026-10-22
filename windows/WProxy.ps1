@@ -117,6 +117,33 @@ $script:TitleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 20, [Sys
 $script:PageTitleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 17, [System.Drawing.FontStyle]::Bold)
 $script:CaptionFont = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Regular)
 
+function Set-RoundedRegion {
+    param([System.Windows.Forms.Control]$Control, [int]$Radius = 18)
+    if ($Control.Width -le 0 -or $Control.Height -le 0) { return }
+    $diameter = $Radius * 2
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $path.AddArc(0, 0, $diameter, $diameter, 180, 90)
+    $path.AddArc(($Control.Width - $diameter), 0, $diameter, $diameter, 270, 90)
+    $path.AddArc(($Control.Width - $diameter), ($Control.Height - $diameter), $diameter, $diameter, 0, 90)
+    $path.AddArc(0, ($Control.Height - $diameter), $diameter, $diameter, 90, 90)
+    $path.CloseFigure()
+    if ($Control.Region) { $Control.Region.Dispose() }
+    $Control.Region = New-Object System.Drawing.Region($path)
+    $path.Dispose()
+}
+
+function New-RoundedPath {
+    param([System.Drawing.Rectangle]$Bounds, [int]$Radius = 16)
+    $diameter = $Radius * 2
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $path.AddArc($Bounds.X, $Bounds.Y, $diameter, $diameter, 180, 90)
+    $path.AddArc(($Bounds.Right - $diameter), $Bounds.Y, $diameter, $diameter, 270, 90)
+    $path.AddArc(($Bounds.Right - $diameter), ($Bounds.Bottom - $diameter), $diameter, $diameter, 0, 90)
+    $path.AddArc($Bounds.X, ($Bounds.Bottom - $diameter), $diameter, $diameter, 90, 90)
+    $path.CloseFigure()
+    return $path
+}
+
 function Set-ActionButton {
     param(
         [System.Windows.Forms.Button]$Button,
@@ -132,7 +159,7 @@ function Set-ActionButton {
     switch ($Kind) {
         'Primary' {
             $Button.BackColor = $script:Ui.Accent
-            $Button.ForeColor = $script:Ui.Canvas
+            $Button.ForeColor = $script:Ui.OnAccent
             $Button.FlatAppearance.BorderColor = $script:Ui.Accent
             $Button.FlatAppearance.MouseOverBackColor = $script:Ui.AccentHover
         }
@@ -157,6 +184,8 @@ function Set-ActionButton {
             $Button.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(34, 49, 73)
         }
     }
+    Set-RoundedRegion $Button 18
+    $Button.Add_Resize({ param($sender, $eventArgs) Set-RoundedRegion $sender 18 })
 }
 
 function Set-InputStyle([System.Windows.Forms.Control]$Control) {

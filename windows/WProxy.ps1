@@ -1,4 +1,4 @@
-param([switch]$Show)
+param([switch]$Show, [switch]$LayoutSmokeTest)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -277,12 +277,36 @@ $iconPath = Join-Path $script:Root 'icons\wproxy.ico'
 if (Test-Path $iconPath) { $form.Icon = New-Object System.Drawing.Icon($iconPath) }
 $form.Add_HandleCreated({ Enable-DarkTitleBar $form })
 
-$header = New-Object System.Windows.Forms.Panel
-$header.Dock = 'Top'
-$header.Height = 94
-$header.BackColor = $script:Ui.Canvas
-$header.Padding = New-Object System.Windows.Forms.Padding(22, 14, 22, 12)
+$shell = New-Object System.Windows.Forms.TableLayoutPanel
+$shell.Name = 'AppShell'
+$shell.Dock = 'Fill'
+$shell.Margin = New-Object System.Windows.Forms.Padding(0)
+$shell.Padding = New-Object System.Windows.Forms.Padding(0)
+$shell.ColumnCount = 2
+$shell.RowCount = 1
+$shell.BackColor = $script:Ui.Canvas
+$shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Absolute', 236)))
+$shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 100)))
+$shell.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Percent', 100)))
+$form.Controls.Add($shell)
 
+$navigationRail = New-Object System.Windows.Forms.TableLayoutPanel
+$navigationRail.Name = 'NavigationRail'
+$navigationRail.Dock = 'Fill'
+$navigationRail.Margin = New-Object System.Windows.Forms.Padding(0)
+$navigationRail.Padding = New-Object System.Windows.Forms.Padding(14, 18, 14, 12)
+$navigationRail.ColumnCount = 1
+$navigationRail.RowCount = 3
+$navigationRail.BackColor = $script:Ui.Sidebar
+$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 116)))
+$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Percent', 100)))
+$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 38)))
+$shell.Controls.Add($navigationRail, 0, 0)
+
+$brandPanel = New-Object System.Windows.Forms.Panel
+$brandPanel.Dock = 'Fill'
+$brandPanel.BackColor = $script:Ui.Sidebar
+$navigationRail.Controls.Add($brandPanel, 0, 0)
 $brandMark = New-Object System.Windows.Forms.Label
 $brandMark.Text = 'W'
 $brandMark.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 18, [System.Drawing.FontStyle]::Bold)
@@ -290,96 +314,165 @@ $brandMark.TextAlign = 'MiddleCenter'
 $brandMark.BackColor = $script:Ui.Accent
 $brandMark.ForeColor = $script:Ui.OnAccent
 $brandMark.Size = New-Object System.Drawing.Size(52, 52)
-$brandMark.Location = New-Object System.Drawing.Point(22, 18)
+$brandMark.Location = New-Object System.Drawing.Point(0, 0)
 Set-RoundedRegion $brandMark 17
-$header.Controls.Add($brandMark)
-
+$brandPanel.Controls.Add($brandMark)
 $brandTitle = New-Object System.Windows.Forms.Label
 $brandTitle.Text = 'WProxy'
-$brandTitle.Font = $script:TitleFont
+$brandTitle.Font = $script:StrongFont
 $brandTitle.ForeColor = $script:Ui.Text
 $brandTitle.AutoSize = $true
-$brandTitle.Location = New-Object System.Drawing.Point(88, 13)
-$header.Controls.Add($brandTitle)
+$brandTitle.Location = New-Object System.Drawing.Point(0, 64)
+$brandPanel.Controls.Add($brandTitle)
 $brandSubtitle = New-Object System.Windows.Forms.Label
-$brandSubtitle.Text = 'Private routing, made simple'
+$brandSubtitle.Text = 'Private routing'
 $brandSubtitle.Font = $script:CaptionFont
 $brandSubtitle.ForeColor = $script:Ui.Muted
 $brandSubtitle.AutoSize = $true
-$brandSubtitle.Location = New-Object System.Drawing.Point(91, 51)
-$header.Controls.Add($brandSubtitle)
+$brandSubtitle.Location = New-Object System.Drawing.Point(0, 88)
+$brandPanel.Controls.Add($brandSubtitle)
+
+$navigationButtons = New-Object System.Windows.Forms.FlowLayoutPanel
+$navigationButtons.Dock = 'Fill'
+$navigationButtons.FlowDirection = 'TopDown'
+$navigationButtons.WrapContents = $false
+$navigationButtons.BackColor = $script:Ui.Sidebar
+$navigationButtons.Padding = New-Object System.Windows.Forms.Padding(0, 8, 0, 0)
+$navigationRail.Controls.Add($navigationButtons, 0, 1)
+$script:NavButtons = @{}
+foreach ($definition in @(
+    @('servers', 'Servers', [char]0x25A3),
+    @('subscriptions', 'Subscriptions', [char]0x21BB),
+    @('add', 'Add connection', '+'),
+    @('routing', 'Split routing', [char]0x2194)
+)) {
+    $button = New-Object System.Windows.Forms.Button
+    $button.Name = 'Nav' + $definition[0]
+    $button.Tag = $definition[0]
+    $button.Text = ([string]$definition[2]) + '   ' + $definition[1]
+    $button.Width = 204
+    $button.Height = 48
+    $button.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
+    Set-ActionButton $button 'Navigation'
+    $button.Height = 48
+    $button.Add_Click({ param($sender, $eventArgs) Show-Page ([string]$sender.Tag) })
+    $navigationButtons.Controls.Add($button)
+    $script:NavButtons[$definition[0]] = $button
+}
+$sidebarVersion = New-Object System.Windows.Forms.Label
+$sidebarVersion.Text = 'WProxy 2.6.0'
+$sidebarVersion.Dock = 'Fill'
+$sidebarVersion.TextAlign = 'MiddleLeft'
+$sidebarVersion.Font = $script:CaptionFont
+$sidebarVersion.ForeColor = $script:Ui.Muted
+$sidebarVersion.BackColor = $script:Ui.Sidebar
+$navigationRail.Controls.Add($sidebarVersion, 0, 2)
+
+$contentRoot = New-Object System.Windows.Forms.Panel
+$contentRoot.Name = 'ContentRoot'
+$contentRoot.Dock = 'Fill'
+$contentRoot.Margin = New-Object System.Windows.Forms.Padding(0)
+$contentRoot.BackColor = $script:Ui.Canvas
+$shell.Controls.Add($contentRoot, 1, 0)
+
+$pageHost = New-Object System.Windows.Forms.Panel
+$pageHost.Name = 'PageHost'
+$pageHost.Dock = 'Fill'
+$pageHost.Padding = New-Object System.Windows.Forms.Padding(24, 8, 24, 16)
+$pageHost.BackColor = $script:Ui.Canvas
+$contentRoot.Controls.Add($pageHost)
+
+$header = New-Object System.Windows.Forms.Panel
+$header.Dock = 'Top'
+$header.Height = 144
+$header.BackColor = $script:Ui.Canvas
+$header.Padding = New-Object System.Windows.Forms.Padding(24, 20, 24, 12)
+$contentRoot.Controls.Add($header)
 
 $connectionCard = New-Object System.Windows.Forms.Panel
-$connectionCard.Size = New-Object System.Drawing.Size(320, 54)
-$connectionCard.Anchor = 'Top,Right'
-$connectionCard.Location = New-Object System.Drawing.Point(770, 18)
+$connectionCard.Dock = 'Fill'
 $connectionCard.BackColor = $script:Ui.Raised
-Set-RoundedRegion $connectionCard 18
-$connectionCard.Add_Resize({ param($sender, $eventArgs) Set-RoundedRegion $sender 18 })
+Set-RoundedRegion $connectionCard 24
+$connectionCard.Add_Resize({
+    param($sender, $eventArgs)
+    Set-RoundedRegion $sender 24
+    $connectionState.Width = [Math]::Max(100, $sender.ClientSize.Width - 116)
+    $connectionDetail.Width = [Math]::Max(100, $sender.ClientSize.Width - 116)
+})
+$connectionDotPanel = New-Object System.Windows.Forms.Panel
+$connectionDotPanel.Size = New-Object System.Drawing.Size(56, 56)
+$connectionDotPanel.Location = New-Object System.Drawing.Point(24, 24)
+$connectionDotPanel.BackColor = [System.Drawing.Color]::FromArgb(55, 59, 108)
+Set-RoundedRegion $connectionDotPanel 18
+$connectionCard.Controls.Add($connectionDotPanel)
 $connectionDot = New-Object System.Windows.Forms.Label
 $connectionDot.Text = [char]0x25CF
-$connectionDot.Font = New-Object System.Drawing.Font('Segoe UI', 13, [System.Drawing.FontStyle]::Regular)
+$connectionDot.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Regular)
 $connectionDot.ForeColor = $script:Ui.Muted
-$connectionDot.AutoSize = $true
-$connectionDot.Location = New-Object System.Drawing.Point(15, 15)
-$connectionCard.Controls.Add($connectionDot)
+$connectionDot.Dock = 'Fill'
+$connectionDot.TextAlign = 'MiddleCenter'
+$connectionDotPanel.Controls.Add($connectionDot)
+$connectionEyebrow = New-Object System.Windows.Forms.Label
+$connectionEyebrow.Text = 'S Y S T E M   T U N N E L'
+$connectionEyebrow.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 7, [System.Drawing.FontStyle]::Bold)
+$connectionEyebrow.ForeColor = $script:Ui.AccentHover
+$connectionEyebrow.AutoSize = $true
+$connectionEyebrow.Location = New-Object System.Drawing.Point(96, 20)
+$connectionCard.Controls.Add($connectionEyebrow)
 $connectionState = New-Object System.Windows.Forms.Label
-$connectionState.Text = 'Disconnected'
-$connectionState.Font = $script:StrongFont
+$connectionState.Text = 'Not connected'
+$connectionState.Font = $script:PageTitleFont
 $connectionState.ForeColor = $script:Ui.Text
 $connectionState.AutoEllipsis = $true
-$connectionState.Size = New-Object System.Drawing.Size(263, 22)
-$connectionState.Location = New-Object System.Drawing.Point(42, 9)
+$connectionState.Size = New-Object System.Drawing.Size(640, 32)
+$connectionState.Location = New-Object System.Drawing.Point(94, 37)
 $connectionCard.Controls.Add($connectionState)
 $connectionDetail = New-Object System.Windows.Forms.Label
-$connectionDetail.Text = 'Select a server to start the tunnel'
+$connectionDetail.Text = 'Choose a server from Servers to start your private route'
 $connectionDetail.Font = $script:CaptionFont
 $connectionDetail.ForeColor = $script:Ui.Muted
 $connectionDetail.AutoEllipsis = $true
-$connectionDetail.Size = New-Object System.Drawing.Size(263, 18)
-$connectionDetail.Location = New-Object System.Drawing.Point(42, 30)
+$connectionDetail.Size = New-Object System.Drawing.Size(640, 20)
+$connectionDetail.Location = New-Object System.Drawing.Point(96, 73)
 $connectionCard.Controls.Add($connectionDetail)
 $header.Controls.Add($connectionCard)
-$header.Add_Resize({
-    $connectionCard.Left = [Math]::Max(500, $header.ClientSize.Width - $connectionCard.Width - 24)
-})
+$header.BringToFront()
 
-$tabs = New-Object System.Windows.Forms.TabControl
-$tabs.Dock = 'Fill'
-$tabs.Font = $script:StrongFont
-$tabs.DrawMode = 'OwnerDrawFixed'
-$tabs.SizeMode = 'Fixed'
-$tabs.ItemSize = New-Object System.Drawing.Size(190, 42)
-$tabs.Padding = New-Object System.Drawing.Point(20, 6)
-$tabs.BackColor = $script:Ui.Canvas
-$tabs.Add_DrawItem({
-    param($sender, $eventArgs)
-    $selected = ($eventArgs.Index -eq $sender.SelectedIndex)
-    $bounds = $eventArgs.Bounds
-    $fore = if ($selected) { $script:Ui.AccentHover } else { $script:Ui.Muted }
-    $eventArgs.Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $pill = New-Object System.Drawing.Rectangle(
-        ($bounds.X + 6), ($bounds.Y + 5), ([Math]::Max(1, $bounds.Width - 12)), ([Math]::Max(1, $bounds.Height - 9)))
-    $path = New-RoundedPath $pill 16
-    $fillColor = if ($selected) { $script:Ui.Raised } else { $script:Ui.Canvas }
-    $fill = New-Object System.Drawing.SolidBrush($fillColor)
-    $eventArgs.Graphics.FillPath($fill, $path)
-    $fill.Dispose()
-    $path.Dispose()
-    [System.Windows.Forms.TextRenderer]::DrawText(
-        $eventArgs.Graphics, $sender.TabPages[$eventArgs.Index].Text, $script:StrongFont,
-        $bounds, $fore, [System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor
-        [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis)
-})
-$form.Controls.Add($tabs)
-$form.Controls.Add($header)
+$script:Pages = @{}
+function Show-Page([string]$Name) {
+    if (-not $script:Pages.ContainsKey($Name)) { return }
+    foreach ($key in @($script:Pages.Keys)) { $script:Pages[$key].Visible = $false }
+    foreach ($key in @($script:NavButtons.Keys)) {
+        $active = ($key -eq $Name)
+        $button = $script:NavButtons[$key]
+        $button.BackColor = if ($active) { [System.Drawing.Color]::FromArgb(55, 59, 108) } else { $script:Ui.Sidebar }
+        $button.ForeColor = if ($active) { $script:Ui.AccentHover } else { $script:Ui.Muted }
+    }
+    $page = $script:Pages[$Name]
+    $page.Visible = $true
+    $page.BringToFront()
+}
 
-$nodesTab = New-Object System.Windows.Forms.TabPage
-$nodesTab.Text = 'Servers'
+$nodesTab = New-Object System.Windows.Forms.Panel
+$nodesTab.Name = 'ServersPage'
 $nodesTab.BackColor = $script:Ui.Surface
 $nodesTab.ForeColor = $script:Ui.Text
-$nodesTab.Padding = New-Object System.Windows.Forms.Padding(18, 16, 18, 12)
-$tabs.TabPages.Add($nodesTab)
+$nodesTab.Padding = New-Object System.Windows.Forms.Padding(18, 14, 18, 12)
+$nodesTab.Dock = 'Fill'
+$nodesTab.Visible = $false
+$pageHost.Controls.Add($nodesTab)
+$script:Pages['servers'] = $nodesTab
+
+$nodesHeader = New-PageHeader 'Servers' 'Choose a server. The active connection is always marked clearly.'
+$nodesHeader.Dock = 'Top'
+$nodesHeader.Height = 64
+$nodesHeader.BackColor = $script:Ui.Surface
+$nodesTab.Controls.Add($nodesHeader)
+
+$nodeBody = New-Object System.Windows.Forms.Panel
+$nodeBody.Dock = 'Fill'
+$nodeBody.BackColor = $script:Ui.Surface
+$nodesTab.Controls.Add($nodeBody)
 
 $nodeList = New-Object System.Windows.Forms.ListView
 $nodeList.Dock = 'Fill'
@@ -390,7 +483,42 @@ $nodeList.Columns.Add('SERVER', 360) | Out-Null
 $nodeList.Columns.Add('SOURCE', 300) | Out-Null
 $nodeList.Columns.Add('LATENCY', 120) | Out-Null
 Set-ListStyle $nodeList
-$nodesTab.Controls.Add($nodeList)
+$nodeBody.Controls.Add($nodeList)
+
+$nodeEmpty = New-Object System.Windows.Forms.Panel
+$nodeEmpty.Name = 'ServersEmptyState'
+$nodeEmpty.Dock = 'Fill'
+$nodeEmpty.BackColor = $script:Ui.Surface
+$nodeEmpty.Visible = $false
+$emptyTitle = New-Object System.Windows.Forms.Label
+$emptyTitle.Text = 'No servers yet'
+$emptyTitle.Font = $script:PageTitleFont
+$emptyTitle.ForeColor = $script:Ui.Text
+$emptyTitle.AutoSize = $true
+$nodeEmpty.Controls.Add($emptyTitle)
+$emptyHint = New-Object System.Windows.Forms.Label
+$emptyHint.Text = 'Add a connection link or subscription to get started.'
+$emptyHint.Font = $script:CaptionFont
+$emptyHint.ForeColor = $script:Ui.Muted
+$emptyHint.AutoSize = $true
+$nodeEmpty.Controls.Add($emptyHint)
+$emptyAddButton = New-Object System.Windows.Forms.Button
+$emptyAddButton.Text = 'Add connection'
+$emptyAddButton.Size = New-Object System.Drawing.Size(156, 40)
+Set-ActionButton $emptyAddButton 'Primary'
+$emptyAddButton.Height = 40
+$emptyAddButton.Add_Click({ Show-Page 'add' })
+$nodeEmpty.Controls.Add($emptyAddButton)
+$nodeEmpty.Add_Resize({
+    $centerX = [Math]::Max(0, [int](($nodeEmpty.ClientSize.Width - $emptyTitle.Width) / 2))
+    $centerY = [Math]::Max(32, [int](($nodeEmpty.ClientSize.Height - 126) / 2))
+    $emptyTitle.Location = New-Object System.Drawing.Point($centerX, $centerY)
+    $emptyHint.Location = New-Object System.Drawing.Point(
+        ([Math]::Max(0, [int](($nodeEmpty.ClientSize.Width - $emptyHint.Width) / 2))), ($centerY + 40))
+    $emptyAddButton.Location = New-Object System.Drawing.Point(
+        ([Math]::Max(0, [int](($nodeEmpty.ClientSize.Width - $emptyAddButton.Width) / 2))), ($centerY + 76))
+})
+$nodeBody.Controls.Add($nodeEmpty)
 
 $nodeButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $nodeButtons.Dock = 'Bottom'
@@ -399,11 +527,11 @@ $nodeButtons.Padding = New-Object System.Windows.Forms.Padding(0, 13, 0, 8)
 $nodeButtons.BackColor = $script:Ui.Surface
 $nodesTab.Controls.Add($nodeButtons)
 foreach ($definition in @(
-    @('Refresh', 'Refresh', 'Secondary', 96),
-    @('Ping all', 'Ping', 'Secondary', 104),
-    @('Connect', 'Connect', 'Primary', 112),
-    @('Disconnect', 'Disconnect', 'Danger', 112),
-    @('Remove', 'Remove', 'Secondary', 96)
+    @('Refresh', 'Refresh', 'Secondary', 84),
+    @('Ping all', 'Ping', 'Secondary', 88),
+    @('Connect', 'Connect', 'Primary', 96),
+    @('Disconnect', 'Disconnect', 'Danger', 104),
+    @('Remove', 'Remove', 'Secondary', 84)
 )) {
     $button = New-Object System.Windows.Forms.Button
     $button.Text = $definition[0]
@@ -413,12 +541,17 @@ foreach ($definition in @(
     Set-ActionButton $button $definition[2]
     $nodeButtons.Controls.Add($button)
 }
+$nodesHeader.BringToFront()
+$nodeButtons.BringToFront()
 
-$addTab = New-Object System.Windows.Forms.TabPage
-$addTab.Text = 'Add connection'
+$addTab = New-Object System.Windows.Forms.Panel
+$addTab.Name = 'AddConnectionPage'
 $addTab.BackColor = $script:Ui.Surface
 $addTab.ForeColor = $script:Ui.Text
-$tabs.TabPages.Add($addTab)
+$addTab.Dock = 'Fill'
+$addTab.Visible = $false
+$pageHost.Controls.Add($addTab)
+$script:Pages['add'] = $addTab
 $addPanel = New-Object System.Windows.Forms.TableLayoutPanel
 $addPanel.Dock = 'Fill'
 $addPanel.Padding = New-Object System.Windows.Forms.Padding(28, 22, 28, 22)
@@ -502,12 +635,15 @@ $showSecrets.Add_CheckedChanged({
 })
 $addPanel.Controls.Add($showSecrets, 0, 9)
 
-$subsTab = New-Object System.Windows.Forms.TabPage
-$subsTab.Text = 'Subscriptions'
+$subsTab = New-Object System.Windows.Forms.Panel
+$subsTab.Name = 'SubscriptionsPage'
 $subsTab.BackColor = $script:Ui.Surface
 $subsTab.ForeColor = $script:Ui.Text
 $subsTab.Padding = New-Object System.Windows.Forms.Padding(18, 16, 18, 12)
-$tabs.TabPages.Add($subsTab)
+$subsTab.Dock = 'Fill'
+$subsTab.Visible = $false
+$pageHost.Controls.Add($subsTab)
+$script:Pages['subscriptions'] = $subsTab
 $subsHeader = New-PageHeader 'Subscriptions' 'Update providers independently and see how many servers each source owns.'
 $subsHeader.Dock = 'Top'
 $subsHeader.Height = 64
@@ -543,12 +679,15 @@ foreach ($definition in @(
     $subButtons.Controls.Add($button)
 }
 
-$routingTab = New-Object System.Windows.Forms.TabPage
-$routingTab.Text = 'Split routing'
+$routingTab = New-Object System.Windows.Forms.Panel
+$routingTab.Name = 'SplitRoutingPage'
 $routingTab.BackColor = $script:Ui.Surface
 $routingTab.ForeColor = $script:Ui.Text
 $routingTab.Padding = New-Object System.Windows.Forms.Padding(18, 16, 18, 12)
-$tabs.TabPages.Add($routingTab)
+$routingTab.Dock = 'Fill'
+$routingTab.Visible = $false
+$pageHost.Controls.Add($routingTab)
+$script:Pages['routing'] = $routingTab
 $routingHeader = New-PageHeader 'Split routing' 'Decide which sites and Windows applications use the tunnel.'
 $routingHeader.Dock = 'Top'
 $routingHeader.Height = 64
@@ -641,15 +780,15 @@ $appButtons.BackColor = $script:Ui.Surface
 $appButtons.Padding = New-Object System.Windows.Forms.Padding(8, 4, 0, 0)
 $addAppButton = New-Object System.Windows.Forms.Button
 $addAppButton.Text = 'Add app'
-$addAppButton.Width = 96
+$addAppButton.Width = 72
 Set-ActionButton $addAppButton 'Primary'
 $pickAppButton = New-Object System.Windows.Forms.Button
 $pickAppButton.Text = 'Choose apps...'
-$pickAppButton.Width = 126
+$pickAppButton.Width = 96
 Set-ActionButton $pickAppButton 'Secondary'
 $removeAppButton = New-Object System.Windows.Forms.Button
 $removeAppButton.Text = 'Remove'
-$removeAppButton.Width = 96
+$removeAppButton.Width = 72
 Set-ActionButton $removeAppButton 'Secondary'
 $appButtons.Controls.Add($addAppButton); $appButtons.Controls.Add($pickAppButton); $appButtons.Controls.Add($removeAppButton)
 $routingPanel.Controls.Add($domainButtons, 0, 5)
@@ -677,10 +816,33 @@ $versionLabel.Text = 'WProxy 2.6.0  |  Windows TUN'
 $versionLabel.ForeColor = $script:Ui.Muted
 $statusBar.Items.Add($versionLabel) | Out-Null
 $form.Controls.Add($statusBar)
-$header.BringToFront()
+$shell.SendToBack()
 $statusBar.BringToFront()
+$header.BringToFront()
+$nodesHeader.BringToFront()
 $subsHeader.BringToFront()
 $routingHeader.BringToFront()
+Show-Page 'servers'
+
+if ($LayoutSmokeTest) {
+    $form.CreateControl()
+    $form.PerformLayout()
+    $shell.PerformLayout()
+    $navigationRail.PerformLayout()
+    $contentRoot.PerformLayout()
+    $pageHost.PerformLayout()
+    if ($navigationRail.Width -lt 200) { throw 'Windows navigation rail collapsed during layout.' }
+    if ($pageHost.Width -lt 500) { throw 'Windows page host collapsed during layout.' }
+    if ($script:NavButtons.Count -ne 4 -or $script:Pages.Count -ne 4) {
+        throw 'Windows navigation did not create all primary pages.'
+    }
+    if ($script:NavButtons['servers'].Height -lt 40) { throw 'Windows navigation targets are too small.' }
+    Write-Output ('Windows layout smoke test: PASS ({0}x{1} navigation, {2}x{3} content)' -f `
+        $navigationRail.Width, $navigationRail.Height, $pageHost.Width, $pageHost.Height)
+    $form.Dispose()
+    foreach ($brush in $script:Brushes.Values) { $brush.Dispose() }
+    exit 0
+}
 
 $tray = New-Object System.Windows.Forms.NotifyIcon
 if (Test-Path $iconPath) { $tray.Icon = New-Object System.Drawing.Icon($iconPath) } else { $tray.Icon = [System.Drawing.SystemIcons]::Shield }
@@ -831,6 +993,10 @@ function Refresh-Nodes([hashtable]$Latencies) {
         $item.SubItems.Add($latency) | Out-Null
         $nodeList.Items.Add($item) | Out-Null
     }
+    $hasNodes = ($nodes.Count -gt 0)
+    $nodeList.Visible = $hasNodes
+    $nodeEmpty.Visible = -not $hasNodes
+    if (-not $hasNodes) { $nodeEmpty.BringToFront() }
 }
 
 function Refresh-Status {
@@ -869,7 +1035,7 @@ function Refresh-Status {
     } else {
         $script:ActiveNodeId = $null
         $statusLabel.Text = 'Ready  |  Disconnected'
-        $connectionState.Text = 'Disconnected'
+        $connectionState.Text = 'Not connected'
         $connectionDetail.Text = 'Select a server to start the tunnel'
         $connectionDot.ForeColor = $script:Ui.Muted
         $tray.Text = 'WProxy - Disconnected'
@@ -917,7 +1083,7 @@ $addNodeButton.Add_Click({
     if (-not $uriBox.Text.Trim()) { return }
     $result = Invoke-Ctl @('node', 'add', $uriBox.Text.Trim())
     if ($result.Code -ne 0) { Show-Error $result.Output; return }
-    $uriBox.Clear(); Refresh-Nodes @{}
+    $uriBox.Clear(); Refresh-Nodes @{}; Show-Page 'servers'
 })
 $addSubButton.Add_Click({
     if (-not $subBox.Text.Trim()) { return }
@@ -925,7 +1091,7 @@ $addSubButton.Add_Click({
     if ($added.Code -ne 0) { Show-Error $added.Output; return }
     $updated = Invoke-Ctl @('sub', 'update', $added.Output.Trim())
     if ($updated.Code -ne 0) { Show-Error $updated.Output; return }
-    $subBox.Clear(); Refresh-Nodes @{}; Refresh-Subscriptions
+    $subBox.Clear(); Refresh-Nodes @{}; Refresh-Subscriptions; Show-Page 'servers'
 })
 $subButtons.Controls['UpdateSelected'].Add_Click({
     if ($subList.SelectedItems.Count -ne 1) { Show-Error 'Select one subscription first.'; return }

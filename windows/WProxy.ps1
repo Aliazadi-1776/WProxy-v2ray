@@ -703,6 +703,13 @@ function Refresh-Routing {
         foreach ($domain in $routing.domains) { $domainList.Items.Add([string]$domain) | Out-Null }
         $appList.Items.Clear()
         foreach ($app in $routing.apps) { $appList.Items.Add([string]$app) | Out-Null }
+        if ($routing.mode -eq 'only' -and $routing.domains.Count -eq 0 -and $routing.apps.Count -eq 0) {
+            $routingNote.Text = 'Nothing is listed, so all traffic stays direct. Add a site or application, then reconnect.'
+            $routingNote.ForeColor = $script:Ui.Danger
+        } else {
+            $routingNote.Text = 'Reconnect after changes. Exact executable paths give the most reliable app matching.'
+            $routingNote.ForeColor = $script:Ui.Muted
+        }
     } catch {
         Show-Error ('WProxy could not read the saved routing rules. ' + $_.Exception.Message)
     } finally {
@@ -946,6 +953,7 @@ $modeCombo.Add_SelectedIndexChanged({
     $mode = @('all', 'bypass', 'only')[$modeCombo.SelectedIndex]
     $result = Invoke-Ctl @('routing', 'mode', $mode)
     if ($result.Code -ne 0) { Show-Error $result.Output }
+    else { Refresh-Routing }
 })
 $addDomainButton.Add_Click({
     if (-not $domainBox.Text.Trim()) { return }

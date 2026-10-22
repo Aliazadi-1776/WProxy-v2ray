@@ -46,7 +46,7 @@ check-deps:
 		echo "Missing build dependencies. Need libnm + GTK3 + GTK4 development files." >&2; exit 2; }
 
 check-python:
-	python3 -m py_compile cli/wproxyctl.py manager/wproxy-manager.py
+	python3 -m py_compile cli/wproxyctl.py manager/wproxy-manager.py scripts/live-routing-smoke.py
 	sh -n service/wproxy-xray-runner scripts/install.sh scripts/uninstall.sh scripts/diagnose.sh scripts/recover-vpn-settings.sh scripts/repair-gnome-vpn-editor.sh scripts/repair-runtime.sh
 
 test-service-profile-lookup: tests/test-service-profile-lookup.c service/nm-wproxy-service.c

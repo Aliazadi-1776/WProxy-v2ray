@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.5.1"><strong>Download v2.5.1</strong></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.6.0"><strong>Download v2.6.0</strong></a>
   · <a href="README.fa.md">راهنمای فارسی</a>
   · <a href="docs/ROUTING.md">Routing</a>
   · <a href="docs/WINDOWS.md">Windows</a>
@@ -26,13 +26,13 @@
   · <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.5.1** adds the redesigned, UTF-8-safe Windows manager while retaining verified adapter/default-route/HTTPS connection checks, application split routing, and independent ownership for duplicate servers from different subscriptions.
+WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.6.0** introduces a Material You-inspired GTK manager, installed-application routing picker, verified Linux process/domain routing, reliable rapid reconnects, and a roomier matching Windows interface.
 
 ## Get WProxy
 
 | Windows 10/11 x64 | GNOME 45–51 | KDE Plasma 6 |
 | --- | --- | --- |
-| Download **`WProxy-2.5.1-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
+| Download **`WProxy-2.6.0-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
 
 The Windows installer includes WProxy, Xray and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [compatibility matrix](#compatibility) before installing on a new platform.
 
@@ -71,7 +71,7 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 
 ## Compatibility
 
-The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.5.1 also provides a Windows x64 installer using Xray's native Windows TUN support. The two runtimes share the store format and routing rules but use different operating-system integration.
+The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.6.0 also provides a Windows x64 installer using Xray's native Windows TUN support. The two runtimes share the store format and routing rules but use different operating-system integration.
 
 | Component / platform | Support and verification |
 | --- | --- |
@@ -101,7 +101,7 @@ Windows does not expose a public API for arbitrary third-party controls inside W
 Extract the ZIP, then open a terminal in the directory containing `Makefile` and `scripts/`. For this release archive:
 
 ```bash
-cd WProxy-2.5.1
+cd WProxy-2.6.0
 ```
 
 A GitHub “Download ZIP” may use a different folder name; enter that extracted folder instead. Run as your **normal desktop account**, not a root login, and leave Python virtual environments/Conda first. You need working Internet and permission to use `sudo`.
@@ -238,7 +238,7 @@ bash scripts/install.sh --desktop none
 
 Or, inside a supported GNOME/Plasma session, `bash scripts/install.sh` detects the desktop automatically. The explicit forms above avoid ambiguity on derivatives.
 
-The installer compiles the service/editors and uses sudo for system files. **Automatic missing-dependency installation is APT-only**; Arch/Fedora/openSUSE must complete step 2 first. If Xray is absent, the script downloads and runs the [official XTLS installer](https://github.com/XTLS/Xray-install) as root; review that trust decision before continuing. Existing Xray is not automatically upgraded. It must support native TUN; the tested core was **26.3.27**, not a guarantee for every older/newer version.
+The installer compiles the service/editors and uses sudo for system files. **Automatic missing-dependency installation is APT-only**; Arch/Fedora/openSUSE must complete step 2 first. If Xray is absent or older than **26.9.30**, the script downloads and runs the [official XTLS installer](https://github.com/XTLS/Xray-install) as root; review that trust decision before continuing. The installed core is version-checked before WProxy is copied. Linux application routing additionally requires `systemd-run` so Xray can inspect the originating process outside NetworkManager's restricted service sandbox.
 
 Replaced WProxy files are backed up under `/var/backups/`. An upgrade stops WProxy temporarily but does not restart all of NetworkManager. This is a source installer, not a distro-managed DEB/RPM/Flatpak.
 
@@ -252,7 +252,7 @@ Check installation with `wproxyctl --version`, then open `wproxy-manager`, add y
 
 ### Windows 10/11 installation
 
-Download `WProxy-2.5.1-Setup.exe` and its `.sha256` file from the [v2.5.1 GitHub Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.5.1), verify the checksum, and run Setup. Python and a separate Xray download are not required. The per-user installer launches WProxy after installation; Windows requests Administrator approval only when connecting or disconnecting the TUN.
+Download `WProxy-2.6.0-Setup.exe` and its `.sha256` file from the [v2.6.0 GitHub Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.6.0), verify the checksum, and run Setup. Python and a separate Xray download are not required. The per-user installer launches WProxy after installation; Windows requests Administrator approval only when connecting or disconnecting the TUN.
 
 The installer contains the official Xray **26.9.30** Windows x64 runtime and Wintun file whose upstream archive is pinned and SHA-256-verified in GitHub Actions. Read [the Windows guide](docs/WINDOWS.md) for use, routing and current verification limits.
 

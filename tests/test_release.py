@@ -29,8 +29,26 @@ class ReleaseTests(unittest.TestCase):
             "Choose apps...", "Ping all", "Connect", "Remove",
         ):
             self.assertIn(label, source)
-        self.assertIn("Servers, subscriptions and split routing in one place", source)
+        self.assertIn("Private routing, made simple", source)
         self.assertIn("$nodeList.Add_DoubleClick", source)
+
+    def test_desktop_managers_share_a_clear_material_app_shell(self):
+        linux = (ROOT / "manager/wproxy-manager.py").read_text()
+        windows = (ROOT / "windows/WProxy.ps1").read_text()
+
+        for token in (
+            "navigation-rail", "connection-card", "material-list", "Add connection",
+            "self.window.set_titlebar(header)", "self.uri_entry.set_visibility(False)",
+            "Gio.AppInfo.get_all()", "Choose application…", "all traffic stays direct",
+        ):
+            self.assertIn(token, linux)
+        self.assertNotIn("root.append(header)", linux)
+
+        for token in (
+            "Set-RoundedRegion", "New-RoundedPath", "SmoothingMode]::AntiAlias",
+            "OnAccent", "Online", "Private routing, made simple",
+        ):
+            self.assertIn(token, windows)
 
     def test_gnome_51_layout_uses_orientation_property(self):
         source = (ROOT / "gnome-extension/wproxy@wrench.local/extension.js").read_text()

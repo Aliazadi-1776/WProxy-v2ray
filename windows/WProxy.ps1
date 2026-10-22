@@ -264,7 +264,7 @@ function New-PageHeader([string]$Title, [string]$Subtitle) {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'WProxy 2.5.1'
+$form.Text = 'WProxy 2.6.0'
 $form.Size = New-Object System.Drawing.Size(1120, 760)
 $form.MinimumSize = New-Object System.Drawing.Size(900, 620)
 $form.StartPosition = 'CenterScreen'
@@ -673,7 +673,7 @@ $statusLabel.Spring = $true
 $statusLabel.TextAlign = 'MiddleLeft'
 $statusBar.Items.Add($statusLabel) | Out-Null
 $versionLabel = New-Object System.Windows.Forms.ToolStripStatusLabel
-$versionLabel.Text = 'WProxy 2.5.1  |  Windows TUN'
+$versionLabel.Text = 'WProxy 2.6.0  |  Windows TUN'
 $versionLabel.ForeColor = $script:Ui.Muted
 $statusBar.Items.Add($versionLabel) | Out-Null
 $form.Controls.Add($statusBar)

@@ -135,6 +135,8 @@ fi
 command -v pkg-config >/dev/null 2>&1 || { echo "pkg-config is required" >&2; exit 2; }
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 2; }
 command -v nmcli >/dev/null 2>&1 || { echo "NetworkManager/nmcli is required" >&2; exit 2; }
+command -v systemd-run >/dev/null 2>&1 || { echo "systemd-run is required for application routing" >&2; exit 2; }
+command -v systemctl >/dev/null 2>&1 || { echo "systemctl is required for application routing" >&2; exit 2; }
 
 LIBDIR="$(pkg-config --variable=libdir libnm 2>/dev/null || true)"
 [ -n "$LIBDIR" ] || LIBDIR=/usr/lib

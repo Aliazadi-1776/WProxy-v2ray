@@ -1026,7 +1026,7 @@ if ($LayoutSmokeTest) {
     $routingTab.PerformLayout()
     $routingPanel.PerformLayout()
     $appButtons.PerformLayout()
-    if (-not $pickAppButton.Visible -or $pickAppButton.Width -lt 150) {
+    if ($pickAppButton.Parent -ne $appButtons -or $pickAppButton.Width -lt 150) {
         throw 'Windows application picker is not usable in the routing layout.'
     }
     if (($pickAppButton.Right -gt $appButtons.ClientSize.Width) -or

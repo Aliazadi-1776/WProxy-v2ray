@@ -1,3 +1,10 @@
+# 2.6.1
+
+- Replace the Windows owner-drawn tab strip, which could collapse into a thin line on real Windows DPI/theme combinations, with a fixed navigation rail and independent page host matching the Linux manager structure.
+- Add a clear empty-server state with a direct **Add connection** action, then return to Servers automatically after a successful link or subscription import.
+- Tighten action sizing at the minimum supported window width while keeping large touch/click targets and the persistent system-tunnel status card.
+- Add a native Windows WinForms layout smoke test to the release workflow so collapsed navigation or content fails the build before an installer is published.
+
 # 2.6.0
 
 - Redesign the GTK4 manager with a spacious Material You-inspired shell, clear navigation, status and content cards, masked import fields, responsive action placement and an explicit empty-only routing warning.

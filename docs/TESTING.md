@@ -1,10 +1,14 @@
 # Test coverage
 
+## 2.6.1 Windows layout hotfix
+
+The Windows release runner now constructs the WinForms shell and fails if the navigation rail, page host, page map or click targets collapse. Source regression checks also prohibit the owner-drawn `TabControl`/`TabPage` layout that failed on a physical Windows display. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test.
+
 ## 2.6.0 desktop UI, Windows installer and live routing
 
 Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, Windows executable-name normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, same-URI ownership across multiple subscriptions, JSON/mixed subscription extraction, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN/WFP fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
 
-Windows GitHub Actions run shared tests, compile `wproxyctl.exe`, execute its version check, verify the pinned official Xray archive, parse the PowerShell frontend, compile `Setup.exe`, and publish a SHA-256 artifact. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification now refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
+Windows GitHub Actions run shared tests, compile `wproxyctl.exe`, execute its version check, verify the pinned official Xray archive, parse and layout-smoke-test the PowerShell frontend, compile `Setup.exe`, and publish a SHA-256 artifact. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification now refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
 
 ## 2.3.1 transport correction
 

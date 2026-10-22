@@ -265,8 +265,8 @@ function New-PageHeader([string]$Title, [string]$Subtitle) {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'WProxy 2.5.1'
-$form.Size = New-Object System.Drawing.Size(980, 700)
-$form.MinimumSize = New-Object System.Drawing.Size(820, 580)
+$form.Size = New-Object System.Drawing.Size(1120, 760)
+$form.MinimumSize = New-Object System.Drawing.Size(900, 620)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = $script:Ui.Canvas
 $form.ForeColor = $script:Ui.Text
@@ -288,9 +288,10 @@ $brandMark.Text = 'W'
 $brandMark.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 18, [System.Drawing.FontStyle]::Bold)
 $brandMark.TextAlign = 'MiddleCenter'
 $brandMark.BackColor = $script:Ui.Accent
-$brandMark.ForeColor = $script:Ui.Canvas
+$brandMark.ForeColor = $script:Ui.OnAccent
 $brandMark.Size = New-Object System.Drawing.Size(52, 52)
 $brandMark.Location = New-Object System.Drawing.Point(22, 18)
+Set-RoundedRegion $brandMark 17
 $header.Controls.Add($brandMark)
 
 $brandTitle = New-Object System.Windows.Forms.Label
@@ -301,7 +302,7 @@ $brandTitle.AutoSize = $true
 $brandTitle.Location = New-Object System.Drawing.Point(88, 13)
 $header.Controls.Add($brandTitle)
 $brandSubtitle = New-Object System.Windows.Forms.Label
-$brandSubtitle.Text = 'Servers, subscriptions and split routing in one place'
+$brandSubtitle.Text = 'Private routing, made simple'
 $brandSubtitle.Font = $script:CaptionFont
 $brandSubtitle.ForeColor = $script:Ui.Muted
 $brandSubtitle.AutoSize = $true
@@ -309,10 +310,12 @@ $brandSubtitle.Location = New-Object System.Drawing.Point(91, 51)
 $header.Controls.Add($brandSubtitle)
 
 $connectionCard = New-Object System.Windows.Forms.Panel
-$connectionCard.Size = New-Object System.Drawing.Size(292, 54)
+$connectionCard.Size = New-Object System.Drawing.Size(320, 54)
 $connectionCard.Anchor = 'Top,Right'
-$connectionCard.Location = New-Object System.Drawing.Point(658, 18)
+$connectionCard.Location = New-Object System.Drawing.Point(770, 18)
 $connectionCard.BackColor = $script:Ui.Raised
+Set-RoundedRegion $connectionCard 18
+$connectionCard.Add_Resize({ param($sender, $eventArgs) Set-RoundedRegion $sender 18 })
 $connectionDot = New-Object System.Windows.Forms.Label
 $connectionDot.Text = [char]0x25CF
 $connectionDot.Font = New-Object System.Drawing.Font('Segoe UI', 13, [System.Drawing.FontStyle]::Regular)
@@ -325,7 +328,7 @@ $connectionState.Text = 'Disconnected'
 $connectionState.Font = $script:StrongFont
 $connectionState.ForeColor = $script:Ui.Text
 $connectionState.AutoEllipsis = $true
-$connectionState.Size = New-Object System.Drawing.Size(235, 22)
+$connectionState.Size = New-Object System.Drawing.Size(263, 22)
 $connectionState.Location = New-Object System.Drawing.Point(42, 9)
 $connectionCard.Controls.Add($connectionState)
 $connectionDetail = New-Object System.Windows.Forms.Label
@@ -333,7 +336,7 @@ $connectionDetail.Text = 'Select a server to start the tunnel'
 $connectionDetail.Font = $script:CaptionFont
 $connectionDetail.ForeColor = $script:Ui.Muted
 $connectionDetail.AutoEllipsis = $true
-$connectionDetail.Size = New-Object System.Drawing.Size(235, 18)
+$connectionDetail.Size = New-Object System.Drawing.Size(263, 18)
 $connectionDetail.Location = New-Object System.Drawing.Point(42, 30)
 $connectionCard.Controls.Add($connectionDetail)
 $header.Controls.Add($connectionCard)
@@ -346,21 +349,23 @@ $tabs.Dock = 'Fill'
 $tabs.Font = $script:StrongFont
 $tabs.DrawMode = 'OwnerDrawFixed'
 $tabs.SizeMode = 'Fixed'
-$tabs.ItemSize = New-Object System.Drawing.Size(180, 42)
+$tabs.ItemSize = New-Object System.Drawing.Size(190, 42)
 $tabs.Padding = New-Object System.Drawing.Point(20, 6)
 $tabs.BackColor = $script:Ui.Canvas
 $tabs.Add_DrawItem({
     param($sender, $eventArgs)
     $selected = ($eventArgs.Index -eq $sender.SelectedIndex)
     $bounds = $eventArgs.Bounds
-    $back = if ($selected) { $script:Ui.Raised } else { $script:Ui.Canvas }
     $fore = if ($selected) { $script:Ui.AccentHover } else { $script:Ui.Muted }
-    $backBrush = if ($selected) { $script:Brushes.Raised } else { $script:Brushes.Canvas }
-    $eventArgs.Graphics.FillRectangle($backBrush, $bounds)
-    if ($selected) {
-        $accentBounds = New-Object System.Drawing.Rectangle($bounds.X, ($bounds.Bottom - 3), $bounds.Width, 3)
-        $eventArgs.Graphics.FillRectangle($script:Brushes.Accent, $accentBounds)
-    }
+    $eventArgs.Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $pill = New-Object System.Drawing.Rectangle(
+        ($bounds.X + 6), ($bounds.Y + 5), ([Math]::Max(1, $bounds.Width - 12)), ([Math]::Max(1, $bounds.Height - 9)))
+    $path = New-RoundedPath $pill 16
+    $fillColor = if ($selected) { $script:Ui.Raised } else { $script:Ui.Canvas }
+    $fill = New-Object System.Drawing.SolidBrush($fillColor)
+    $eventArgs.Graphics.FillPath($fill, $path)
+    $fill.Dispose()
+    $path.Dispose()
     [System.Windows.Forms.TextRenderer]::DrawText(
         $eventArgs.Graphics, $sender.TabPages[$eventArgs.Index].Text, $script:StrongFont,
         $bounds, $fore, [System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor
@@ -843,7 +848,7 @@ function Refresh-Status {
         $statusLabel.Text = 'Connected  |  ' + $status.name
         $connectionState.Text = 'Connected'
         $connectionDetail.Text = [string]$status.name
-        $connectionDot.ForeColor = $script:Ui.Accent
+        $connectionDot.ForeColor = $script:Ui.Online
         $tray.Text = ('WProxy - Connected: ' + $status.name).Substring(0, [Math]::Min(63, ('WProxy - Connected: ' + $status.name).Length))
         $disconnectItem.Enabled = $true
     } elseif ($status.active) {

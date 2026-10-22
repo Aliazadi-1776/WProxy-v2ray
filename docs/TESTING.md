@@ -1,6 +1,6 @@
 # Test coverage
 
-## 2.5.1 Windows installer, multi-subscription ownership and routing
+## 2.6.0 desktop UI, Windows installer and live routing
 
 Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, Windows executable-name normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, same-URI ownership across multiple subscriptions, JSON/mixed subscription extraction, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN/WFP fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
 
@@ -20,7 +20,7 @@ The 2.2.10 host report dated 2026-09-22 recorded:
 - Route lookup through `wproxy0`: **PASS**.
 - HTTPS through the system tunnel: **PASS (204)**.
 
-Version 2.5.1 retains this Linux TUN algorithm and routing behavior. It also regression-tests GNOME 51 layout properties, announcement filtering, subscription-scoped node ownership and ownership-safe stale-profile selection. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
+Version 2.6.0 retains this Linux TUN algorithm and adds a reversible live smoke test for full-tunnel preflight, only-empty, bypass-application, only-application and only-domain routing. It also regression-tests stable UUID mapping when NetworkManager suffixes duplicate profile names, GNOME 51 layout properties, announcement filtering, subscription-scoped node ownership and ownership-safe stale-profile selection. The original host report is intentionally **not** distributed: diagnostics belong on the local machine.
 
 Automated C/Python tests cover profile lookup, NetworkManager gateway/IP/default-route encoding, compatibility with Xray 26.3.27's TUN fields, outbound-interface binding, endpoint pinning/SNI, gateway-file permissions, and explicit interface/address setup failures. `make test` also checks JavaScript/shell syntax, KDE command quoting and repository assets.
 
@@ -63,3 +63,11 @@ bash scripts/apply-fix.sh --test
 ```
 
 That operation updates WProxy, temporarily stops its connection, tests actual saved nodes, and may leave a successful VPN connected. It needs sudo. Keep `verification.txt` private.
+
+For a reversible split-routing check that never prints the public IP or server credentials:
+
+```bash
+python3 scripts/live-routing-smoke.py --confirm --timeout 20
+```
+
+The script temporarily changes the current routing policy, tests real HTTPS paths with two different processes and hostnames, and restores the original policy and NetworkManager profiles in a `finally` block.

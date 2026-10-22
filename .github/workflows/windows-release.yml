@@ -45,6 +45,8 @@ jobs:
           $expected = [char]::ConvertFromUtf32(0x1F1E9) + [char]::ConvertFromUtf32(0x1F1EA) + ' Berlin'
           if ($nodes[0].name -ne $expected) { throw "Unicode server name was corrupted: $($nodes[0].name)" }
           [void][ScriptBlock]::Create((Get-Content windows/WProxy.ps1 -Raw))
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows/WProxy.ps1 -LayoutSmokeTest
+          if ($LASTEXITCODE -ne 0) { throw 'Windows layout smoke test failed' }
       - name: Download and verify official Xray runtime
         shell: powershell
         run: |

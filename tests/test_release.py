@@ -29,8 +29,21 @@ class ReleaseTests(unittest.TestCase):
             "Choose apps...", "Ping all", "Connect", "Remove",
         ):
             self.assertIn(label, source)
-        self.assertIn("Private routing, made simple", source)
+        self.assertIn("Private routing", source)
         self.assertIn("$nodeList.Add_DoubleClick", source)
+
+    def test_windows_navigation_is_dpi_safe_and_has_an_empty_state(self):
+        source = (ROOT / "windows/WProxy.ps1").read_text()
+        self.assertNotIn("System.Windows.Forms.TabControl", source)
+        self.assertNotIn("System.Windows.Forms.TabPage", source)
+        for token in (
+            "NavigationRail", "PageHost", "function Show-Page", "$script:NavButtons",
+            "ServersEmptyState", "No servers yet", "Show-Page 'add'",
+            "$LayoutSmokeTest", "Windows navigation rail collapsed during layout.",
+        ):
+            self.assertIn(token, source)
+        workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
+        self.assertIn("-LayoutSmokeTest", workflow)
 
     def test_desktop_managers_share_a_clear_material_app_shell(self):
         linux = (ROOT / "manager/wproxy-manager.py").read_text()
@@ -45,8 +58,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("root.append(header)", linux)
 
         for token in (
-            "Set-RoundedRegion", "New-RoundedPath", "SmoothingMode]::AntiAlias",
-            "OnAccent", "Online", "Private routing, made simple",
+            "Set-RoundedRegion", "New-RoundedPath", "NavigationRail", "PageHost",
+            "OnAccent", "Online", "Private routing",
         ):
             self.assertIn(token, windows)
 

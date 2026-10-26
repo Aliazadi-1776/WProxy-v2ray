@@ -15,11 +15,15 @@ BUILDER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILDER)
 
 
+def read_utf8(path):
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
 class ReleaseTests(unittest.TestCase):
     def test_linux_admin_helper_is_narrow_and_never_stores_passwords(self):
-        helper = (ROOT / "scripts/wproxy-admin").read_text()
-        policy = (ROOT / "data/io.github.aliazadi1776.wproxy.policy").read_text()
-        installer = (ROOT / "scripts/install.sh").read_text()
+        helper = read_utf8("scripts/wproxy-admin")
+        policy = read_utf8("data/io.github.aliazadi1776.wproxy.policy")
+        installer = read_utf8("scripts/install.sh")
         for operation in ("authorize)", "revoke)", "sync)", "up)", "down)", "update)"):
             self.assertIn(operation, helper)
         self.assertIn("subject.active && subject.local", helper)
@@ -30,14 +34,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotRegex(helper.lower(), r"password\s*=")
 
     def test_linux_installer_has_a_non_mutating_build_dry_run(self):
-        installer = (ROOT / "scripts/install.sh").read_text()
+        installer = read_utf8("scripts/install.sh")
         self.assertIn("--dry-run)", installer)
         self.assertIn("WProxy installer dry-run: PASS", installer)
         self.assertIn("No system files, NetworkManager profiles, packages, or desktop extensions were changed.", installer)
         self.assertLess(installer.index("WProxy installer dry-run: PASS"), installer.index("Creating backup:"))
 
     def test_tauri_desktop_exposes_primary_workflows(self):
-        source = (ROOT / "desktop/src/main.ts").read_text()
+        source = read_utf8("desktop/src/main.ts")
         for label in (
             "Servers", "Add connection", "Subscriptions", "Routing",
             "Choose application", "Test latency", "Use fastest", "Connect", "Remove",
@@ -51,9 +55,9 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('open({ multiple: false, directory: false', source)
 
     def test_tauri_navigation_is_responsive_and_has_empty_states(self):
-        source = (ROOT / "desktop/src/main.ts").read_text()
-        styles = (ROOT / "desktop/src/styles.css").read_text()
-        config = json.loads((ROOT / "desktop/src-tauri/tauri.conf.json").read_text())
+        source = read_utf8("desktop/src/main.ts")
+        styles = read_utf8("desktop/src/styles.css")
+        config = json.loads(read_utf8("desktop/src-tauri/tauri.conf.json"))
         for token in (
             "Main navigation", "No servers yet", "Split routing", "Automatic updates",
             "data-page", "routing-columns", "empty-state",
@@ -63,29 +67,29 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", styles)
         self.assertEqual(config["app"]["windows"][0]["minWidth"], 960)
         self.assertEqual(config["app"]["windows"][0]["minHeight"], 640)
-        workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
+        workflow = read_utf8(".github/workflows/windows-release.yml")
         self.assertIn("cargo build --release", workflow)
         self.assertIn("Smoke test Tauri startup on Windows", workflow)
         self.assertIn("Start-Process -FilePath", workflow)
 
     def test_tauri_frontend_has_no_heavy_ui_framework(self):
-        package = json.loads((ROOT / "desktop/package.json").read_text())
+        package = json.loads(read_utf8("desktop/package.json"))
         packages = set(package.get("dependencies", {})) | set(package.get("devDependencies", {}))
         self.assertFalse(packages.intersection({"electron", "react", "react-dom", "vue", "svelte"}))
         self.assertIn("@tauri-apps/api", packages)
         self.assertIn("vite", packages)
 
     def test_tauri_bridge_limits_commands_and_elevates_tunnel_only(self):
-        source = (ROOT / "desktop/src-tauri/src/lib.rs").read_text()
+        source = read_utf8("desktop/src-tauri/src/lib.rs")
         for token in (
             "valid_ctl_args", "elevated_windows_ctl", "linux_admin", "wproxy-admin",
             "tunnel_status", "set_linux_authorization", "install_update",
         ):
             self.assertIn(token, source)
-        self.assertNotIn("plugin-shell", (ROOT / "desktop/package.json").read_text())
+        self.assertNotIn("plugin-shell", read_utf8("desktop/package.json"))
 
     def test_tauri_auto_update_is_opt_in_verified_and_installed_by_native_bridge(self):
-        source = (ROOT / "desktop/src/main.ts").read_text()
+        source = read_utf8("desktop/src/main.ts")
         self.assertIn("state.preferences.auto_update", source)
         self.assertIn("runAutomaticUpdate", source)
         self.assertIn('"update", "download", "--json", "--platform"', source)
@@ -93,19 +97,19 @@ class ReleaseTests(unittest.TestCase):
 
     def test_repair_scripts_keep_the_tauri_manager(self):
         for name in ("scripts/repair-runtime.sh", "scripts/repair-gnome-vpn-editor.sh"):
-            source = (ROOT / name).read_text()
+            source = read_utf8(name)
             self.assertIn("make desktop", source)
             self.assertIn("desktop/src-tauri/target/release/wproxy-desktop", source)
             self.assertNotIn("install -Dm755 manager/wproxy-manager.py /usr/bin/wproxy-manager", source)
 
     def test_release_publishes_update_checksum_manifest(self):
-        workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
+        workflow = read_utf8(".github/workflows/windows-release.yml")
         self.assertIn("Create release checksum manifest", workflow)
         self.assertGreaterEqual(workflow.count("dist/SHA256SUMS"), 3)
 
     def test_desktop_managers_keep_linux_integration_and_tauri_shell(self):
-        linux = (ROOT / "manager/wproxy-manager.py").read_text()
-        desktop = (ROOT / "desktop/src/main.ts").read_text()
+        linux = read_utf8("manager/wproxy-manager.py")
+        desktop = read_utf8("desktop/src/main.ts")
 
         for token in (
             "navigation-rail", "connection-card", "material-list", "Add connection",
@@ -119,13 +123,13 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(token, desktop)
 
     def test_gnome_51_layout_uses_orientation_property(self):
-        source = (ROOT / "gnome-extension/wproxy@wrench.local/extension.js").read_text()
+        source = read_utf8("gnome-extension/wproxy@wrench.local/extension.js")
         self.assertNotIn("vertical:", source)
         self.assertGreaterEqual(source.count("Clutter.Orientation.VERTICAL"), 2)
 
     def test_readme_shell_examples_parse_without_executing(self):
         for name in ("README.md", "README.fa.md"):
-            blocks = re.findall(r"```bash\n(.*?)```", (ROOT / name).read_text(), re.S)
+            blocks = re.findall(r"```bash\n(.*?)```", read_utf8(name), re.S)
             self.assertTrue(blocks, name)
             for index, block in enumerate(blocks):
                 with self.subTest(readme=name, block=index):
@@ -136,7 +140,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_dependency_commands_match_between_languages(self):
         def commands(name):
-            text = (ROOT / name).read_text().replace("\\\n", " ")
+            text = read_utf8(name).replace("\\\n", " ")
             return [
                 " ".join(line.split())
                 for line in text.splitlines()

@@ -6,7 +6,7 @@
 
 <p align="center">
   A desktop-first Xray/V2Ray client for Linux and Windows.<br>
-  GNOME Quick Settings · KDE Plasma 6 · Windows tray · split routing · CLI
+  GNOME Quick Settings · KDE Plasma 6 · Tauri desktop · split routing · CLI
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
   · <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.7.0** adds a compact sushTun-inspired desktop shell, one-click fastest-server selection, verified automatic updates and narrowly scoped reusable Linux authorization while keeping GNOME Quick Settings and the Linux tunnel algorithm unchanged.
+WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.7.0** replaces the legacy Windows/GTK manager with one lightweight Tauri 2 shell, adds one-click fastest-server selection, verified automatic updates and narrowly scoped reusable Linux authorization, while keeping GNOME Quick Settings and the Linux tunnel algorithm unchanged.
 
 ## Get WProxy
 
@@ -65,12 +65,12 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 - KDE Plasma 6: a WProxy panel/System Tray widget with server selection, per-server and batch ping, subscription input, update, and manager access.
 - Three-row scrolling lists keep controls visible as the server count grows.
 - Display remaining subscription traffic when the provider supplies usage information.
-- Separate GTK manager, CLI, and GTK3/GTK4 NetworkManager editors.
+- One shared Tauri 2 desktop manager for Linux and Windows, plus the CLI and GTK3/GTK4 NetworkManager editors.
 - Three routing modes: all traffic through VPN, bypass listed sites/apps, or only listed sites/apps through VPN.
 - One-click fastest-server selection based on concurrent endpoint latency tests; unreachable servers are ignored.
 - Opt-in verified automatic updates on Linux and Windows, using the release `SHA256SUMS` manifest before installation.
 - Linux can remember a narrowly scoped WProxy Polkit authorization after one approval; passwords are never saved.
-- Windows 10/11 x64 Setup.exe with no separate Python install, an app-style UTF-8-safe tray manager, live tunnel status, subscription counts/source labels, application picker, low-idle polling, verified connect/disconnect and Xray native TUN control.
+- Windows 10/11 x64 Setup.exe with no separate Python install, a UTF-8-safe Tauri/WebView2 manager, subscription counts/source labels, native application picker, zero periodic idle polling, verified connect/disconnect and Xray native TUN control.
 
 **Ping measures TCP connection latency to a server endpoint, not end-to-end VPN health.** A successful HTTPS-through-TUN test is stronger evidence than a ping result.
 
@@ -83,21 +83,21 @@ The mature backend is Linux-specific: it needs a normal writable installation, s
 | GNOME Quick Settings | Metadata declares GNOME **45–51**; runtime/layout tested on **51.beta** only |
 | KDE widget | Targets **Plasma 6**; Qt/Plasma component tests and isolated KPackage installation passed; a full KDE login/connection test is still pending |
 | Backend | Linux + NetworkManager + Xray with native TUN + Python 3 + iproute2 |
-| GTK manager and editors | GTK4/PyGObject manager, GTK3/GTK4 editors; GTK dependencies are needed even on KDE or with `--desktop none` |
+| Desktop manager and editors | Tauri 2/WebView manager, GTK3/GTK4 NetworkManager editors; WebKitGTK and GTK dependencies are needed even on KDE or with `--desktop none` |
 | Ubuntu / Debian family | APT dependency fallback in the installer; live backend/GNOME verification was on Ubuntu **26.10 development**, x86_64, not every release |
 | Arch / EndeavourOS / Manjaro | Manual dependency recipe below; installation and real connection not verified on these distributions |
 | Fedora Workstation / KDE | Manual dependency recipe below; installation, SELinux integration and real connection not verified |
 | openSUSE Tumbleweed | Manual dependency recipe below; installation, security-policy integration and real connection not verified |
-| Cinnamon / Xfce / MATE / COSMIC / other desktops | No dedicated panel integration; `--desktop none` installs the backend + GTK manager; desktop-specific testing pending |
+| Cinnamon / Xfce / MATE / COSMIC / other desktops | No dedicated panel integration; `--desktop none` installs the backend + Tauri manager; desktop-specific testing pending |
 | Plasma 5 / GNOME outside 45–51 | No supported panel frontend in this release |
-| Windows 10/11 x64 | CI-built per-user Setup.exe bundles the standalone WProxy engine and verified official Xray 26.9.30 runtime; UAC is requested only for TUN connect/disconnect. Automated tests run on a real Windows runner and cover the frozen engine, WinForms layout, update logic and Xray schema, but a physical Windows 10/11 TUN test with a real server is still required before calling it production-stable. No custom Win+A tile |
+| Windows 10/11 x64 | CI-built per-user Setup.exe bundles the Tauri 2 shell, standalone WProxy engine and verified official Xray 26.9.30 runtime; UAC is requested only for TUN connect/disconnect. Automated tests build the real Windows executable and cover the engine, UI bridge, update logic and Xray schema, but a physical Windows 10/11 TUN test with a real server is still required before calling it production-stable. No custom Win+A tile |
 | macOS / BSD | Not supported by WProxy frontends; no installer or desktop integration is supplied |
 | NixOS / Alpine / immutable systems | These installation scripts are not supported; no Nix module, OpenRC, rpm-ostree or transactional installation is supplied |
 | ARM / other CPU architectures | Source builds may be possible with a suitable Xray binary, but are untested; do not treat this as a universal binary release |
 
 The KDE widget does **not** inject rows into Plasma's built-in Networks applet, hide its VPN entries, or provide a Qt VPN editor. Place the separate WProxy widget beside Networks.
 
-Windows does not expose a public API for arbitrary third-party controls inside Win+A Quick Settings. WProxy therefore uses a supported notification-area icon and flyout-style manager. Windows' native VPN quick setting requires a curated VPN provider package and cannot host WProxy's custom server/subscription list. See [Windows support and limitations](docs/WINDOWS.md).
+Windows does not expose a public API for arbitrary third-party controls inside Win+A Quick Settings. WProxy therefore uses a normal standalone Tauri window. Windows' native VPN quick setting requires a curated VPN provider package and cannot host WProxy's custom server/subscription list. See [Windows support and limitations](docs/WINDOWS.md).
 
 ## Install
 
@@ -125,7 +125,7 @@ The GNOME extension requires 45–51; the KDE widget requires Plasma 6. A distro
 
 ### 2. Install your distribution's dependencies
 
-Choose **one** distribution block. Install the common dependencies even on KDE: the current build includes the GTK manager and both editors. The KDE-only block is additional, not a replacement. These commands install dependencies; step 3 installs **WProxy itself**.
+Choose **one** distribution block. Install the common dependencies even on KDE: the source build includes the Tauri manager and both NetworkManager editors. Tauri needs Node.js **20.19+**, npm, Rust/Cargo **1.90+** and WebKitGTK 4.1. The KDE-only block is additional, not a replacement. These commands install dependencies; step 3 installs **WProxy itself**.
 
 #### Debian / Ubuntu / Kubuntu / Linux Mint
 
@@ -135,7 +135,8 @@ For currently maintained Debian/Ubuntu-based systems with these packages availab
 sudo apt-get update
 sudo apt-get install -y \
   build-essential pkg-config libglib2.0-dev libgtk-3-dev libgtk-4-dev libnm-dev \
-  network-manager python3 python3-gi gir1.2-gtk-4.0 \
+  libwebkit2gtk-4.1-dev librsvg2-dev libssl-dev \
+  network-manager python3 python3-gi gir1.2-gtk-4.0 nodejs npm cargo \
   curl ca-certificates unzip iproute2 procps util-linux sudo pkexec
 ```
 
@@ -154,6 +155,7 @@ If these Plasma 6 packages are unavailable, stop: do not substitute Plasma 5 pac
 ```bash
 sudo pacman -Syu --needed \
   base-devel pkgconf glib2 glib2-devel gtk3 gtk4 libnm networkmanager \
+  webkit2gtk-4.1 librsvg openssl nodejs npm rust \
   python python-gobject curl ca-certificates unzip iproute2 \
   procps-ng util-linux sudo polkit
 ```
@@ -173,7 +175,9 @@ Arch's package names and PyGObject setup are documented in the [official GLib de
 ```bash
 sudo dnf install \
   gcc make pkgconf-pkg-config glib2-devel gtk3-devel gtk4-devel \
-  NetworkManager NetworkManager-libnm-devel python3 python3-gobject gtk4 \
+  NetworkManager NetworkManager-libnm-devel webkit2gtk4.1-devel \
+  librsvg2-devel openssl-devel nodejs npm cargo rust \
+  python3 python3-gobject gtk4 \
   curl ca-certificates unzip iproute procps-ng util-linux sudo polkit
 ```
 
@@ -191,7 +195,8 @@ Package references: [NetworkManager development files](https://packages.fedorapr
 sudo zypper refresh
 sudo zypper install \
   gcc make pkg-config glib2-devel gtk3-devel gtk4-devel 'pkgconfig(libnm)' \
-  NetworkManager python3 python3-gobject python3-gobject-Gdk typelib-1_0-Gtk-4_0 \
+  webkit2gtk3-devel librsvg-devel libopenssl-devel \
+  NetworkManager nodejs20 npm20 cargo rust python3 python3-gobject python3-gobject-Gdk typelib-1_0-Gtk-4_0 \
   curl ca-certificates unzip iproute2 procps util-linux sudo polkit
 ```
 
@@ -211,6 +216,8 @@ Back in the source directory, these checks must succeed:
 
 ```bash
 make check-deps
+node --version
+cargo --version
 python3 -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk; print('GTK4 / PyGObject: OK')"
 command -v pkexec
 nmcli general status
@@ -235,7 +242,7 @@ KDE Plasma 6:
 bash scripts/install.sh --desktop kde
 ```
 
-Backend + GTK manager, without a panel frontend:
+Backend + Tauri manager, without a panel frontend:
 
 ```bash
 bash scripts/install.sh --desktop none
@@ -288,7 +295,7 @@ wproxyctl nm up NODE_ID
 wproxyctl nm down
 wproxyctl status --json
 
-# Split routing (the GTK Routing tab performs the same commands and sync)
+# Split routing (the Tauri Routing page performs the same commands and sync)
 wproxyctl routing mode bypass
 wproxyctl routing domain add youtube.com
 wproxyctl routing app add firefox

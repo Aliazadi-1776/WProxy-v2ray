@@ -6,7 +6,7 @@
 
 <p align="center" dir="rtl">
   کلاینت دسکتاپ Xray/V2Ray برای لینوکس و ویندوز<br>
-  تنظیمات سریع GNOME · ویجت KDE Plasma 6 · آیکن کنار ساعت ویندوز · مسیریابی تفکیکی · خط فرمان
+  تنظیمات سریع GNOME · ویجت KDE Plasma 6 · دسکتاپ Tauri · مسیریابی تفکیکی · خط فرمان
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
   · <a href="CHANGELOG.md">تغییرات</a>
 </p>
 
-نسخهٔ **2.7.0** ظاهر مدیر لینوکس و ویندوز را با پوسته‌ای فشرده و الهام‌گرفته از sushTun بازطراحی می‌کند، انتخاب خودکار سریع‌ترین سرور، آپدیت امن خودکار و مجوز محدود و قابل‌حفظ لینوکس را اضافه می‌کند؛ کد Quick Settings گنوم و الگوریتم تونل لینوکس دست‌نخورده مانده‌اند.
+نسخهٔ **2.7.0** مدیر قدیمی GTK/WinForms را با یک رابط سبک و مشترک Tauri 2 برای لینوکس و ویندوز جایگزین می‌کند، انتخاب خودکار سریع‌ترین سرور، آپدیت امن خودکار و مجوز محدود و قابل‌حفظ لینوکس را اضافه می‌کند؛ کد Quick Settings گنوم و الگوریتم تونل لینوکس دست‌نخورده مانده‌اند.
 
 ## دریافت WProxy
 
@@ -65,7 +65,7 @@
 - انتخاب خودکار سریع‌ترین سرور با پینگ هم‌زمان و نادیده‌گرفتن سرورهای timeoutشده.
 - آپدیت خودکار اختیاری در لینوکس و ویندوز با بررسی فایل `SHA256SUMS` قبل از نصب.
 - گزینهٔ **Remember authorization** در لینوکس که بعد از یک تأیید فقط عملیات ثابت WProxy را مجاز می‌کند و هیچ رمزی ذخیره نمی‌شود.
-- فایل Setup.exe ویندوز ۱۰/۱۱ بدون نیاز به نصب جداگانهٔ Python، همراه با رابط اپ‌مانند سازگار با UTF-8، مصرف بیکار کمتر، وضعیت زندهٔ تونل، آیکن کنار ساعت، انتخاب برنامه و اتصال تأییدشدهٔ TUN.
+- فایل Setup.exe ویندوز ۱۰/۱۱ بدون نیاز به نصب جداگانهٔ Python، همراه با رابط سبک Tauri/WebView2 سازگار با UTF-8، بدون polling دوره‌ای در حالت بیکار، انتخاب برنامه و اتصال تأییدشدهٔ TUN.
 
 **پینگ، زمان اتصال TCP به سرور است؛ سالم‌بودن کامل VPN را ثابت نمی‌کند.**
 
@@ -78,21 +78,21 @@
 | GNOME | افزونه برای **۴۵ تا ۵۱** تعریف شده؛ تست اجرا و چیدمان روی **51.beta** انجام شده، نه تک‌تک نسخه‌ها |
 | KDE | ویجت مخصوص **Plasma 6**؛ تست‌های Qt/Plasma و نصب آزمایشی KPackage موفق بوده، اما تست کامل اتصال در یک نشست واقعی KDE هنوز انجام نشده |
 | موتور اتصال | Linux + NetworkManager + Xray دارای TUN + Python 3 + iproute2 |
-| مدیر گرافیکی | GTK4 و PyGObject؛ حتی روی KDE یا با `--desktop none` وابستگی‌های GTK لازم‌اند |
+| مدیر گرافیکی | Tauri 2 و WebView سیستم؛ ویرایشگرهای NetworkManager همچنان GTK3/GTK4 هستند، پس WebKitGTK و GTK حتی روی KDE یا با `--desktop none` لازم‌اند |
 | Ubuntu / Debian و مشتقات | نصب‌کننده قابلیت نصب وابستگی با APT دارد؛ تست واقعی میزبان روی Ubuntu **26.10 development** و x86_64 بوده، نه همهٔ نسخه‌ها |
 | Arch / EndeavourOS / Manjaro | دستور نصب وابستگی در پایین؛ نصب و اتصال واقعی روی این توزیع‌ها هنوز تأیید نشده |
 | Fedora Workstation / KDE | راهنمای نصب با DNF؛ تست کامل نصب، SELinux و اتصال هنوز انجام نشده |
 | openSUSE Tumbleweed | راهنمای آزمایشی نصب با Zypper؛ تست کامل نصب، سیاست امنیتی و اتصال هنوز انجام نشده |
-| Cinnamon / Xfce / MATE / COSMIC | افزونهٔ پنل اختصاصی ندارند؛ برای موتور اتصال و GTK Manager از `--desktop none` استفاده کن؛ تست اختصاصی این دسکتاپ‌ها انجام نشده |
+| Cinnamon / Xfce / MATE / COSMIC | افزونهٔ پنل اختصاصی ندارند؛ برای موتور اتصال و مدیر Tauri از `--desktop none` استفاده کن؛ تست اختصاصی این دسکتاپ‌ها انجام نشده |
 | Plasma 5 و GNOME خارج از ۴۵ تا ۵۱ | رابط پنل این نسخه پشتیبانی نمی‌شود |
-| Windows 10/11 x64 | Setup.exe کاربرمحور در GitHub Actions ساخته می‌شود و موتور مستقل WProxy و Xray رسمی 26.9.30 را دارد؛ فقط وصل/قطع TUN مجوز Administrator می‌خواهد. موتور فریز‌شده، چیدمان WinForms، آپدیتر و schema روی رانر واقعی Windows تست می‌شوند، اما تست نهایی TUN با سرور واقعی روی سخت‌افزار Windows 10/11 هنوز لازم است؛ کاشی سفارشی Win+A ندارد |
+| Windows 10/11 x64 | Setup.exe کاربرمحور در GitHub Actions ساخته می‌شود و رابط واقعی Tauri 2، موتور مستقل WProxy و Xray رسمی 26.9.30 را دارد؛ فقط وصل/قطع TUN مجوز Administrator می‌خواهد. ساخت exe ویندوز، bridge رابط، آپدیتر و schema روی رانر واقعی Windows تست می‌شوند، اما تست نهایی TUN با سرور واقعی روی سخت‌افزار Windows 10/11 هنوز لازم است؛ کاشی سفارشی Win+A ندارد |
 | macOS / BSD | رابط و نصب‌کننده ندارند و پشتیبانی نمی‌شوند |
 | NixOS / Alpine / سیستم‌های immutable | نصب‌کنندهٔ مناسب Nix، OpenRC، rpm-ostree یا transactional در این بسته وجود ندارد |
 | ARM و معماری‌های دیگر | احتمال ساخت از سورس با Xray مناسب وجود دارد، اما تست نشده‌اند؛ این فایل باینری آماده برای همهٔ معماری‌ها نیست |
 
 ویجت KDE مستقل است: آن را کنار Networks می‌گذاری؛ داخل منوی اصلی Networks دست‌کاری نمی‌کند، لیست VPN آن را مخفی نمی‌کند و ویرایشگر Qt برای آن نمی‌سازد.
 
-ویندوز API عمومی برای افزودن کنترل دلخواه داخل Win+A Quick Settings ندارد. بنابراین WProxy از آیکن استاندارد Notification Area و پنجرهٔ کناری خودش استفاده می‌کند. کاشی VPN خود ویندوز به VPN Provider تأییدشده نیاز دارد و نمی‌تواند فهرست ساب و سرور اختصاصی WProxy را نمایش دهد. [محدودیت‌ها و نصب ویندوز](docs/WINDOWS.md)
+ویندوز API عمومی برای افزودن کنترل دلخواه داخل Win+A Quick Settings ندارد. بنابراین WProxy در یک پنجرهٔ عادی و مستقل Tauri اجرا می‌شود. کاشی VPN خود ویندوز به VPN Provider تأییدشده نیاز دارد و نمی‌تواند فهرست ساب و سرور اختصاصی WProxy را نمایش دهد. [محدودیت‌ها و نصب ویندوز](docs/WINDOWS.md)
 
 ## نصب، قدم‌به‌قدم
 
@@ -124,7 +124,7 @@ plasmashell --version
 
 ### ۲. وابستگی‌های توزیع خودت را نصب کن
 
-فقط **بخش توزیع خودت** را اجرا کن. وابستگی‌های عمومی حتی برای KDE هم لازم‌اند، چون نصب‌کننده مدیر GTK و هر دو ویرایشگر GTK را می‌سازد. دستور «فقط KDE» علاوه بر وابستگی‌های عمومی است. این مرحله هنوز خود WProxy را نصب نمی‌کند.
+فقط **بخش توزیع خودت** را اجرا کن. وابستگی‌های عمومی حتی برای KDE هم لازم‌اند، چون ساخت سورس شامل مدیر Tauri و هر دو ویرایشگر NetworkManager است. Tauri به Node.js **20.19+**، npm، Rust/Cargo **1.90+** و WebKitGTK 4.1 نیاز دارد. دستور «فقط KDE» علاوه بر وابستگی‌های عمومی است. این مرحله هنوز خود WProxy را نصب نمی‌کند.
 
 #### Debian / Ubuntu / Kubuntu / Linux Mint
 
@@ -134,7 +134,8 @@ plasmashell --version
 sudo apt-get update
 sudo apt-get install -y \
   build-essential pkg-config libglib2.0-dev libgtk-3-dev libgtk-4-dev libnm-dev \
-  network-manager python3 python3-gi gir1.2-gtk-4.0 \
+  libwebkit2gtk-4.1-dev librsvg2-dev libssl-dev \
+  network-manager python3 python3-gi gir1.2-gtk-4.0 nodejs npm cargo \
   curl ca-certificates unzip iproute2 procps util-linux sudo pkexec
 ```
 
@@ -153,6 +154,7 @@ sudo apt-get install -y \
 ```bash
 sudo pacman -Syu --needed \
   base-devel pkgconf glib2 glib2-devel gtk3 gtk4 libnm networkmanager \
+  webkit2gtk-4.1 librsvg openssl nodejs npm rust \
   python python-gobject curl ca-certificates unzip iproute2 \
   procps-ng util-linux sudo polkit
 ```
@@ -172,7 +174,9 @@ sudo pacman -S --needed kpackage kirigami plasma5support polkit-kde-agent
 ```bash
 sudo dnf install \
   gcc make pkgconf-pkg-config glib2-devel gtk3-devel gtk4-devel \
-  NetworkManager NetworkManager-libnm-devel python3 python3-gobject gtk4 \
+  NetworkManager NetworkManager-libnm-devel webkit2gtk4.1-devel \
+  librsvg2-devel openssl-devel nodejs npm cargo rust \
+  python3 python3-gobject gtk4 \
   curl ca-certificates unzip iproute procps-ng util-linux sudo polkit
 ```
 
@@ -190,7 +194,8 @@ sudo dnf install kf6-kpackage kf6-kirigami plasma5support polkit-kde
 sudo zypper refresh
 sudo zypper install \
   gcc make pkg-config glib2-devel gtk3-devel gtk4-devel 'pkgconfig(libnm)' \
-  NetworkManager python3 python3-gobject python3-gobject-Gdk typelib-1_0-Gtk-4_0 \
+  webkit2gtk3-devel librsvg-devel libopenssl-devel \
+  NetworkManager nodejs20 npm20 cargo rust python3 python3-gobject python3-gobject-Gdk typelib-1_0-Gtk-4_0 \
   curl ca-certificates unzip iproute2 procps util-linux sudo polkit
 ```
 
@@ -210,6 +215,8 @@ sudo zypper install kf6-kpackage kf6-kirigami-imports plasma5support6 polkit-kde
 
 ```bash
 make check-deps
+node --version
+cargo --version
 python3 -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk; print('GTK4 / PyGObject: OK')"
 command -v pkexec
 nmcli general status
@@ -234,7 +241,7 @@ KDE Plasma 6:
 bash scripts/install.sh --desktop kde
 ```
 
-فقط موتور اتصال و مدیر GTK، بدون رابط پنل:
+فقط موتور اتصال و مدیر Tauri، بدون رابط پنل:
 
 ```bash
 bash scripts/install.sh --desktop none

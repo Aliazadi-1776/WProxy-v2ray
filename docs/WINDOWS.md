@@ -1,12 +1,12 @@
 # Windows 10/11 x64
 
-WProxy 2.7.0 ships as a per-user `Setup.exe`. It includes a standalone WProxy command engine, the notification-area manager, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately.
+WProxy 2.7.0 ships as a per-user `Setup.exe`. It includes the lightweight Tauri 2 desktop, a standalone WProxy command engine, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately. Windows 10/11 supplies the WebView2 runtime used by the Tauri window.
 
-The manager uses a compact graphite-and-blue, DPI-aware application shell inspired by sushTun, with double-buffered anti-aliased controls, a fixed left navigation rail, persistent connection status and dedicated pages for the normal VPN flow plus secondary management. Server names containing emoji or non-Latin text are carried over UTF-8; a failed command is shown as an operation error and no longer terminates the manager. Closing or minimizing the window keeps WProxy available from the notification area while stopping the expensive status poll completely; visible polling runs every fifteen seconds.
+The manager uses one compact graphite-and-blue, DPI-aware shell on both Linux and Windows. It has a fixed navigation rail, persistent connection status and dedicated pages for servers, subscriptions, importing, split routing and settings. Server names containing emoji or non-Latin text are carried over UTF-8, and command failures are reported inside the app. There is no background status polling loop, so an idle window does not repeatedly start the command engine.
 
-## Why it is beside the clock, not inside Win+A
+## Why it uses its own window instead of Win+A
 
-Windows 11 has no public extension API for arbitrary third-party Quick Settings controls. Microsoft's native VPN integration uses a restricted VPN Provider capability and cannot host WProxy's custom subscription, server, ping and routing interface. WProxy therefore uses the supported notification area and its own manager window; it does not patch Explorer.
+Windows 11 has no public extension API for arbitrary third-party Quick Settings controls. Microsoft's native VPN integration uses a restricted VPN Provider capability and cannot host WProxy's custom subscription, server, ping and routing interface. WProxy therefore uses a normal Tauri window and does not patch Explorer.
 
 References: [Microsoft answer about the missing Quick Settings extension API](https://learn.microsoft.com/en-gb/answers/questions/1124942/api-for-adding-an-item-in-the-windows-11-taskbar-p), [official VPN plug-in sample and restricted capability](https://github.com/microsoft/UwpVpnPluginSample), and [Windows VPN quick-setting behavior](https://support.microsoft.com/en-us/windows/experience/connectivity-networking/connect-to-a-vpn-in-windows).
 
@@ -27,10 +27,10 @@ The build workflow downloads `Xray-windows-64.zip` from the official XTLS v26.9.
 
 ## Subscriptions and servers
 
-- Use **Add connection** to paste a single share link or subscription URL. Links stay masked unless you choose to reveal them.
-- On **Home**, choose **Quick connect** to test all endpoints and connect to the lowest-latency responder, or select a row and use **Connect**. **Ping all**, **Disconnect**, **Refresh** and **Remove** remain available. Press `F5` to refresh or `Ctrl+P` to ping.
+- Use **Add connection** to paste a single share link; use **Subscriptions** for a subscription URL.
+- On **Servers**, choose **Quick connect** to test all endpoints and connect to the lowest-latency responder, or use **Connect** on one row. **Test latency**, **Disconnect**, **Refresh** and **Remove** remain available.
 - **Subscriptions** shows every subscription and its imported server count. Update or remove one subscription independently.
-- **Nodes** shows each server's source subscription. Identical links from two subscriptions remain two source-owned entries; updating/removing one subscription cannot delete the other's entry.
+- Each server row shows its source subscription. Identical links from two subscriptions remain two source-owned entries; updating/removing one subscription cannot delete the other's entry.
 - The provider's quota/expiry announcement links are filtered from connectable nodes.
 
 ## Connect and connection verification
@@ -47,13 +47,13 @@ If any check fails, WProxy stops the partial tunnel and shows the reason. Runtim
 
 ## Application and site routing
 
-Open **Advanced** and choose one routing mode:
+Open **Split routing** and choose one routing mode:
 
 - **All traffic through VPN** — default;
 - **Bypass listed sites/apps** — listed traffic is direct;
 - **Only listed sites/apps use VPN** — everything else is direct.
 
-For applications, choose **Choose application…**. The picker lists running executables and can browse for any `.exe`; selected items are saved as exact absolute paths. Exact paths are more reliable than typing a process name. Xray process matching is case-sensitive; name-only selectors omit the `.exe` suffix. Reconnect after changing routing.
+For applications, choose **Choose application** and browse for an `.exe`; selected items are saved as exact absolute paths. Exact paths are more reliable than typing a process name. Reconnect after changing routing.
 
 Site rules depend on protocol sniffing and may not identify traffic that only exposes an IP address or uses unsupported/encrypted name resolution. When a site rule is insufficient, select the browser/application itself. Process rules and site rules form a union. See [Xray routing matching](https://xtls.github.io/en/config/routing.html) and [WProxy routing details](ROUTING.md).
 
@@ -67,10 +67,10 @@ Use **Settings → Apps → Installed apps → WProxy → Uninstall**. The unins
 
 ## Verification status
 
-GitHub Actions runs the shared parser/routing/subscription/updater/release tests on Windows, builds the standalone executable, verifies the pinned official Xray archive, constructs and inspects the WinForms layout, compiles the Inno Setup installer, runs `wproxyctl.exe --version`, and publishes both the installer checksum and release-wide `SHA256SUMS`. Linux tests additionally validate generated Xray rules, the scoped admin helper and release contents.
+GitHub Actions runs the shared parser/routing/subscription/updater/release tests on Windows, builds and launches the real Tauri/WebView2 executable, verifies the pinned official Xray archive, compiles the Inno Setup installer, runs `wproxyctl.exe --version`, and publishes both the installer checksum and release-wide `SHA256SUMS`. Linux tests additionally build the Tauri/WebKitGTK release executable and validate generated Xray rules, the scoped admin helper, installer dry-run and release contents.
 
 A CI runner cannot prove behavior on every physical network. A final Windows 10 and Windows 11 test should still cover UAC, Wintun creation, DNS/IPv6, sleep/resume, network changes and YouTube playback with the user's own server. The runtime checks prevent a false `Connected` state when the adapter, route or HTTPS path is missing; they are not an anonymity or leak-proof guarantee.
 
 ## خلاصهٔ فارسی
 
-برای ویندوز فقط `WProxy-2.7.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط فشردهٔ جدید دکمهٔ **Quick connect**، آپدیت خودکار اختیاری، polling بسیار سبک‌تر و جدول responsive دارد. نام‌های فارسی و ایموجی با UTF-8 خوانده می‌شوند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. در **Advanced → Choose application…** برنامه‌های در حال اجرا یا فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و کنار ساعت اجرا می‌شود.
+برای ویندوز فقط `WProxy-2.7.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط مشترک و سبک Tauri دکمهٔ **Quick connect**، آپدیت خودکار اختیاری و چیدمان responsive دارد و در حالت بیکار polling دائمی انجام نمی‌دهد. نام‌های فارسی و ایموجی با UTF-8 خوانده می‌شوند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. در **Split routing → Choose application** فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و در پنجرهٔ مستقل اجرا می‌شود.

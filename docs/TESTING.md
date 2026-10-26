@@ -2,13 +2,13 @@
 
 ## 2.7.0 desktop, update and authorization regression checks
 
-The Windows release runner constructs the WinForms shell and fails if the navigation rail, page host, page map or click targets collapse. It opens the Advanced routing page and rejects a clipped application picker, validates the fifteen-second visible/zero-hidden polling contract, exercises fastest-server tie/timeout handling and verifies update downloads against `SHA256SUMS`. Source checks also require the fixed-operation Linux admin helper and active/local/user-scoped Polkit rule without password storage. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test with a real server.
+The Linux runner builds the real Tauri/WebKitGTK release executable and the Windows runner builds and launches the real Tauri/WebView2 executable long enough to catch startup and bridge failures. Frontend checks require the fixed navigation, responsive routing columns, native application picker, explicit empty states and a dependency set without Electron, React, Vue or Svelte. Fastest-server tie/timeout handling and verified update downloads are covered by backend tests. Source checks also require the fixed-operation Linux admin helper and active/local/user-scoped Polkit rule without password storage. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test with a real server.
 
 ## 2.6.0 desktop UI, Windows installer and live routing
 
 Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, Windows executable-name normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, same-URI ownership across multiple subscriptions, JSON/mixed subscription extraction, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN/WFP fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
 
-Windows GitHub Actions run shared parser, runtime, routing, updater and release tests, compile `wproxyctl.exe`, execute its version check, verify the pinned official Xray archive, parse and layout-smoke-test the PowerShell frontend, compile `Setup.exe`, and publish individual plus aggregate SHA-256 metadata. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
+Windows GitHub Actions run shared parser, runtime, routing, updater and release tests, compile `wproxyctl.exe`, build and startup-smoke the Tauri application, verify the pinned official Xray archive, compile `Setup.exe`, and publish individual plus aggregate SHA-256 metadata. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
 
 ## 2.3.1 transport correction
 
@@ -53,7 +53,9 @@ Tested development runtime: Qt **6.11.2** with Plasma libraries **6.7.5**. Qt Te
 
 ```bash
 make all
+make desktop-check
 make test
+bash scripts/install.sh --desktop preserve --dry-run
 bash scripts/test-kde.sh
 bash tests/headless-smoke.sh
 ```

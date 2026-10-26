@@ -1,11 +1,13 @@
 # 2.7.0
 
-- Restyle the Windows and GTK managers around a compact graphite-and-blue desktop shell inspired by sushTun, with smaller radii, calmer surfaces, responsive tables and less crowded primary actions.
+- Replace the legacy Windows PowerShell/WinForms and standalone GTK managers with one compact Tauri 2 shell for Linux and Windows, using the system WebView rather than Electron.
+- Add responsive server, subscription, import, split-routing and settings pages, explicit empty/error/loading states, a native application picker and a focused sushTun-inspired graphite-and-blue visual system.
 - Add **Quick connect / Use fastest**: test every saved endpoint concurrently, ignore timeouts and connect to the lowest-latency responder with deterministic tie handling.
-- Stop Windows status polling while the app is hidden and reduce visible polling from three to fifteen seconds, avoiding repeated frozen-engine launches in the notification area.
+- Remove periodic desktop polling entirely; status refreshes only at startup or after explicit user actions, avoiding repeated frozen-engine launches while idle.
 - Add opt-in automatic updates on Linux and Windows. Release assets are downloaded over HTTPS and must match the tagged `SHA256SUMS` manifest before installation.
 - Add an opt-in Linux **Remember authorization** control backed by a local, active-session Polkit rule for a fixed allowlisted WProxy helper. No sudo password is stored and arbitrary root commands are never authorized.
-- Keep the GNOME Quick Settings source and Linux tunnel algorithm unchanged; extend real-Windows CI with routing, runtime, updater, release and WinForms layout checks.
+- Keep the GNOME Quick Settings source and Linux tunnel algorithm unchanged; build the actual optimized Tauri binary during the Linux installer dry-run and on real Windows CI.
+- Keep repair scripts on the Tauri manager so a later repair cannot silently restore the retired GTK interface.
 
 # 2.6.1
 

@@ -25,6 +25,10 @@ windows/bin/*
 # Release artifacts and local editor files
 /dist/
 /build/
+/desktop/node_modules/
+/desktop/dist/
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/
 *.spec
 *.zip
 *.plasmoid

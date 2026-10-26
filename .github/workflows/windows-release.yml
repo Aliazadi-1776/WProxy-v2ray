@@ -24,6 +24,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
       - name: Run shared Windows tests
         run: python -m unittest tests/test_routing.py tests/test_runtime.py tests/test_updates.py tests/test_release.py -v
       - name: Build source and Plasma packages
@@ -33,6 +39,25 @@ jobs:
           python -m pip install --disable-pip-version-check pyinstaller==6.22.3
           pyinstaller --noconfirm --clean --onefile --console --name wproxyctl --distpath build/windows cli/wproxyctl.py
           .\build\windows\wproxyctl.exe --version
+      - name: Build Tauri desktop
+        shell: powershell
+        run: |
+          Push-Location desktop
+          npm ci
+          npm run build
+          Pop-Location
+          cargo build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
+          Copy-Item desktop/src-tauri/target/release/wproxy-desktop.exe build/windows/WProxy.exe
+          if (-not (Test-Path build/windows/WProxy.exe)) { throw 'Tauri desktop executable was not built' }
+      - name: Smoke test Tauri startup on Windows
+        shell: powershell
+        run: |
+          $env:APPDATA = Join-Path $env:RUNNER_TEMP 'wproxy-tauri-profile'
+          $process = Start-Process -FilePath (Resolve-Path 'build/windows/WProxy.exe') `
+            -WorkingDirectory (Resolve-Path 'build/windows') -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "Tauri desktop exited during startup with code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
       - name: Verify Unicode server names through PowerShell
         shell: powershell
         run: |
@@ -44,9 +69,6 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $nodes.Count -ne 1) { throw 'Could not read the Unicode smoke-test server' }
           $expected = [char]::ConvertFromUtf32(0x1F1E9) + [char]::ConvertFromUtf32(0x1F1EA) + ' Berlin'
           if ($nodes[0].name -ne $expected) { throw "Unicode server name was corrupted: $($nodes[0].name)" }
-          [void][ScriptBlock]::Create((Get-Content windows/WProxy.ps1 -Raw))
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows/WProxy.ps1 -LayoutSmokeTest
-          if ($LASTEXITCODE -ne 0) { throw 'Windows layout smoke test failed' }
       - name: Download and verify official Xray runtime
         shell: powershell
         run: |

@@ -1,5 +1,6 @@
 """Documentation and clean source/widget archive regression checks."""
 import importlib.util
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -35,60 +36,76 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("No system files, NetworkManager profiles, packages, or desktop extensions were changed.", installer)
         self.assertLess(installer.index("WProxy installer dry-run: PASS"), installer.index("Creating backup:"))
 
-    def test_windows_manager_handles_unicode_engine_failures_without_closing(self):
-        source = (ROOT / "windows/WProxy.ps1").read_text()
-        self.assertIn("$env:PYTHONIOENCODING = 'utf-8'", source)
-        self.assertIn("$ErrorActionPreference = 'Continue'", source)
-        self.assertIn("Application]::add_ThreadException", source)
-        self.assertIn("WProxy is still running", source)
-
-    def test_windows_manager_exposes_app_style_primary_workflows(self):
-        source = (ROOT / "windows/WProxy.ps1").read_text()
+    def test_tauri_desktop_exposes_primary_workflows(self):
+        source = (ROOT / "desktop/src/main.ts").read_text()
         for label in (
             "Servers", "Add connection", "Subscriptions", "Routing",
-            "Choose application...", "Ping all", "Connect", "Remove",
+            "Choose application", "Test latency", "Use fastest", "Connect", "Remove",
         ):
-            self.assertIn(label, source)
+            if label == "Use fastest":
+                self.assertIn("fastest", source)
+            else:
+                self.assertIn(label, source)
         self.assertNotIn("Add typed path", source)
-        self.assertIn("Secure connection", source)
-        self.assertIn("$nodeList.Add_DoubleClick", source)
+        self.assertIn("Quick connect", source)
+        self.assertIn('open({ multiple: false, directory: false', source)
 
-    def test_windows_navigation_is_dpi_safe_and_has_an_empty_state(self):
-        source = (ROOT / "windows/WProxy.ps1").read_text()
-        self.assertNotIn("System.Windows.Forms.TabControl", source)
-        self.assertNotIn("System.Windows.Forms.TabPage", source)
+    def test_tauri_navigation_is_responsive_and_has_empty_states(self):
+        source = (ROOT / "desktop/src/main.ts").read_text()
+        styles = (ROOT / "desktop/src/styles.css").read_text()
+        config = json.loads((ROOT / "desktop/src-tauri/tauri.conf.json").read_text())
         for token in (
-            "NavigationRail", "PageHost", "function Show-Page", "$script:NavButtons",
-            "ServersEmptyState", "No servers yet", "Show-Page 'add'",
-            "$LayoutSmokeTest", "Windows navigation rail collapsed during layout.",
+            "Main navigation", "No servers yet", "Split routing", "Automatic updates",
+            "data-page", "routing-columns", "empty-state",
         ):
             self.assertIn(token, source)
+        self.assertIn("minmax(0, 1fr)", styles)
+        self.assertIn("prefers-reduced-motion", styles)
+        self.assertEqual(config["app"]["windows"][0]["minWidth"], 960)
+        self.assertEqual(config["app"]["windows"][0]["minHeight"], 640)
         workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
-        self.assertIn("-LayoutSmokeTest", workflow)
+        self.assertIn("cargo build --release", workflow)
+        self.assertIn("Smoke test Tauri startup on Windows", workflow)
+        self.assertIn("Start-Process -FilePath", workflow)
 
-    def test_windows_idle_refresh_stops_while_hidden(self):
-        source = (ROOT / "windows/WProxy.ps1").read_text()
-        self.assertIn("$timer.Interval = 15000", source)
-        self.assertIn("$timer.Stop()", source)
-        self.assertNotIn("$timer.Interval = 3000", source)
-        self.assertNotRegex(source, r"\$timer\.Start\(\)\s*\n\[System\.Windows\.Forms\.Application\]::add_ThreadException")
+    def test_tauri_frontend_has_no_heavy_ui_framework(self):
+        package = json.loads((ROOT / "desktop/package.json").read_text())
+        packages = set(package.get("dependencies", {})) | set(package.get("devDependencies", {}))
+        self.assertFalse(packages.intersection({"electron", "react", "react-dom", "vue", "svelte"}))
+        self.assertIn("@tauri-apps/api", packages)
+        self.assertIn("vite", packages)
 
-    def test_windows_shell_exposes_simple_vpn_actions(self):
-        source = (ROOT / "windows/WProxy.ps1").read_text()
+    def test_tauri_bridge_limits_commands_and_elevates_tunnel_only(self):
+        source = (ROOT / "desktop/src-tauri/src/lib.rs").read_text()
         for token in (
-            "Quick connect", "Automatic updates", "VPN CONNECTION",
-            "Start-AutomaticUpdate", "node', 'best'", "Accent = [System.Drawing.Color]::FromArgb(10, 132, 255)",
+            "valid_ctl_args", "elevated_windows_ctl", "linux_admin", "wproxy-admin",
+            "tunnel_status", "set_linux_authorization", "install_update",
         ):
             self.assertIn(token, source)
+        self.assertNotIn("plugin-shell", (ROOT / "desktop/package.json").read_text())
+
+    def test_tauri_auto_update_is_opt_in_verified_and_installed_by_native_bridge(self):
+        source = (ROOT / "desktop/src/main.ts").read_text()
+        self.assertIn("state.preferences.auto_update", source)
+        self.assertIn("runAutomaticUpdate", source)
+        self.assertIn('"update", "download", "--json", "--platform"', source)
+        self.assertIn('invoke<CliOutput>("install_update"', source)
+
+    def test_repair_scripts_keep_the_tauri_manager(self):
+        for name in ("scripts/repair-runtime.sh", "scripts/repair-gnome-vpn-editor.sh"):
+            source = (ROOT / name).read_text()
+            self.assertIn("make desktop", source)
+            self.assertIn("desktop/src-tauri/target/release/wproxy-desktop", source)
+            self.assertNotIn("install -Dm755 manager/wproxy-manager.py /usr/bin/wproxy-manager", source)
 
     def test_release_publishes_update_checksum_manifest(self):
         workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
         self.assertIn("Create release checksum manifest", workflow)
         self.assertGreaterEqual(workflow.count("dist/SHA256SUMS"), 3)
 
-    def test_desktop_managers_share_a_clear_material_app_shell(self):
+    def test_desktop_managers_keep_linux_integration_and_tauri_shell(self):
         linux = (ROOT / "manager/wproxy-manager.py").read_text()
-        windows = (ROOT / "windows/WProxy.ps1").read_text()
+        desktop = (ROOT / "desktop/src/main.ts").read_text()
 
         for token in (
             "navigation-rail", "connection-card", "material-list", "Add connection",
@@ -98,12 +115,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(token, linux)
         self.assertNotIn("root.append(header)", linux)
 
-        for token in (
-            "WProxy.SmoothButton", "WProxy.SmoothPanel", "SmoothingMode.AntiAlias",
-            "NavigationRail", "PageHost", "OnAccent", "Online", "Secure connection",
-            "Windows routing actions are clipped",
-        ):
-            self.assertIn(token, windows)
+        for token in ("connection-hero", "server-list", "routing-layout", "Choose application"):
+            self.assertIn(token, desktop)
 
     def test_gnome_51_layout_uses_orientation_property(self):
         source = (ROOT / "gnome-extension/wproxy@wrench.local/extension.js").read_text()
@@ -140,9 +153,17 @@ class ReleaseTests(unittest.TestCase):
                 self.assertIsNone(archive.testzip())
                 prefix = "WProxy-2.7.0/"
                 self.assertEqual(archive.read(prefix + "LICENSE"), (ROOT / "LICENSE").read_bytes())
+                self.assertEqual(
+                    archive.read(prefix + "THIRD_PARTY_NOTICES.md"),
+                    (ROOT / "THIRD_PARTY_NOTICES.md").read_bytes(),
+                )
                 for name in ("README.md", "README.fa.md", ".github/workflows/ci.yml",
                              ".github/workflows/windows-release.yml",
                              "docs/screenshots/gnome-quick-settings.png", "docs/screenshots/manager.png",
+                             "desktop/package.json", "desktop/package-lock.json",
+                             "desktop/src/main.ts", "desktop/src/styles.css",
+                             "desktop/src-tauri/Cargo.toml", "desktop/src-tauri/Cargo.lock",
+                             "desktop/src-tauri/src/lib.rs", "desktop/src-tauri/tauri.conf.json",
                              "windows/WProxy.ps1", "windows/WProxy.iss",
                              "windows/install-windows.ps1", "icons/wproxy.ico"):
                     self.assertEqual(archive.read(prefix + name), (ROOT / name).read_bytes())

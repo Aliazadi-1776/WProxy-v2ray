@@ -10,7 +10,17 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libglib2.0-dev libnm-dev libgtk-3-dev libgtk-4-dev python3 nodejs
+          sudo apt-get install -y build-essential pkg-config libglib2.0-dev libnm-dev libgtk-3-dev libgtk-4-dev python3 \
+            libwebkit2gtk-4.1-dev librsvg2-dev libssl-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
       - name: Build and validate plugin
         run: |
           make all
@@ -24,6 +34,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check Tauri desktop on Windows
+        shell: powershell
+        run: |
+          Push-Location desktop
+          npm ci
+          npm run build
+          Pop-Location
+          cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml
       - name: Shared parser, routing and update tests
         run: python -m unittest tests/test_routing.py tests/test_runtime.py tests/test_updates.py tests/test_release.py -v
       - name: Parse PowerShell frontends

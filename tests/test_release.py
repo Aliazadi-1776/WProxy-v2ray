@@ -15,6 +15,19 @@ SPEC.loader.exec_module(BUILDER)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_linux_admin_helper_is_narrow_and_never_stores_passwords(self):
+        helper = (ROOT / "scripts/wproxy-admin").read_text()
+        policy = (ROOT / "data/io.github.aliazadi1776.wproxy.policy").read_text()
+        installer = (ROOT / "scripts/install.sh").read_text()
+        for operation in ("authorize)", "revoke)", "sync)", "up)", "down)", "update)"):
+            self.assertIn(operation, helper)
+        self.assertIn("subject.active && subject.local", helper)
+        self.assertIn("auth_admin_keep", policy)
+        self.assertIn("io.github.aliazadi1776.wproxy.admin", policy)
+        self.assertIn("/usr/libexec/wproxy-admin", installer)
+        self.assertNotIn("org.freedesktop.policykit.exec\"", helper)
+        self.assertNotRegex(helper.lower(), r"password\s*=")
+
     def test_windows_manager_handles_unicode_engine_failures_without_closing(self):
         source = (ROOT / "windows/WProxy.ps1").read_text()
         self.assertIn("$env:PYTHONIOENCODING = 'utf-8'", source)

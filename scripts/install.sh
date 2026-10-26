@@ -9,7 +9,7 @@ DESKTOP=auto
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --desktop)
-            [ "$#" -ge 2 ] || { echo 'Missing desktop: gnome, kde, none, or auto' >&2; exit 2; }
+            [ "$#" -ge 2 ] || { echo 'Missing desktop: gnome, kde, none, auto, or preserve' >&2; exit 2; }
             DESKTOP=$2; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
@@ -21,11 +21,21 @@ if [ "$DESKTOP" = auto ]; then
         *) DESKTOP=none ;;
     esac
 fi
-case "$DESKTOP" in gnome|kde|none) ;; *) echo 'Invalid desktop selection.' >&2; exit 2 ;; esac
+case "$DESKTOP" in gnome|kde|none|preserve) ;; *) echo 'Invalid desktop selection.' >&2; exit 2 ;; esac
 TARGET_USER=${SUDO_USER:-$(id -un)}
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 TARGET_UID=$(id -u "$TARGET_USER")
 TARGET_GID=$(id -g "$TARGET_USER")
+if [ "$DESKTOP" = preserve ]; then
+    if [ -d /usr/share/gnome-shell/extensions/wproxy@wrench.local ] || \
+       [ -d "$TARGET_HOME/.local/share/gnome-shell/extensions/wproxy@wrench.local" ]; then
+        DESKTOP=gnome
+    elif [ -d "$TARGET_HOME/.local/share/plasma/plasmoids/org.wproxy.WProxy" ]; then
+        DESKTOP=kde
+    else
+        DESKTOP=none
+    fi
+fi
 if [ "$TARGET_USER" = root ] && [ "$DESKTOP" != none ]; then
     echo 'Run from your regular desktop account (or with sudo), not a root login.' >&2
     exit 2
@@ -198,9 +208,12 @@ GTK4_EDITOR_FILE="$NM_PLUGIN_DIR/libnm-gtk4-vpn-plugin-wproxy-editor.so"
 SERVICE_FILE="$LIBEXEC/wproxy-service"
 RUNNER_FILE="$LIBEXEC/wproxy-xray-runner"
 DBUS_FILE="/etc/dbus-1/system.d/org.freedesktop.NetworkManager.wproxy.conf"
+ADMIN_HELPER="/usr/libexec/wproxy-admin"
+POLKIT_POLICY="/usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy"
 
 for f in "$NAME_FILE" "$PLUGIN_FILE" "$GTK3_EDITOR_FILE" "$GTK4_EDITOR_FILE" \
          "$SERVICE_FILE" "$RUNNER_FILE" "$DBUS_FILE" "$NM_CONF" \
+         "$ADMIN_HELPER" "$POLKIT_POLICY" \
          /usr/bin/wproxyctl /usr/bin/wproxy-manager \
          /usr/share/applications/wproxy-manager.desktop \
          /usr/share/icons/hicolor/scalable/apps/wproxy.svg "$EXT_DIR"; do
@@ -232,9 +245,12 @@ fi
 # The 2.0 build put a GTK3-linked library directly in the generic plugin slot.
 # Replace it atomically with the GTK-neutral loader and separate GTK3/GTK4 editors.
 echo "Installing runtime and desktop integration..."
-$SUDO mkdir -p "$LIBEXEC" "$NM_VPN_DIR" "$NM_PLUGIN_DIR" /etc/NetworkManager/conf.d
+$SUDO mkdir -p "$LIBEXEC" "$NM_VPN_DIR" "$NM_PLUGIN_DIR" /etc/NetworkManager/conf.d \
+    /usr/libexec /usr/share/polkit-1/actions
 $SUDO install -Dm755 wproxy-service "$SERVICE_FILE"
 $SUDO install -Dm755 service/wproxy-xray-runner "$RUNNER_FILE"
+$SUDO install -Dm755 scripts/wproxy-admin "$ADMIN_HELPER"
+$SUDO install -Dm644 data/io.github.aliazadi1776.wproxy.policy "$POLKIT_POLICY"
 $SUDO install -Dm755 libnm-vpn-plugin-wproxy.so "$PLUGIN_FILE"
 $SUDO install -Dm755 libnm-vpn-plugin-wproxy-editor.so "$GTK3_EDITOR_FILE"
 $SUDO install -Dm755 libnm-gtk4-vpn-plugin-wproxy-editor.so "$GTK4_EDITOR_FILE"

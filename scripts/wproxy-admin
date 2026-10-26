@@ -1,0 +1,70 @@
+#!/bin/sh
+set -eu
+
+[ "$(id -u)" -eq 0 ] || { echo 'wproxy-admin must be started through pkexec.' >&2; exit 126; }
+CALLER_UID=${PKEXEC_UID:-${SUDO_UID:-}}
+case "$CALLER_UID" in ''|*[!0-9]*|0) echo 'Could not identify the desktop user.' >&2; exit 126 ;; esac
+CALLER_ENTRY=$(getent passwd "$CALLER_UID" || true)
+[ -n "$CALLER_ENTRY" ] || { echo 'Could not resolve the desktop user.' >&2; exit 126; }
+CALLER_USER=$(printf '%s' "$CALLER_ENTRY" | cut -d: -f1)
+case "$CALLER_USER" in
+    *[!A-Za-z0-9_.-]*|'') echo 'Unsafe desktop user name.' >&2; exit 126 ;;
+esac
+
+CTL=/usr/bin/wproxyctl
+RULE_DIR=/etc/polkit-1/rules.d
+RULE_FILE="$RULE_DIR/49-wproxy-$CALLER_UID.rules"
+ACTION=io.github.aliazadi1776.wproxy.admin
+
+require_ctl() {
+    [ -x "$CTL" ] || { echo 'WProxy is not installed correctly.' >&2; exit 127; }
+}
+
+case "${1:-}" in
+    authorize)
+        mkdir -p "$RULE_DIR"
+        temporary=$(mktemp "$RULE_DIR/.wproxy-rule.XXXXXX")
+        trap 'rm -f "$temporary"' EXIT INT TERM
+        printf '%s\n' \
+            'polkit.addRule(function(action, subject) {' \
+            "  if (action.id == \"$ACTION\" && subject.active && subject.local && subject.user == \"$CALLER_USER\") {" \
+            '    return polkit.Result.YES;' \
+            '  }' \
+            '});' >"$temporary"
+        chmod 0644 "$temporary"
+        mv -f "$temporary" "$RULE_FILE"
+        trap - EXIT INT TERM
+        ;;
+    revoke)
+        rm -f "$RULE_FILE"
+        ;;
+    sync)
+        require_ctl
+        exec env SUDO_USER="$CALLER_USER" "$CTL" nm sync
+        ;;
+    up)
+        require_ctl
+        case "${2:-}" in ''|*[!0-9a-f]*) echo 'Invalid node id.' >&2; exit 2 ;; esac
+        [ "${#2}" -eq 16 ] || { echo 'Invalid node id.' >&2; exit 2; }
+        exec env SUDO_USER="$CALLER_USER" "$CTL" nm up "$2"
+        ;;
+    down)
+        require_ctl
+        exec env SUDO_USER="$CALLER_USER" "$CTL" nm down
+        ;;
+    update)
+        require_ctl
+        [ "$#" -eq 2 ] || { echo 'An update archive is required.' >&2; exit 2; }
+        archive=$(realpath -e -- "$2")
+        [ -f "$archive" ] || { echo 'Update archive is not a regular file.' >&2; exit 2; }
+        [ "$(stat -c %u -- "$archive")" -eq "$CALLER_UID" ] || { echo 'Update archive must belong to the desktop user.' >&2; exit 2; }
+        mode=$(stat -c %a -- "$archive")
+        [ $((0$mode & 0022)) -eq 0 ] || { echo 'Update archive must not be group/world writable.' >&2; exit 2; }
+        case "$(basename -- "$archive")" in WProxy-*-GitHub.zip) ;; *) echo 'Unexpected update filename.' >&2; exit 2 ;; esac
+        exec env SUDO_USER="$CALLER_USER" "$CTL" update install "$archive"
+        ;;
+    *)
+        echo 'Usage: wproxy-admin {authorize|revoke|sync|up NODE_ID|down|update ARCHIVE}' >&2
+        exit 2
+        ;;
+esac

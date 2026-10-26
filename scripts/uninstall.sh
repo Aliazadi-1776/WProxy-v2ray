@@ -37,12 +37,15 @@ $SUDO rm -f \
     "$LIBDIR/NetworkManager/libnm-gtk4-vpn-plugin-wproxy-editor.so" \
     "$LIBEXEC/wproxy-service" \
     "$LIBEXEC/wproxy-xray-runner" \
+    /usr/libexec/wproxy-admin \
+    /usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy \
     /etc/dbus-1/system.d/org.freedesktop.NetworkManager.wproxy.conf \
     /etc/NetworkManager/conf.d/90-wproxy-unmanaged.conf \
     /usr/bin/wproxyctl \
     /usr/bin/wproxy-manager \
     /usr/share/applications/wproxy-manager.desktop \
     /usr/share/icons/hicolor/scalable/apps/wproxy.svg
+$SUDO find /etc/polkit-1/rules.d -maxdepth 1 -type f -name '49-wproxy-*.rules' -delete 2>/dev/null || true
 $SUDO rm -rf /usr/share/gnome-shell/extensions/wproxy@wrench.local
 
 # Remove known user-local overrides too, but leave the user's settings/store.

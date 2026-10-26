@@ -113,6 +113,10 @@ class ReleaseTests(unittest.TestCase):
         workflow = read_utf8(".github/workflows/windows-release.yml")
         self.assertIn("Create release checksum manifest", workflow)
         self.assertGreaterEqual(workflow.count("dist/SHA256SUMS"), 3)
+        version = re.search(
+            r'^VERSION = "([^"]+)"$', read_utf8("scripts/build-release.py"), re.M
+        ).group(1)
+        self.assertIn(f"WPROXY_VERSION: '{version}'", workflow)
 
     def test_desktop_managers_keep_linux_integration_and_tauri_shell(self):
         linux = read_utf8("manager/wproxy-manager.py")

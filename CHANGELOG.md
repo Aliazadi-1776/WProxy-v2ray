@@ -1,10 +1,11 @@
-# 2.6.2
+# 2.7.0
 
-- Rebuild the Windows shell with double-buffered, anti-aliased controls so rounded cards and buttons no longer render with the jagged outlines seen on physical Windows displays.
-- Replace the crowded per-server card stack with a quieter table layout, simplify navigation labels, improve spacing and hierarchy, and keep all primary actions visible at the supported window size.
-- Simplify Windows application routing to one **Choose application** flow that lists running executables or browses for an `.exe`, while preserving exact-path Xray selectors and the existing backend behavior.
-- Extend the Windows layout smoke test to open the Routing page and fail if the application picker actions are missing or clipped; add an exact Windows executable-path routing regression.
-- Preserve the tested Linux backend and its installed-application picker unchanged.
+- Restyle the Windows and GTK managers around a compact graphite-and-blue desktop shell inspired by sushTun, with smaller radii, calmer surfaces, responsive tables and less crowded primary actions.
+- Add **Quick connect / Use fastest**: test every saved endpoint concurrently, ignore timeouts and connect to the lowest-latency responder with deterministic tie handling.
+- Stop Windows status polling while the app is hidden and reduce visible polling from three to fifteen seconds, avoiding repeated frozen-engine launches in the notification area.
+- Add opt-in automatic updates on Linux and Windows. Release assets are downloaded over HTTPS and must match the tagged `SHA256SUMS` manifest before installation.
+- Add an opt-in Linux **Remember authorization** control backed by a local, active-session Polkit rule for a fixed allowlisted WProxy helper. No sudo password is stored and arbitrary root commands are never authorized.
+- Keep the GNOME Quick Settings source and Linux tunnel algorithm unchanged; extend real-Windows CI with routing, runtime, updater, release and WinForms layout checks.
 
 # 2.6.1
 

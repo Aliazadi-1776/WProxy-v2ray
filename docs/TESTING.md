@@ -1,14 +1,14 @@
 # Test coverage
 
-## 2.6.2 Windows UI and routing regression checks
+## 2.7.0 desktop, update and authorization regression checks
 
-The Windows release runner constructs the WinForms shell and fails if the navigation rail, page host, page map or click targets collapse. It also opens the Routing page and rejects a clipped or missing application picker. Source regressions require the double-buffered anti-aliased controls and prohibit the owner-drawn `TabControl`/`TabPage` layout that failed on a physical Windows display. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test.
+The Windows release runner constructs the WinForms shell and fails if the navigation rail, page host, page map or click targets collapse. It opens the Advanced routing page and rejects a clipped application picker, validates the fifteen-second visible/zero-hidden polling contract, exercises fastest-server tie/timeout handling and verifies update downloads against `SHA256SUMS`. Source checks also require the fixed-operation Linux admin helper and active/local/user-scoped Polkit rule without password storage. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test with a real server.
 
 ## 2.6.0 desktop UI, Windows installer and live routing
 
 Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, Windows executable-name normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, same-URI ownership across multiple subscriptions, JSON/mixed subscription extraction, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN/WFP fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
 
-Windows GitHub Actions run shared tests, compile `wproxyctl.exe`, execute its version check, verify the pinned official Xray archive, parse and layout-smoke-test the PowerShell frontend, compile `Setup.exe`, and publish a SHA-256 artifact. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification now refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
+Windows GitHub Actions run shared parser, runtime, routing, updater and release tests, compile `wproxyctl.exe`, execute its version check, verify the pinned official Xray archive, parse and layout-smoke-test the PowerShell frontend, compile `Setup.exe`, and publish individual plus aggregate SHA-256 metadata. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
 
 ## 2.3.1 transport correction
 

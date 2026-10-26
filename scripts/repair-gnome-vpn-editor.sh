@@ -12,10 +12,13 @@ else
 fi
 
 command -v pkg-config >/dev/null 2>&1 || { echo "pkg-config is required" >&2; exit 2; }
-pkg-config --exists gio-2.0 glib-2.0 gmodule-2.0 libnm gtk+-3.0 gtk4 || {
-    echo "Missing libnm/GTK3/GTK4 build dependencies. Run scripts/install.sh instead." >&2
+pkg-config --exists gio-2.0 glib-2.0 gmodule-2.0 libnm gtk+-3.0 gtk4 webkit2gtk-4.1 || {
+    echo "Missing libnm/GTK3/GTK4/WebKitGTK build dependencies. Run scripts/install.sh instead." >&2
     exit 2
 }
+command -v node >/dev/null 2>&1 || { echo "node is required; run scripts/install.sh instead." >&2; exit 2; }
+command -v npm >/dev/null 2>&1 || { echo "npm is required; run scripts/install.sh instead." >&2; exit 2; }
+command -v cargo >/dev/null 2>&1 || { echo "cargo is required; run scripts/install.sh instead." >&2; exit 2; }
 
 LIBDIR="$(pkg-config --variable=libdir libnm 2>/dev/null || true)"
 [ -n "$LIBDIR" ] || LIBDIR=/usr/lib
@@ -32,13 +35,14 @@ LIBEXEC="$(pkg-config --variable=libexecdir NetworkManager 2>/dev/null || true)"
 
 make clean
 make LIBDIR="$LIBDIR" LIBEXECDIR="$LIBEXEC" NM_PLUGIN_DIR="$NM_PLUGIN_DIR"
+make desktop
 ./validate-plugin ./libnm-vpn-plugin-wproxy.so
 
 $SUDO mkdir -p "$NM_PLUGIN_DIR" "$NM_VPN_DIR" "$LIBEXEC" /etc/NetworkManager/conf.d
 
 # Repair the complete local runtime, not only the GNOME editor.
 $SUDO install -Dm755 wproxyctl /usr/bin/wproxyctl
-$SUDO install -Dm755 manager/wproxy-manager.py /usr/bin/wproxy-manager
+$SUDO install -Dm755 desktop/src-tauri/target/release/wproxy-desktop /usr/bin/wproxy-manager
 $SUDO install -Dm755 wproxy-service "$LIBEXEC/wproxy-service"
 $SUDO install -Dm755 service/wproxy-xray-runner "$LIBEXEC/wproxy-xray-runner"
 $SUDO install -Dm755 libnm-vpn-plugin-wproxy.so "$NM_PLUGIN_DIR/libnm-vpn-plugin-wproxy.so"

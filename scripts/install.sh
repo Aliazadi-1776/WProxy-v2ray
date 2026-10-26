@@ -53,11 +53,13 @@ fi
 
 have_build_deps() {
     command -v pkg-config >/dev/null 2>&1 &&
-    pkg-config --exists gio-2.0 glib-2.0 gmodule-2.0 libnm gtk+-3.0 gtk4
+    pkg-config --exists gio-2.0 glib-2.0 gmodule-2.0 libnm gtk+-3.0 gtk4 webkit2gtk-4.1
 }
 
 install_deps_if_needed() {
-    if have_build_deps && command -v python3 >/dev/null 2>&1 && command -v nmcli >/dev/null 2>&1; then
+    if have_build_deps && command -v python3 >/dev/null 2>&1 && command -v nmcli >/dev/null 2>&1 && \
+       command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && \
+       command -v cargo >/dev/null 2>&1 && command -v rustc >/dev/null 2>&1; then
         return 0
     fi
 
@@ -71,11 +73,13 @@ install_deps_if_needed() {
         $SUDO apt-get update
         $SUDO apt-get install -y \
             build-essential pkg-config libglib2.0-dev libgtk-3-dev libgtk-4-dev libnm-dev \
-            network-manager python3 python3-gi gir1.2-gtk-4.0 curl ca-certificates iproute2
+            libwebkit2gtk-4.1-dev librsvg2-dev libssl-dev \
+            network-manager python3 python3-gi gir1.2-gtk-4.0 curl ca-certificates iproute2 \
+            nodejs npm cargo
         return 0
     fi
 
-    echo "Missing build dependencies. Install libnm development files, GTK3/GTK4 development files, pkg-config, Python 3 and NetworkManager, then re-run." >&2
+    echo "Missing build dependencies. Install libnm, GTK3/GTK4, WebKitGTK 4.1, Node.js, npm, Rust/Cargo, Python 3 and NetworkManager, then re-run." >&2
     exit 2
 }
 
@@ -160,6 +164,20 @@ command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 2; 
 command -v nmcli >/dev/null 2>&1 || { echo "NetworkManager/nmcli is required" >&2; exit 2; }
 command -v systemd-run >/dev/null 2>&1 || { echo "systemd-run is required for application routing" >&2; exit 2; }
 command -v systemctl >/dev/null 2>&1 || { echo "systemctl is required for application routing" >&2; exit 2; }
+command -v node >/dev/null 2>&1 || { echo "Node.js is required to build the Tauri desktop" >&2; exit 2; }
+command -v npm >/dev/null 2>&1 || { echo "npm is required to build the Tauri desktop" >&2; exit 2; }
+command -v cargo >/dev/null 2>&1 || { echo "Rust/Cargo is required to build the Tauri desktop" >&2; exit 2; }
+command -v rustc >/dev/null 2>&1 || { echo "rustc is required to build the Tauri desktop" >&2; exit 2; }
+NODE_VERSION=$(node -p 'process.versions.node')
+[ "$(printf '%s\n%s\n' 20.19.0 "$NODE_VERSION" | sort -V | head -n 1)" = 20.19.0 ] || {
+    echo "Node.js 20.19 or newer is required for the Tauri frontend; found $NODE_VERSION." >&2
+    exit 2
+}
+RUST_VERSION=$(rustc --version | awk '{print $2}')
+[ "$(printf '%s\n%s\n' 1.90.0 "$RUST_VERSION" | sort -V | head -n 1)" = 1.90.0 ] || {
+    echo "Rust 1.90 or newer is required for the Tauri desktop; found $RUST_VERSION." >&2
+    exit 2
+}
 
 LIBDIR="$(pkg-config --variable=libdir libnm 2>/dev/null || true)"
 [ -n "$LIBDIR" ] || LIBDIR=/usr/lib
@@ -206,6 +224,12 @@ echo
 echo "Building NetworkManager service + GTK3/GTK4 editors..."
 make clean
 make LIBDIR="$LIBDIR" LIBEXECDIR="$LIBEXEC" NM_PLUGIN_DIR="$NM_PLUGIN_DIR"
+
+echo
+echo "Building lightweight Tauri desktop..."
+make desktop
+DESKTOP_BINARY="$PROJECT_DIR/desktop/src-tauri/target/release/wproxy-desktop"
+[ -x "$DESKTOP_BINARY" ] || { echo 'Tauri desktop build did not produce an executable.' >&2; exit 3; }
 
 echo
 echo "Validating GTK-neutral libnm loader..."
@@ -286,7 +310,7 @@ if [ -f "$TARGET_HOME/.local/bin/wproxyctl" ]; then
     $SUDO install -m755 -o "$TARGET_UID" -g "$TARGET_GID" wproxyctl "$TARGET_HOME/.local/bin/wproxyctl"
 fi
 $SUDO env SUDO_USER="$TARGET_USER" /usr/bin/wproxyctl nm sync
-$SUDO install -Dm755 manager/wproxy-manager.py /usr/bin/wproxy-manager
+$SUDO install -Dm755 "$DESKTOP_BINARY" /usr/bin/wproxy-manager
 $SUDO install -Dm644 data/org.freedesktop.NetworkManager.wproxy.conf "$DBUS_FILE"
 $SUDO install -Dm644 data/wproxy-manager.desktop /usr/share/applications/wproxy-manager.desktop
 $SUDO install -Dm644 icons/wproxy.svg /usr/share/icons/hicolor/scalable/apps/wproxy.svg

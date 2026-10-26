@@ -36,6 +36,7 @@ CloseApplications=no
 Name: "startup"; Description: "Start WProxy when I sign in"; GroupDescription: "Additional options:"; Flags: unchecked
 
 [Files]
+Source: "{#MyBuildDir}\WProxy.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildDir}\wproxyctl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildDir}\xray\xray.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyBuildDir}\xray\wintun.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
@@ -43,13 +44,13 @@ Source: "{#MyBuildDir}\xray\geoip.dat"; DestDir: "{app}\bin"; Flags: ignoreversi
 Source: "{#MyBuildDir}\xray\geosite.dat"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyBuildDir}\xray\LICENSE"; DestDir: "{app}\licenses"; DestName: "Xray-LICENSE"; Flags: ignoreversion
 Source: "{#MyBuildDir}\xray\LICENSE-Wintun"; DestDir: "{app}\licenses"; Flags: ignoreversion
-Source: "WProxy.ps1"; DestDir: "{app}\windows"; Flags: ignoreversion
 Source: "..\icons\wproxy.ico"; DestDir: "{app}\icons"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE-WProxy"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\WProxy"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\windows\WProxy.ps1"" -Show"; WorkingDir: "{app}"; IconFilename: "{app}\icons\wproxy.ico"
-Name: "{userstartup}\WProxy"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\windows\WProxy.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\wproxy.ico"; Tasks: startup
+Name: "{group}\WProxy"; Filename: "{app}\WProxy.exe"; WorkingDir: "{app}"; IconFilename: "{app}\icons\wproxy.ico"
+Name: "{userstartup}\WProxy"; Filename: "{app}\WProxy.exe"; WorkingDir: "{app}"; IconFilename: "{app}\icons\wproxy.ico"; Tasks: startup
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\windows\WProxy.ps1"" -Show"; WorkingDir: "{app}"; Description: "Launch WProxy"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\WProxy.exe"; WorkingDir: "{app}"; Description: "Launch WProxy"; Flags: nowait postinstall skipifsilent

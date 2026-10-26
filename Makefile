@@ -41,6 +41,15 @@ wproxyctl: cli/wproxyctl.py
 validate-plugin: plugin/validate-plugin.c
 	$(CC) $(VALIDATOR_CFLAGS) -o $@ $< $(VALIDATOR_LIBS)
 
+.PHONY: desktop desktop-check
+desktop:
+	cd desktop && npm ci --prefer-offline --no-audit --no-fund && npm run build
+	cargo build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+desktop-check:
+	cd desktop && npm run build
+	cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml
+
 check-deps:
 	@pkg-config --exists gio-2.0 glib-2.0 gmodule-2.0 libnm gtk+-3.0 gtk4 || { \
 		echo "Missing build dependencies. Need libnm + GTK3 + GTK4 development files." >&2; exit 2; }
@@ -54,7 +63,7 @@ test-service-profile-lookup: tests/test-service-profile-lookup.c service/nm-wpro
 	./$@
 
 .PHONY: test
-test: test-service-profile-lookup
+test: test-service-profile-lookup desktop-check
 	./test-service-profile-lookup
 	python3 -m unittest discover -s tests -p 'test_*.py' -v
 	bash -n scripts/apply-fix.sh tests/headless-smoke.sh
@@ -66,3 +75,4 @@ test: test-service-profile-lookup
 clean:
 	rm -f wproxy-service libnm-vpn-plugin-wproxy.so libnm-vpn-plugin-wproxy-editor.so libnm-gtk4-vpn-plugin-wproxy-editor.so wproxyctl validate-plugin test-service-profile-lookup
 	rm -rf cli/__pycache__ manager/__pycache__
+	rm -rf desktop/dist desktop/src-tauri/target

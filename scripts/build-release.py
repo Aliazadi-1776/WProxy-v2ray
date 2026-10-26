@@ -8,11 +8,15 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = "2.7.0"
 SOURCE_ENTRIES = [
     "README.md", "README.fa.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",
-    "Makefile", ".gitignore", ".gitattributes", ".github", "docs", "cli", "data",
+    "THIRD_PARTY_NOTICES.md",
+    "Makefile", ".gitignore", ".gitattributes", ".github", "docs", "cli", "data", "desktop",
     "examples", "gnome-extension", "kde-plasmoid", "icons", "manager", "plugin",
     "scripts", "service", "tests", "windows",
 ]
-EXCLUDED = {"__pycache__", ".git", "store.json", "verification.txt", "xray.json", "gateway"}
+EXCLUDED = {
+    "__pycache__", ".git", "node_modules", "target", "dist", "store.json",
+    "verification.txt", "xray.json", "gateway",
+}
 
 
 def source_files(base):

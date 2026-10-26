@@ -452,7 +452,7 @@ class WProxyManager(Gtk.Application):
         rail.append(self.authorization_toggle)
         self.preference_loading = False
 
-        version = Gtk.Label(label='WProxy 2.7.1')
+        version = Gtk.Label(label='WProxy 2.7.2')
         version.set_xalign(0)
         version.add_css_class('meta-label')
         rail.append(version)

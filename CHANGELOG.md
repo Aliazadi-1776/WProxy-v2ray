@@ -1,3 +1,8 @@
+# 2.7.2
+
+- Stop the KDE Plasma widget from launching three CLI refresh commands every five seconds while collapsed; refresh only when the popup opens or after explicit actions.
+- Suspend the command watchdog while no command is running, eliminating idle timer wakeups without weakening the 120-second timeout for active commands.
+
 # 2.7.1
 
 - Repair repeated WProxy Plasma panel icons during KDE installation and upgrades: duplicate System Tray entries and standalone panel copies are collapsed to one icon per panel.

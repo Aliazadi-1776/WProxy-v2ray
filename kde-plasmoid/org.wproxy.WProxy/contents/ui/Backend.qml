@@ -7,7 +7,6 @@ Item {
     property string cliPath: "/usr/bin/wproxyctl"
     property string managerPath: "/usr/bin/wproxy-manager"
     property string pkexecPath: "/usr/bin/pkexec"
-    property bool pollingEnabled: true
     property bool busy: false
     property bool active: false
     property string activeId: ""
@@ -211,11 +210,4 @@ Item {
         }
     }
 
-    Timer {
-        interval: 5000
-        repeat: true
-        running: backend.pollingEnabled
-        onTriggered: backend.refresh()
-    }
-    Component.onCompleted: if (pollingEnabled) refresh()
 }

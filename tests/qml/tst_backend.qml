@@ -5,7 +5,7 @@ import "../../kde-plasmoid/org.wproxy.WProxy/contents/ui" as WProxy
 TestCase {
     name: "BackendState"
     when: windowShown
-    WProxy.Backend { id: backend; pollingEnabled: false }
+    WProxy.Backend { id: backend }
 
     function init() {
         backend.errorMessage = "";

@@ -15,7 +15,7 @@ TestCase {
             return true;
         }
     }
-    WProxy.Backend { id: backend; pollingEnabled: false; executor: fake }
+    WProxy.Backend { id: backend; executor: fake }
 
     function init() {
         fake.calls = [];

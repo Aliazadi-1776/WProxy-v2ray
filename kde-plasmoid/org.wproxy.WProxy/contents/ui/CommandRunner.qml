@@ -9,38 +9,53 @@ Plasma5Support.DataSource {
     interval: 0
 
     property var jobs: ({})
+    property int activeJobs: 0
     signal completed(string token, int exitCode, string output, string error)
 
     function run(token, args) {
         const source = Commands.command(args);
         if (jobs[source])
             return false;
-        jobs[source] = {token: token, started: Date.now()};
+        const next = Object.assign({}, jobs);
+        next[source] = {token: token, started: Date.now()};
+        jobs = next;
+        activeJobs += 1;
         connectSource(source);
         return true;
+    }
+
+    function take(source) {
+        if (!jobs[source])
+            return null;
+        const next = Object.assign({}, jobs);
+        const job = next[source];
+        delete next[source];
+        jobs = next;
+        activeJobs = Math.max(0, activeJobs - 1);
+        disconnectSource(source);
+        return job;
     }
 
     onNewData: function(sourceName, data) {
         if (!jobs[sourceName] || data["exit code"] === undefined)
             return;
-        const token = jobs[sourceName].token;
-        delete jobs[sourceName];
-        disconnectSource(sourceName);
-        completed(token, Number(data["exit code"]), String(data.stdout || ""), String(data.stderr || ""));
+        const job = take(sourceName);
+        completed(job.token, Number(data["exit code"]), String(data.stdout || ""), String(data.stderr || ""));
     }
 
     property Timer watchdog: Timer {
         interval: 3000
-        running: true
+        running: runner.activeJobs > 0
         repeat: true
         onTriggered: {
-            for (const source in runner.jobs) {
+            const sources = Object.keys(runner.jobs);
+            for (let index = 0; index < sources.length; index += 1) {
+                const source = sources[index];
                 const job = runner.jobs[source];
                 if (Date.now() - job.started < 120000)
                     continue;
-                delete runner.jobs[source];
-                runner.disconnectSource(source);
-                runner.completed(job.token, 124, "", "Command timed out. Check WProxy and the Plasma5Support executable engine.");
+                const timedOut = runner.take(source);
+                runner.completed(timedOut.token, 124, "", "Command timed out. Check WProxy and the Plasma5Support executable engine.");
             }
         }
     }
@@ -48,5 +63,7 @@ Plasma5Support.DataSource {
     Component.onDestruction: {
         for (const source in jobs)
             disconnectSource(source);
+        jobs = {};
+        activeJobs = 0;
     }
 }

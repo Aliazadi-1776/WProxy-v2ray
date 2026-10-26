@@ -109,6 +109,17 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("org.kde.PlasmaShell.evaluateScript", installer)
         self.assertIn("keeps one WProxy icon per panel", installer)
 
+    def test_kde_widget_is_idle_until_opened_or_used(self):
+        backend = read_utf8("kde-plasmoid/org.wproxy.WProxy/contents/ui/Backend.qml")
+        runner = read_utf8("kde-plasmoid/org.wproxy.WProxy/contents/ui/CommandRunner.qml")
+        main = read_utf8("kde-plasmoid/org.wproxy.WProxy/contents/ui/main.qml")
+
+        self.assertNotIn("interval: 5000", backend)
+        self.assertNotIn("Component.onCompleted", backend)
+        self.assertIn("onExpandedChanged: if (expanded) controller.refresh()", main)
+        self.assertIn("running: runner.activeJobs > 0", runner)
+        self.assertNotIn("running: true", runner)
+
     def test_release_publishes_update_checksum_manifest(self):
         workflow = read_utf8(".github/workflows/windows-release.yml")
         self.assertIn("Create release checksum manifest", workflow)

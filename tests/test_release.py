@@ -1,6 +1,7 @@
 """Documentation and clean source/widget archive regression checks."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -127,6 +128,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("vertical:", source)
         self.assertGreaterEqual(source.count("Clutter.Orientation.VERTICAL"), 2)
 
+    @unittest.skipIf(os.name == "nt", "README Bash syntax is validated by the Linux job")
     def test_readme_shell_examples_parse_without_executing(self):
         for name in ("README.md", "README.fa.md"):
             blocks = re.findall(r"```bash\n(.*?)```", read_utf8(name), re.S)

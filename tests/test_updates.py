@@ -62,12 +62,15 @@ class UpdateTests(unittest.TestCase):
                 return release
             if url.endswith("SHA256SUMS"):
                 return f"{digest}  WProxy-9.8.7-GitHub.zip\n".encode()
-            if url.endswith("GitHub.zip"):
-                return archive
             self.fail(url)
+
+        def download(url, destination, _limit, _timeout=30.0):
+            self.assertTrue(url.endswith("GitHub.zip"))
+            destination.write_bytes(archive)
 
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(ctl, "_read_https", side_effect=response), \
+                patch.object(ctl, "_download_https", side_effect=download), \
                 patch.object(ctl, "config_home", return_value=Path(directory)):
             result = ctl.download_update("linux")
             path = Path(result["path"])

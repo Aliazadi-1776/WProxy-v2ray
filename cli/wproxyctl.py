@@ -1284,6 +1284,26 @@ def _read_https(url, limit, timeout=15.0):
     return payload
 
 
+def _download_https(url, destination, limit, timeout=30.0):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise RuntimeError("Update URL must use HTTPS")
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    written = 0
+    with urllib.request.urlopen(request, timeout=timeout) as response, destination.open("wb") as output:
+        size = response.headers.get("Content-Length")
+        if size and int(size) > limit:
+            raise RuntimeError("Update download is larger than the safety limit")
+        while True:
+            chunk = response.read(min(1024 * 1024, limit - written + 1))
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > limit:
+                raise RuntimeError("Update download is larger than the safety limit")
+            output.write(chunk)
+
+
 def latest_release(timeout=15.0):
     try:
         payload = _read_https(RELEASE_API, MAX_RELEASE_METADATA_BYTES, timeout)
@@ -1360,15 +1380,17 @@ def download_update(platform=None, timeout=30.0):
         os.chmod(directory, 0o700)
     path = directory / name
     if not path.exists() or _sha256_file(path) != expected:
-        payload = _read_https(url, MAX_UPDATE_BYTES, timeout)
         temporary = path.with_suffix(path.suffix + ".part")
-        temporary.write_bytes(payload)
-        if os.name != "nt":
-            os.chmod(temporary, 0o600)
-        if _sha256_file(temporary) != expected:
+        try:
+            _download_https(url, temporary, MAX_UPDATE_BYTES, timeout)
+            if os.name != "nt":
+                os.chmod(temporary, 0o600)
+            if _sha256_file(temporary) != expected:
+                raise RuntimeError("Downloaded update failed SHA-256 verification")
+            temporary.replace(path)
+        except Exception:
             temporary.unlink(missing_ok=True)
-            raise RuntimeError("Downloaded update failed SHA-256 verification")
-        temporary.replace(path)
+            raise
     return {
         "current_version": VERSION,
         "latest_version": release["version"],

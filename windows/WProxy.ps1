@@ -444,7 +444,7 @@ function New-PageHeader([string]$Title, [string]$Subtitle) {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'WProxy 2.6.2'
+$form.Text = 'WProxy 2.7.0'
 $form.Size = New-Object System.Drawing.Size(1080, 740)
 $form.MinimumSize = New-Object System.Drawing.Size(900, 620)
 $form.StartPosition = 'CenterScreen'
@@ -557,7 +557,7 @@ $autoUpdateCheck.ForeColor = $script:Ui.Muted
 $autoUpdateCheck.Location = New-Object System.Drawing.Point(0, 0)
 $sidebarFooter.Controls.Add($autoUpdateCheck)
 $sidebarVersion = New-Object System.Windows.Forms.Label
-$sidebarVersion.Text = 'WProxy 2.6.2'
+$sidebarVersion.Text = 'WProxy 2.7.0'
 $sidebarVersion.AutoSize = $true
 $sidebarVersion.Location = New-Object System.Drawing.Point(0, 34)
 $sidebarVersion.Font = $script:CaptionFont

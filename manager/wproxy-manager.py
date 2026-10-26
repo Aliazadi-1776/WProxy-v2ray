@@ -15,153 +15,154 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
 APP_CSS = r'''
 window.wproxy-window {
-  background: #111318;
-  color: #e4e1e9;
+  background: #1e1e20;
+  color: #f2f2f7;
+  font-family: Inter, "Segoe UI", Ubuntu, Cantarell, sans-serif;
 }
 
 headerbar.wproxy-titlebar {
-  background: #111318;
-  color: #e4e1e9;
-  border-bottom: 1px solid #2d3038;
+  background: #1e1e20;
+  color: #f2f2f7;
+  border-bottom: 1px solid #38383c;
   box-shadow: none;
-  min-height: 46px;
+  min-height: 42px;
 }
 
 .navigation-rail {
-  background: #191b20;
-  border-right: 1px solid #2d3038;
-  padding: 22px 12px;
-  min-width: 156px;
+  background: #252528;
+  border-right: 1px solid #38383c;
+  padding: 18px 12px;
+  min-width: 164px;
 }
 
 .brand-mark {
-  background: #bec2ff;
-  color: #252b61;
-  border-radius: 18px;
-  font-size: 24px;
+  background: #0a84ff;
+  color: #ffffff;
+  border-radius: 11px;
+  font-size: 20px;
   font-weight: 900;
-  min-width: 56px;
-  min-height: 56px;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .brand-name {
-  color: #f5f2fa;
-  font-size: 18px;
+  color: #ffffff;
+  font-size: 17px;
   font-weight: 800;
 }
 
 .brand-caption, .page-copy, .meta-label, .helper-copy {
-  color: #c5c5cf;
+  color: #a1a1a6;
 }
 
 button.nav-button {
   background: transparent;
-  color: #c5c5cf;
+  color: #c7c7cc;
   border: 0;
-  border-radius: 18px;
-  min-height: 50px;
-  padding: 0 14px;
+  border-radius: 8px;
+  min-height: 42px;
+  padding: 0 12px;
 }
 
 button.nav-button:hover {
-  background: #272932;
-  color: #f5f2fa;
+  background: #323235;
+  color: #ffffff;
 }
 
 button.nav-button.selected {
-  background: #30365f;
-  color: #e0e2ff;
+  background: #0a84ff;
+  color: #ffffff;
 }
 
 .nav-label { font-weight: 700; }
-.main-content { background: #111318; }
+.main-content { background: #1e1e20; }
 
 .connection-card {
-  background-image: linear-gradient(135deg, #252b4a, #20232e);
-  border: 1px solid #464958;
-  border-radius: 28px;
-  padding: 20px 24px;
+  background: #2a2a2d;
+  border: 1px solid #38383c;
+  border-radius: 12px;
+  padding: 14px 16px;
 }
 
 .connection-icon {
-  background: #353b66;
-  color: #c5c8ff;
-  border-radius: 18px;
-  font-size: 22px;
-  min-width: 56px;
-  min-height: 56px;
+  background: #343438;
+  color: #8e8e93;
+  border-radius: 10px;
+  font-size: 18px;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .connection-icon.connected {
-  background: #164f43;
-  color: #8ce0c8;
+  background: #123d31;
+  color: #30d158;
 }
 
 .eyebrow {
-  color: #c5c8ff;
+  color: #64a8ff;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.4px;
 }
 
 .connection-title {
-  color: #f7f4fc;
-  font-size: 22px;
+  color: #ffffff;
+  font-size: 19px;
   font-weight: 800;
 }
 
-.connection-detail { color: #c5c5cf; }
-.page-title { color: #f7f4fc; font-size: 24px; font-weight: 800; }
+.connection-detail { color: #a1a1a6; }
+.page-title { color: #ffffff; font-size: 22px; font-weight: 800; }
 .page-copy { font-size: 12px; }
 
 .surface-card {
-  background: #1b1b1f;
-  border: 1px solid #30323a;
-  border-radius: 24px;
-  padding: 20px;
+  background: #2a2a2d;
+  border: 1px solid #38383c;
+  border-radius: 10px;
+  padding: 16px;
 }
 
-.card-title { color: #f4f1f8; font-size: 17px; font-weight: 800; }
-.card-kicker { color: #e9b9d2; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+.card-title { color: #ffffff; font-size: 16px; font-weight: 800; }
+.card-kicker { color: #64a8ff; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
 
 button.action-button {
-  min-height: 40px;
-  border-radius: 20px;
-  padding: 0 18px;
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 14px;
   font-weight: 750;
 }
 
 button.primary-action {
-  background: #bec2ff;
-  color: #252b61;
-  border: 1px solid #bec2ff;
+  background: #0a84ff;
+  color: #ffffff;
+  border: 1px solid #0a84ff;
 }
 
-button.primary-action:hover { background: #d8daff; }
+button.primary-action:hover { background: #409cff; }
 
 button.secondary-action {
-  background: #282a32;
-  color: #e5e1e9;
-  border: 1px solid #464850;
+  background: #343438;
+  color: #f2f2f7;
+  border: 1px solid #48484a;
 }
 
-button.secondary-action:hover { background: #33353e; }
+button.secondary-action:hover { background: #414145; }
 
 button.danger-action {
-  background: #4a2530;
-  color: #ffb2bf;
-  border: 1px solid #6d3545;
+  background: #43242b;
+  color: #ff6961;
+  border: 1px solid #63313b;
 }
 
 entry, dropdown {
-  background: #222329;
-  color: #f0edf4;
-  border: 1px solid #464850;
-  border-radius: 16px;
-  min-height: 44px;
+  background: #18181a;
+  color: #f2f2f7;
+  border: 1px solid #48484a;
+  border-radius: 8px;
+  min-height: 38px;
 }
 
-entry:focus, dropdown:focus { border-color: #bec2ff; }
+entry:focus, dropdown:focus { border-color: #0a84ff; }
 
 list.material-list {
   background: transparent;
@@ -169,23 +170,23 @@ list.material-list {
 }
 
 list.material-list > row {
-  background: #1b1b1f;
-  border: 1px solid #30323a;
-  border-radius: 20px;
-  margin-bottom: 10px;
+  background: #2a2a2d;
+  border: 1px solid #38383c;
+  border-radius: 9px;
+  margin-bottom: 8px;
 }
 
 list.material-list > row:hover {
-  background: #24252b;
-  border-color: #4a4d57;
+  background: #323235;
+  border-color: #545458;
 }
 
-.node-name { color: #f4f1f8; font-size: 14px; font-weight: 750; }
+.node-name { color: #ffffff; font-size: 14px; font-weight: 750; }
 
 .server-avatar {
-  color: #dce0ff;
-  background: #30365f;
-  border-radius: 16px;
+  color: #ffffff;
+  background: #3a3a3e;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 800;
   min-width: 34px;
@@ -193,33 +194,37 @@ list.material-list > row:hover {
 }
 
 .live-badge {
-  color: #9be5cf;
-  background: #174f43;
-  border-radius: 10px;
+  color: #30d158;
+  background: #123d31;
+  border-radius: 7px;
   font-size: 9px;
   font-weight: 800;
   padding: 5px 8px;
 }
 
 .empty-state {
-  background: #1b1b1f;
-  border: 1px dashed #4a4d57;
-  border-radius: 24px;
-  padding: 36px 22px;
+  background: #2a2a2d;
+  border: 1px dashed #545458;
+  border-radius: 10px;
+  padding: 30px 20px;
 }
 
-.empty-icon { color: #bec2ff; }
-.empty-title { color: #f4f1f8; font-size: 17px; font-weight: 800; }
+.empty-icon { color: #0a84ff; }
+.empty-title { color: #ffffff; font-size: 17px; font-weight: 800; }
+
+checkbutton.preference-toggle { color: #c7c7cc; font-size: 12px; padding: 4px 2px; }
+checkbutton.preference-toggle check { background: #18181a; border: 1px solid #545458; border-radius: 5px; }
+checkbutton.preference-toggle check:checked { background: #0a84ff; border-color: #0a84ff; }
 
 .status-rail {
-  background: #191b20;
-  border-top: 1px solid #2d3038;
-  padding: 9px 22px;
+  background: #252528;
+  border-top: 1px solid #38383c;
+  padding: 8px 18px;
 }
 
-.status-rail label { color: #c5c5cf; font-size: 12px; }
-.status-rail.error label { color: #ffb2bf; }
-scrollbar slider { background: #464a58; border-radius: 8px; min-width: 6px; }
+.status-rail label { color: #a1a1a6; font-size: 12px; }
+.status-rail.error label { color: #ff6961; }
+scrollbar slider { background: #545458; border-radius: 4px; min-width: 6px; }
 '''
 
 
@@ -233,6 +238,16 @@ def _resolve_ctl():
 
 
 CTL = _resolve_ctl()
+ADMIN = '/usr/libexec/wproxy-admin'
+
+
+def admin_command(action, *arguments):
+    if os.path.isfile(ADMIN) and os.access(ADMIN, os.X_OK):
+        return ['pkexec', ADMIN, action, *arguments]
+    fallback = {'sync': 'sync', 'up': 'up', 'down': 'down'}.get(action)
+    if fallback:
+        return ['pkexec', CTL, 'nm', fallback, *arguments]
+    return ['pkexec', ADMIN, action, *arguments]
 
 
 def run(args):
@@ -269,6 +284,10 @@ class WProxyManager(Gtk.Application):
         self.routing_empty_warning = None
         self.disconnect_button = None
         self.routing_refreshing = False
+        self.preference_loading = False
+        self.auto_update_toggle = None
+        self.authorization_toggle = None
+        self.auto_update_started = False
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -307,8 +326,8 @@ class WProxyManager(Gtk.Application):
 
         self.window = Gtk.ApplicationWindow(application=self)
         self.window.set_title('WProxy')
-        self.window.set_default_size(1120, 760)
-        self.window.set_size_request(860, 620)
+        self.window.set_default_size(1040, 700)
+        self.window.set_size_request(820, 580)
         self.window.add_css_class('wproxy-window')
 
         header = Gtk.HeaderBar()
@@ -331,11 +350,11 @@ class WProxyManager(Gtk.Application):
         main.add_css_class('main-content')
         root.append(main)
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        content.set_margin_top(20)
-        content.set_margin_bottom(14)
-        content.set_margin_start(24)
-        content.set_margin_end(24)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        content.set_margin_top(16)
+        content.set_margin_bottom(12)
+        content.set_margin_start(18)
+        content.set_margin_end(18)
         content.set_vexpand(True)
         main.append(content)
         content.append(self._build_connection_card())
@@ -367,6 +386,7 @@ class WProxyManager(Gtk.Application):
         self._show_page('nodes')
         self.refresh()
         self.window.present()
+        GLib.idle_add(self._start_auto_update)
 
     def _build_navigation(self):
         rail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -413,6 +433,23 @@ class WProxyManager(Gtk.Application):
         spacer = Gtk.Box()
         spacer.set_vexpand(True)
         rail.append(spacer)
+
+        self.preference_loading = True
+        self.auto_update_toggle = Gtk.CheckButton(label='Automatic updates')
+        self.auto_update_toggle.add_css_class('preference-toggle')
+        self.auto_update_toggle.set_tooltip_text('Download verified releases and install them automatically')
+        self.auto_update_toggle.set_active(self._auto_update_enabled())
+        self.auto_update_toggle.connect('toggled', self._auto_update_changed)
+        rail.append(self.auto_update_toggle)
+
+        self.authorization_toggle = Gtk.CheckButton(label='Remember authorization')
+        self.authorization_toggle.add_css_class('preference-toggle')
+        self.authorization_toggle.set_tooltip_text('Allow only WProxy tunnel actions without asking again')
+        self.authorization_toggle.set_active(self._authorization_enabled())
+        self.authorization_toggle.connect('toggled', self._authorization_changed)
+        rail.append(self.authorization_toggle)
+        self.preference_loading = False
+
         version = Gtk.Label(label='WProxy 2.6.2')
         version.set_xalign(0)
         version.add_css_class('meta-label')
@@ -514,12 +551,15 @@ class WProxyManager(Gtk.Application):
         ))
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         actions.set_halign(Gtk.Align.START)
+        fastest = self._button('Use fastest', 'primary')
+        fastest.connect('clicked', lambda *_: self._connect_fastest())
         ping = self._button('Ping all')
         ping.connect('clicked', lambda *_: self._ping_all())
         self.disconnect_button = self._button('Disconnect', 'danger')
         self.disconnect_button.connect(
-            'clicked', lambda *_: self._background([CTL, 'nm', 'down'], 'Disconnected', True)
+            'clicked', lambda *_: self._background(admin_command('down'), 'Disconnected', True)
         )
+        actions.append(fastest)
         actions.append(ping)
         actions.append(self.disconnect_button)
         box.append(actions)
@@ -920,7 +960,7 @@ class WProxyManager(Gtk.Application):
             connect = self._button('Connected' if is_active else 'Connect', 'secondary' if is_active else 'primary')
             connect.set_sensitive(not is_active)
             connect.connect('clicked', lambda _button, node_id=node['id']: self._background(
-                [CTL, 'nm', 'up', node_id], 'Connected', True
+                admin_command('up', node_id), 'Connected', True
             ))
             delete = Gtk.Button.new_from_icon_name('user-trash-symbolic')
             delete.add_css_class('action-button')
@@ -1025,7 +1065,7 @@ class WProxyManager(Gtk.Application):
         return False
 
     def _sync_nm(self):
-        self._background(['pkexec', CTL, 'nm', 'sync'], 'Synced to NetworkManager', True)
+        self._background(admin_command('sync'), 'Synced to NetworkManager', True)
 
     def _change_routing(self, args, success):
         self._set_status('Saving and syncing routing…')
@@ -1033,7 +1073,7 @@ class WProxyManager(Gtk.Application):
         def worker():
             code, out, err = run(args)
             if code == 0:
-                code, second_out, second_err = run(['pkexec', CTL, 'nm', 'sync'])
+                code, second_out, second_err = run(admin_command('sync'))
                 out = second_out or out
                 err = second_err or err
             GLib.idle_add(self._after_background, code, out, err, success, True)
@@ -1078,7 +1118,7 @@ class WProxyManager(Gtk.Application):
         def worker():
             result, out, error = run([CTL, 'sub', 'update', sub_id.strip()])
             if result == 0:
-                result, second_out, second_error = run(['pkexec', CTL, 'nm', 'sync'])
+                result, second_out, second_error = run(admin_command('sync'))
                 out = second_out or out
                 error = second_error or error
             GLib.idle_add(self._after_background, result, out, error, 'Subscription added', True)
@@ -1105,7 +1145,7 @@ class WProxyManager(Gtk.Application):
         def worker():
             code, out, err = run([CTL, 'sub', 'update', sub_id])
             if code == 0:
-                second_code, second_out, second_err = run(['pkexec', CTL, 'nm', 'sync'])
+                second_code, second_out, second_err = run(admin_command('sync'))
                 if second_code != 0:
                     code, out, err = second_code, second_out, second_err
             GLib.idle_add(self._after_background, code, out, err, 'Subscription updated', True)
@@ -1118,10 +1158,118 @@ class WProxyManager(Gtk.Application):
         def worker():
             code, out, err = run([CTL, 'sub', 'update'])
             if code == 0:
-                second_code, second_out, second_err = run(['pkexec', CTL, 'nm', 'sync'])
+                second_code, second_out, second_err = run(admin_command('sync'))
                 if second_code != 0:
                     code, out, err = second_code, second_out, second_err
             GLib.idle_add(self._after_background, code, out, err, 'Subscriptions updated', True)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _auto_update_enabled(self):
+        code, out, _err = run([CTL, 'settings', 'show', '--json'])
+        if code != 0:
+            return False
+        try:
+            return bool(json.loads(out).get('auto_update'))
+        except (TypeError, json.JSONDecodeError):
+            return False
+
+    def _authorization_enabled(self):
+        return Path(f'/etc/polkit-1/rules.d/49-wproxy-{os.getuid()}.rules').is_file()
+
+    def _auto_update_changed(self, button):
+        if self.preference_loading:
+            return
+        enabled = button.get_active()
+        code, _out, err = run([CTL, 'settings', 'set', 'auto_update', 'true' if enabled else 'false'])
+        if code != 0:
+            self.preference_loading = True
+            button.set_active(not enabled)
+            self.preference_loading = False
+            self._set_status(err or 'Could not save automatic update preference', True)
+            return
+        self._set_status('Automatic updates enabled' if enabled else 'Automatic updates disabled')
+        if enabled:
+            self._start_auto_update(force=True)
+
+    def _authorization_changed(self, button):
+        if self.preference_loading:
+            return
+        enabled = button.get_active()
+        button.set_sensitive(False)
+        self._set_status('Saving limited WProxy authorization…')
+
+        def worker():
+            code, out, err = run(admin_command('authorize' if enabled else 'revoke'))
+            GLib.idle_add(self._authorization_finished, code, out, err, enabled)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _authorization_finished(self, code, out, err, requested):
+        actual = self._authorization_enabled()
+        self.preference_loading = True
+        self.authorization_toggle.set_active(actual)
+        self.preference_loading = False
+        self.authorization_toggle.set_sensitive(True)
+        if code == 0 and actual == requested:
+            self._set_status('WProxy authorization remembered' if actual else 'WProxy authorization reset')
+        else:
+            self._set_status(err or out or 'Could not change WProxy authorization', True)
+        return False
+
+    def _start_auto_update(self, force=False):
+        if self.auto_update_started and not force:
+            return False
+        if not self.auto_update_toggle or not self.auto_update_toggle.get_active():
+            return False
+        self.auto_update_started = True
+
+        def worker():
+            code, out, err = run([CTL, 'update', 'download', '--platform', 'linux', '--json'])
+            if code != 0:
+                GLib.idle_add(self._set_status, err or out or 'Automatic update check failed', True)
+                return
+            try:
+                result = json.loads(out)
+            except json.JSONDecodeError:
+                GLib.idle_add(self._set_status, 'Automatic update returned invalid data', True)
+                return
+            if not result.get('update_available'):
+                return
+            archive = result.get('path')
+            if not archive:
+                GLib.idle_add(self._set_status, 'Update was downloaded without an install path', True)
+                return
+            GLib.idle_add(self._set_status, f"Installing WProxy {result.get('latest_version', '')}…")
+            install_code, install_out, install_err = run(admin_command('update', archive))
+            GLib.idle_add(
+                self._set_status,
+                'WProxy updated. Restart the manager to use the new version.' if install_code == 0
+                else (install_err or install_out or 'Automatic update installation failed'),
+                install_code != 0,
+            )
+
+        threading.Thread(target=worker, daemon=True).start()
+        return False
+
+    def _connect_fastest(self):
+        self._set_status('Testing servers and choosing the fastest…')
+
+        def worker():
+            code, out, err = run([CTL, 'node', 'best', '--json', '--timeout', '1.5'])
+            if code != 0:
+                GLib.idle_add(self._after_background, code, out, err, '', False)
+                return
+            try:
+                best = json.loads(out)
+            except json.JSONDecodeError:
+                GLib.idle_add(self._after_background, 2, '', 'Could not read fastest server result', '', False)
+                return
+            connect_code, connect_out, connect_err = run(admin_command('up', best['id']))
+            success = f"Connected to {best['name']} · {best['latency_ms']}ms"
+            GLib.idle_add(
+                self._after_background, connect_code, connect_out, connect_err, success, True
+            )
 
         threading.Thread(target=worker, daemon=True).start()
 

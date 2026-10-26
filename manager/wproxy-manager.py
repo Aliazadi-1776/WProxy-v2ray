@@ -391,6 +391,8 @@ class WProxyManager(Gtk.Application):
     def _build_navigation(self):
         rail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         rail.add_css_class('navigation-rail')
+        rail.set_size_request(220, -1)
+        rail.set_hexpand(False)
 
         mark = Gtk.Label(label='W')
         mark.set_halign(Gtk.Align.START)
@@ -482,7 +484,7 @@ class WProxyManager(Gtk.Application):
         self.connection_title = Gtk.Label(label='Not connected')
         self.connection_title.set_xalign(0)
         self.connection_title.add_css_class('connection-title')
-        self.connection_detail = Gtk.Label(label='Choose a server from Servers to start your private route')
+        self.connection_detail = Gtk.Label(label='Choose a server or let WProxy pick the fastest one')
         self.connection_detail.set_xalign(0)
         self.connection_detail.set_ellipsize(Pango.EllipsizeMode.END)
         self.connection_detail.add_css_class('connection-detail')
@@ -856,7 +858,7 @@ class WProxyManager(Gtk.Application):
         else:
             self.connection_icon.remove_css_class('connected')
             self.connection_title.set_text('Not connected')
-            self.connection_detail.set_text('Choose a server from Servers to start your private route')
+            self.connection_detail.set_text('Choose a server or let WProxy pick the fastest one')
         if self.disconnect_button:
             self.disconnect_button.set_sensitive(active)
 

@@ -1581,6 +1581,11 @@ def cmd_update(args):
     elif args.action == "download":
         result = download_update(args.platform, args.timeout)
         print(json.dumps(result, ensure_ascii=False) if args.json else result.get("path", "Already up to date"))
+    elif args.action == "auto":
+        result = download_update(args.platform, args.timeout)
+        if result.get("update_available") and result.get("path"):
+            install_update(result["path"], args.timeout)
+        print(json.dumps(result, ensure_ascii=False) if args.json else result.get("path", "Already up to date"))
     elif args.action == "install":
         install_update(args.path, args.timeout)
         print("Update installer started" if os.name == "nt" else "Update installed")
@@ -1655,6 +1660,7 @@ def build_parser():
     us = pu.add_subparsers(dest="action", required=True)
     a = us.add_parser("check"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=15.0)
     a = us.add_parser("download"); a.add_argument("--json", action="store_true"); a.add_argument("--platform", choices=("linux", "windows")); a.add_argument("--timeout", type=float, default=30.0)
+    a = us.add_parser("auto"); a.add_argument("--json", action="store_true"); a.add_argument("--platform", choices=("linux", "windows")); a.add_argument("--timeout", type=float, default=30.0)
     a = us.add_parser("install"); a.add_argument("path"); a.add_argument("--timeout", type=float, default=30.0)
 
     pr = sp.add_parser("routing")

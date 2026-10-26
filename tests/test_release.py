@@ -43,7 +43,7 @@ class ReleaseTests(unittest.TestCase):
         ):
             self.assertIn(label, source)
         self.assertNotIn("Add typed path", source)
-        self.assertIn("Private routing", source)
+        self.assertIn("Secure connection", source)
         self.assertIn("$nodeList.Add_DoubleClick", source)
 
     def test_windows_navigation_is_dpi_safe_and_has_an_empty_state(self):
@@ -59,6 +59,21 @@ class ReleaseTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
         self.assertIn("-LayoutSmokeTest", workflow)
 
+    def test_windows_idle_refresh_stops_while_hidden(self):
+        source = (ROOT / "windows/WProxy.ps1").read_text()
+        self.assertIn("$timer.Interval = 15000", source)
+        self.assertIn("$timer.Stop()", source)
+        self.assertNotIn("$timer.Interval = 3000", source)
+        self.assertNotRegex(source, r"\$timer\.Start\(\)\s*\n\[System\.Windows\.Forms\.Application\]::add_ThreadException")
+
+    def test_windows_shell_exposes_simple_vpn_actions(self):
+        source = (ROOT / "windows/WProxy.ps1").read_text()
+        for token in (
+            "Quick connect", "Automatic updates", "VPN CONNECTION",
+            "Start-AutomaticUpdate", "node', 'best'", "Accent = [System.Drawing.Color]::FromArgb(10, 132, 255)",
+        ):
+            self.assertIn(token, source)
+
     def test_desktop_managers_share_a_clear_material_app_shell(self):
         linux = (ROOT / "manager/wproxy-manager.py").read_text()
         windows = (ROOT / "windows/WProxy.ps1").read_text()
@@ -73,7 +88,7 @@ class ReleaseTests(unittest.TestCase):
 
         for token in (
             "WProxy.SmoothButton", "WProxy.SmoothPanel", "SmoothingMode.AntiAlias",
-            "NavigationRail", "PageHost", "OnAccent", "Online", "Private routing",
+            "NavigationRail", "PageHost", "OnAccent", "Online", "Secure connection",
             "Windows routing actions are clipped",
         ):
             self.assertIn(token, windows)

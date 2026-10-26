@@ -226,6 +226,7 @@ if (-not $script:UseExe) {
 $script:RoutingLoading = $false
 $script:Exiting = $false
 $script:ActiveNodeId = $null
+$script:PreferencesLoading = $false
 
 function Invoke-Ctl([string[]]$Arguments) {
     # Windows PowerShell promotes native stderr to ErrorRecord. With the
@@ -254,6 +255,20 @@ function Show-Error([string]$Message) {
     [System.Windows.Forms.MessageBox]::Show($Message, 'WProxy', 'OK', 'Error') | Out-Null
 }
 
+function Start-CtlDetached([string[]]$Arguments) {
+    try {
+        if ($script:UseExe) {
+            Start-Process -FilePath $script:CtlExe -ArgumentList $Arguments -WindowStyle Hidden | Out-Null
+        } else {
+            $quotedCtl = '"' + $script:CtlPy + '"'
+            Start-Process -FilePath $script:Python -ArgumentList (@($quotedCtl) + $Arguments) -WindowStyle Hidden | Out-Null
+        }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 function Invoke-AdminCtl([string[]]$Arguments) {
     try {
         if ($script:UseExe) {
@@ -275,22 +290,22 @@ function Invoke-AdminCtl([string[]]$Arguments) {
 }
 
 $script:Ui = @{
-    Canvas = [System.Drawing.Color]::FromArgb(15, 17, 21)
-    Sidebar = [System.Drawing.Color]::FromArgb(21, 24, 29)
-    Surface = [System.Drawing.Color]::FromArgb(26, 29, 35)
-    Raised = [System.Drawing.Color]::FromArgb(34, 38, 45)
-    RaisedHover = [System.Drawing.Color]::FromArgb(43, 48, 57)
-    Border = [System.Drawing.Color]::FromArgb(49, 54, 64)
-    Accent = [System.Drawing.Color]::FromArgb(166, 190, 255)
-    AccentHover = [System.Drawing.Color]::FromArgb(190, 207, 255)
-    AccentSurface = [System.Drawing.Color]::FromArgb(37, 46, 72)
-    OnAccent = [System.Drawing.Color]::FromArgb(20, 39, 77)
-    Blue = [System.Drawing.Color]::FromArgb(157, 183, 255)
-    Online = [System.Drawing.Color]::FromArgb(103, 218, 179)
-    Text = [System.Drawing.Color]::FromArgb(239, 242, 247)
-    Muted = [System.Drawing.Color]::FromArgb(166, 173, 184)
-    Danger = [System.Drawing.Color]::FromArgb(255, 177, 190)
-    DangerSurface = [System.Drawing.Color]::FromArgb(48, 34, 39)
+    Canvas = [System.Drawing.Color]::FromArgb(30, 30, 32)
+    Sidebar = [System.Drawing.Color]::FromArgb(37, 37, 40)
+    Surface = [System.Drawing.Color]::FromArgb(42, 42, 45)
+    Raised = [System.Drawing.Color]::FromArgb(52, 52, 56)
+    RaisedHover = [System.Drawing.Color]::FromArgb(65, 65, 69)
+    Border = [System.Drawing.Color]::FromArgb(56, 56, 60)
+    Accent = [System.Drawing.Color]::FromArgb(10, 132, 255)
+    AccentHover = [System.Drawing.Color]::FromArgb(64, 156, 255)
+    AccentSurface = [System.Drawing.Color]::FromArgb(21, 52, 83)
+    OnAccent = [System.Drawing.Color]::White
+    Blue = [System.Drawing.Color]::FromArgb(100, 168, 255)
+    Online = [System.Drawing.Color]::FromArgb(48, 209, 88)
+    Text = [System.Drawing.Color]::FromArgb(242, 242, 247)
+    Muted = [System.Drawing.Color]::FromArgb(161, 161, 166)
+    Danger = [System.Drawing.Color]::FromArgb(255, 105, 97)
+    DangerSurface = [System.Drawing.Color]::FromArgb(67, 36, 43)
 }
 $script:Brushes = @{
     Canvas = New-Object System.Drawing.SolidBrush($script:Ui.Canvas)
@@ -311,10 +326,10 @@ function Set-ActionButton {
     )
     $Button.Cursor = [System.Windows.Forms.Cursors]::Hand
     $Button.Font = $script:StrongFont
-    $Button.Height = 40
+    $Button.Height = 36
     $Button.AutoSize = $false
-    $Button.Padding = New-Object System.Windows.Forms.Padding(14, 0, 14, 0)
-    $Button.CornerRadius = 12
+    $Button.Padding = New-Object System.Windows.Forms.Padding(12, 0, 12, 0)
+    $Button.CornerRadius = 8
     $Button.BorderSize = 0
     $Button.BorderColor = [System.Drawing.Color]::Transparent
     switch ($Kind) {
@@ -337,7 +352,7 @@ function Set-ActionButton {
             $Button.ForeColor = $script:Ui.Muted
             $Button.TextAlign = 'MiddleLeft'
             $Button.Padding = New-Object System.Windows.Forms.Padding(18, 0, 10, 0)
-            $Button.CornerRadius = 10
+            $Button.CornerRadius = 7
         }
         default {
             $Button.FillColor = $script:Ui.Raised
@@ -430,8 +445,8 @@ function New-PageHeader([string]$Title, [string]$Subtitle) {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'WProxy 2.6.2'
-$form.Size = New-Object System.Drawing.Size(1180, 800)
-$form.MinimumSize = New-Object System.Drawing.Size(980, 680)
+$form.Size = New-Object System.Drawing.Size(1080, 740)
+$form.MinimumSize = New-Object System.Drawing.Size(900, 620)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = $script:Ui.Canvas
 $form.ForeColor = $script:Ui.Text
@@ -450,7 +465,7 @@ $shell.Padding = New-Object System.Windows.Forms.Padding(0)
 $shell.ColumnCount = 2
 $shell.RowCount = 1
 $shell.BackColor = $script:Ui.Canvas
-$shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Absolute', 220)))
+$shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Absolute', 200)))
 $shell.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 100)))
 $shell.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Percent', 100)))
 $form.Controls.Add($shell)
@@ -459,13 +474,13 @@ $navigationRail = New-Object System.Windows.Forms.TableLayoutPanel
 $navigationRail.Name = 'NavigationRail'
 $navigationRail.Dock = 'Fill'
 $navigationRail.Margin = New-Object System.Windows.Forms.Padding(0)
-$navigationRail.Padding = New-Object System.Windows.Forms.Padding(18, 22, 18, 14)
+$navigationRail.Padding = New-Object System.Windows.Forms.Padding(14, 18, 14, 12)
 $navigationRail.ColumnCount = 1
 $navigationRail.RowCount = 3
 $navigationRail.BackColor = $script:Ui.Sidebar
-$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 112)))
+$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 102)))
 $navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Percent', 100)))
-$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 38)))
+$navigationRail.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', 72)))
 $shell.Controls.Add($navigationRail, 0, 0)
 
 $brandPanel = New-Object System.Windows.Forms.Panel
@@ -475,8 +490,8 @@ $navigationRail.Controls.Add($brandPanel, 0, 0)
 $brandMark = New-Object WProxy.SmoothPanel
 $brandMark.FillColor = $script:Ui.Accent
 $brandMark.BorderColor = [System.Drawing.Color]::Transparent
-$brandMark.CornerRadius = 14
-$brandMark.Size = New-Object System.Drawing.Size(48, 48)
+$brandMark.CornerRadius = 10
+$brandMark.Size = New-Object System.Drawing.Size(44, 44)
 $brandMark.Location = New-Object System.Drawing.Point(0, 0)
 $brandMarkLabel = New-Object System.Windows.Forms.Label
 $brandMarkLabel.Text = 'W'
@@ -492,14 +507,14 @@ $brandTitle.Text = 'WProxy'
 $brandTitle.Font = $script:StrongFont
 $brandTitle.ForeColor = $script:Ui.Text
 $brandTitle.AutoSize = $true
-$brandTitle.Location = New-Object System.Drawing.Point(0, 60)
+$brandTitle.Location = New-Object System.Drawing.Point(0, 54)
 $brandPanel.Controls.Add($brandTitle)
 $brandSubtitle = New-Object System.Windows.Forms.Label
-$brandSubtitle.Text = 'Private routing'
+$brandSubtitle.Text = 'Secure connection'
 $brandSubtitle.Font = $script:CaptionFont
 $brandSubtitle.ForeColor = $script:Ui.Muted
 $brandSubtitle.AutoSize = $true
-$brandSubtitle.Location = New-Object System.Drawing.Point(0, 84)
+$brandSubtitle.Location = New-Object System.Drawing.Point(0, 76)
 $brandPanel.Controls.Add($brandSubtitle)
 
 $navigationButtons = New-Object System.Windows.Forms.FlowLayoutPanel
@@ -511,32 +526,44 @@ $navigationButtons.Padding = New-Object System.Windows.Forms.Padding(0, 10, 0, 0
 $navigationRail.Controls.Add($navigationButtons, 0, 1)
 $script:NavButtons = @{}
 foreach ($definition in @(
-    @('servers', 'Servers'),
+    @('servers', 'Home'),
     @('subscriptions', 'Subscriptions'),
     @('add', 'Add connection'),
-    @('routing', 'Routing')
+    @('routing', 'Advanced')
 )) {
     $button = New-Object WProxy.SmoothButton
     $button.Name = 'Nav' + $definition[0]
     $button.Tag = $definition[0]
     $button.Text = $definition[1]
-    $button.Width = 184
-    $button.Height = 44
+    $button.Width = 168
+    $button.Height = 40
     $button.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
     Set-ActionButton $button 'Navigation'
-    $button.Height = 44
+    $button.Height = 40
     $button.Add_Click({ param($sender, $eventArgs) Show-Page ([string]$sender.Tag) })
     $navigationButtons.Controls.Add($button)
     $script:NavButtons[$definition[0]] = $button
 }
+$sidebarFooter = New-Object System.Windows.Forms.Panel
+$sidebarFooter.Dock = 'Fill'
+$sidebarFooter.BackColor = $script:Ui.Sidebar
+$navigationRail.Controls.Add($sidebarFooter, 0, 2)
+$autoUpdateCheck = New-Object System.Windows.Forms.CheckBox
+$autoUpdateCheck.Text = 'Automatic updates'
+$autoUpdateCheck.AutoSize = $true
+$autoUpdateCheck.FlatStyle = 'Flat'
+$autoUpdateCheck.Font = $script:CaptionFont
+$autoUpdateCheck.ForeColor = $script:Ui.Muted
+$autoUpdateCheck.Location = New-Object System.Drawing.Point(0, 0)
+$sidebarFooter.Controls.Add($autoUpdateCheck)
 $sidebarVersion = New-Object System.Windows.Forms.Label
 $sidebarVersion.Text = 'WProxy 2.6.2'
-$sidebarVersion.Dock = 'Fill'
-$sidebarVersion.TextAlign = 'MiddleLeft'
+$sidebarVersion.AutoSize = $true
+$sidebarVersion.Location = New-Object System.Drawing.Point(0, 34)
 $sidebarVersion.Font = $script:CaptionFont
 $sidebarVersion.ForeColor = $script:Ui.Muted
 $sidebarVersion.BackColor = $script:Ui.Sidebar
-$navigationRail.Controls.Add($sidebarVersion, 0, 2)
+$sidebarFooter.Controls.Add($sidebarVersion)
 
 $contentRoot = New-Object System.Windows.Forms.Panel
 $contentRoot.Name = 'ContentRoot'
@@ -548,15 +575,15 @@ $shell.Controls.Add($contentRoot, 1, 0)
 $pageHost = New-Object System.Windows.Forms.Panel
 $pageHost.Name = 'PageHost'
 $pageHost.Dock = 'Fill'
-$pageHost.Padding = New-Object System.Windows.Forms.Padding(28, 6, 28, 18)
+$pageHost.Padding = New-Object System.Windows.Forms.Padding(22, 4, 22, 14)
 $pageHost.BackColor = $script:Ui.Canvas
 $contentRoot.Controls.Add($pageHost)
 
 $header = New-Object System.Windows.Forms.Panel
 $header.Dock = 'Top'
-$header.Height = 136
+$header.Height = 116
 $header.BackColor = $script:Ui.Canvas
-$header.Padding = New-Object System.Windows.Forms.Padding(28, 22, 28, 12)
+$header.Padding = New-Object System.Windows.Forms.Padding(22, 16, 22, 10)
 $contentRoot.Controls.Add($header)
 
 $connectionCard = New-Object WProxy.SmoothPanel
@@ -564,18 +591,18 @@ $connectionCard.Dock = 'Fill'
 $connectionCard.FillColor = $script:Ui.Surface
 $connectionCard.BorderColor = $script:Ui.Border
 $connectionCard.BorderSize = 1
-$connectionCard.CornerRadius = 20
+$connectionCard.CornerRadius = 12
 $connectionCard.Add_Resize({
     param($sender, $eventArgs)
     $connectionState.Width = [Math]::Max(100, $sender.ClientSize.Width - 120)
     $connectionDetail.Width = [Math]::Max(100, $sender.ClientSize.Width - 120)
 })
 $connectionDotPanel = New-Object WProxy.SmoothPanel
-$connectionDotPanel.Size = New-Object System.Drawing.Size(48, 48)
-$connectionDotPanel.Location = New-Object System.Drawing.Point(24, 25)
+$connectionDotPanel.Size = New-Object System.Drawing.Size(42, 42)
+$connectionDotPanel.Location = New-Object System.Drawing.Point(18, 20)
 $connectionDotPanel.FillColor = $script:Ui.AccentSurface
 $connectionDotPanel.BorderColor = [System.Drawing.Color]::Transparent
-$connectionDotPanel.CornerRadius = 14
+$connectionDotPanel.CornerRadius = 9
 $connectionCard.Controls.Add($connectionDotPanel)
 $connectionDot = New-Object System.Windows.Forms.Label
 $connectionDot.Text = [char]0x25CF
@@ -585,11 +612,11 @@ $connectionDot.Dock = 'Fill'
 $connectionDot.TextAlign = 'MiddleCenter'
 $connectionDotPanel.Controls.Add($connectionDot)
 $connectionEyebrow = New-Object System.Windows.Forms.Label
-$connectionEyebrow.Text = 'SYSTEM TUNNEL'
+$connectionEyebrow.Text = 'VPN CONNECTION'
 $connectionEyebrow.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8, [System.Drawing.FontStyle]::Regular)
 $connectionEyebrow.ForeColor = $script:Ui.AccentHover
 $connectionEyebrow.AutoSize = $true
-$connectionEyebrow.Location = New-Object System.Drawing.Point(92, 20)
+$connectionEyebrow.Location = New-Object System.Drawing.Point(76, 15)
 $connectionCard.Controls.Add($connectionEyebrow)
 $connectionState = New-Object System.Windows.Forms.Label
 $connectionState.Text = 'Not connected'
@@ -597,15 +624,15 @@ $connectionState.Font = $script:PageTitleFont
 $connectionState.ForeColor = $script:Ui.Text
 $connectionState.AutoEllipsis = $true
 $connectionState.Size = New-Object System.Drawing.Size(640, 32)
-$connectionState.Location = New-Object System.Drawing.Point(90, 38)
+$connectionState.Location = New-Object System.Drawing.Point(74, 32)
 $connectionCard.Controls.Add($connectionState)
 $connectionDetail = New-Object System.Windows.Forms.Label
-$connectionDetail.Text = 'Choose a server from Servers to start your private route'
+$connectionDetail.Text = 'Choose a server or let WProxy pick the fastest one'
 $connectionDetail.Font = $script:CaptionFont
 $connectionDetail.ForeColor = $script:Ui.Muted
 $connectionDetail.AutoEllipsis = $true
 $connectionDetail.Size = New-Object System.Drawing.Size(640, 20)
-$connectionDetail.Location = New-Object System.Drawing.Point(92, 73)
+$connectionDetail.Location = New-Object System.Drawing.Point(76, 65)
 $connectionCard.Controls.Add($connectionDetail)
 $header.Controls.Add($connectionCard)
 $header.BringToFront()
@@ -617,9 +644,9 @@ function Show-Page([string]$Name) {
     foreach ($key in @($script:NavButtons.Keys)) {
         $active = ($key -eq $Name)
         $button = $script:NavButtons[$key]
-        $button.FillColor = if ($active) { $script:Ui.AccentSurface } else { $script:Ui.Sidebar }
-        $button.HoverColor = if ($active) { $script:Ui.AccentSurface } else { $script:Ui.Raised }
-        $button.ForeColor = if ($active) { $script:Ui.AccentHover } else { $script:Ui.Muted }
+        $button.FillColor = if ($active) { $script:Ui.Accent } else { $script:Ui.Sidebar }
+        $button.HoverColor = if ($active) { $script:Ui.AccentHover } else { $script:Ui.Raised }
+        $button.ForeColor = if ($active) { $script:Ui.OnAccent } else { $script:Ui.Muted }
         $button.Invalidate()
     }
     $page = $script:Pages[$Name]
@@ -637,7 +664,7 @@ $nodesTab.Visible = $false
 $pageHost.Controls.Add($nodesTab)
 $script:Pages['servers'] = $nodesTab
 
-$nodesHeader = New-PageHeader 'Servers' 'Choose a server. The active connection is always marked clearly.'
+$nodesHeader = New-PageHeader 'Connection' 'Pick a server, or use Quick connect for the lowest latency.'
 $nodesHeader.Dock = 'Top'
 $nodesHeader.Height = 64
 $nodesHeader.BackColor = $script:Ui.Canvas
@@ -657,6 +684,12 @@ $nodeList.Columns.Add('SERVER', 360) | Out-Null
 $nodeList.Columns.Add('SOURCE', 300) | Out-Null
 $nodeList.Columns.Add('LATENCY', 120) | Out-Null
 Set-ListStyle $nodeList
+$nodeList.Add_Resize({
+    $available = [Math]::Max(420, $nodeList.ClientSize.Width - 4)
+    $nodeList.Columns[0].Width = [int]($available * 0.46)
+    $nodeList.Columns[1].Width = [int]($available * 0.34)
+    $nodeList.Columns[2].Width = [Math]::Max(92, $available - $nodeList.Columns[0].Width - $nodeList.Columns[1].Width)
+})
 $nodeBody.Controls.Add($nodeList)
 
 $nodeEmpty = New-Object System.Windows.Forms.Panel
@@ -697,23 +730,24 @@ $nodeBody.Controls.Add($nodeEmpty)
 $nodeButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $nodeButtons.Dock = 'Top'
 $nodeButtons.Height = 56
-$nodeButtons.FlowDirection = 'RightToLeft'
+$nodeButtons.FlowDirection = 'LeftToRight'
 $nodeButtons.WrapContents = $false
 $nodeButtons.Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 8)
 $nodeButtons.BackColor = $script:Ui.Canvas
 $nodesTab.Controls.Add($nodeButtons)
 foreach ($definition in @(
-    @('Connect', 'Connect', 'Primary', 108),
+    @('Quick connect', 'Best', 'Primary', 132),
+    @('Connect', 'Connect', 'Secondary', 100),
+    @('Disconnect', 'Disconnect', 'Danger', 108),
     @('Ping all', 'Ping', 'Secondary', 96),
     @('Refresh', 'Refresh', 'Secondary', 92),
-    @('Disconnect', 'Disconnect', 'Danger', 112),
     @('Remove', 'Remove', 'Secondary', 92)
 )) {
     $button = New-Object WProxy.SmoothButton
     $button.Text = $definition[0]
     $button.Name = $definition[1]
     $button.Width = $definition[3]
-    $button.Margin = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
+    $button.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
     Set-ActionButton $button $definition[2]
     $nodeButtons.Controls.Add($button)
 }
@@ -834,6 +868,12 @@ $subList.Columns.Add('SUBSCRIPTION', 460) | Out-Null
 $subList.Columns.Add('SERVERS', 110) | Out-Null
 $subList.Columns.Add('REMAINING', 170) | Out-Null
 Set-ListStyle $subList
+$subList.Add_Resize({
+    $available = [Math]::Max(420, $subList.ClientSize.Width - 4)
+    $subList.Columns[0].Width = [int]($available * 0.56)
+    $subList.Columns[1].Width = [int]($available * 0.16)
+    $subList.Columns[2].Width = [Math]::Max(120, $available - $subList.Columns[0].Width - $subList.Columns[1].Width)
+})
 $subsTab.Controls.Add($subList)
 $subButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $subButtons.Dock = 'Bottom'
@@ -1232,7 +1272,7 @@ function Refresh-Status {
         $script:ActiveNodeId = $null
         $statusLabel.Text = 'Ready  |  Disconnected'
         $connectionState.Text = 'Not connected'
-        $connectionDetail.Text = 'Select a server to start the tunnel'
+        $connectionDetail.Text = 'Choose a server or let WProxy pick the fastest one'
         $connectionDot.ForeColor = $script:Ui.Muted
         $tray.Text = 'WProxy - Disconnected'
         $disconnectItem.Enabled = $false
@@ -1242,7 +1282,45 @@ function Refresh-Status {
 
 function Refresh-All { Refresh-Status; Refresh-Nodes @{}; Refresh-Subscriptions; Refresh-Routing }
 
+function Start-AutomaticUpdate {
+    if (-not $autoUpdateCheck.Checked) { return }
+    if (-not (Start-CtlDetached @('update', 'auto', '--platform', 'windows', '--json'))) {
+        $statusLabel.Text = 'Could not start the automatic update check'
+    }
+}
+
+$script:PreferencesLoading = $true
+$preferencesResult = Invoke-Ctl @('settings', 'show', '--json')
+if ($preferencesResult.Code -eq 0) {
+    try { $autoUpdateCheck.Checked = [bool]($preferencesResult.Output | ConvertFrom-Json).auto_update }
+    catch { $autoUpdateCheck.Checked = $false }
+}
+$script:PreferencesLoading = $false
+$autoUpdateCheck.Add_CheckedChanged({
+    if ($script:PreferencesLoading) { return }
+    $value = if ($autoUpdateCheck.Checked) { 'true' } else { 'false' }
+    $result = Invoke-Ctl @('settings', 'set', 'auto_update', $value)
+    if ($result.Code -ne 0) {
+        Show-Error $result.Output
+        $script:PreferencesLoading = $true
+        $autoUpdateCheck.Checked = -not $autoUpdateCheck.Checked
+        $script:PreferencesLoading = $false
+        return
+    }
+    $statusLabel.Text = if ($autoUpdateCheck.Checked) { 'Automatic updates enabled' } else { 'Automatic updates disabled' }
+    if ($autoUpdateCheck.Checked) { Start-AutomaticUpdate }
+})
+
 $nodeButtons.Controls['Refresh'].Add_Click({ Refresh-All })
+$nodeButtons.Controls['Best'].Add_Click({
+    $statusLabel.Text = 'Testing servers...'
+    $result = Invoke-Ctl @('node', 'best', '--json', '--timeout', '1.5')
+    if ($result.Code -ne 0) { Show-Error $result.Output; $statusLabel.Text = 'No reachable server'; return }
+    try { $best = $result.Output | ConvertFrom-Json }
+    catch { Show-Error 'WProxy could not read the fastest server result.'; return }
+    $statusLabel.Text = ('Connecting to {0} ({1} ms)...' -f $best.name, $best.latency_ms)
+    if ((Invoke-AdminCtl @('windows', 'up', [string]$best.id)) -eq 0) { Refresh-Status }
+})
 $nodeButtons.Controls['Ping'].Add_Click({
     $statusLabel.Text = 'Pinging...'
     $result = Invoke-Ctl @('node', 'ping', '--all', '--json', '--timeout', '2')
@@ -1337,7 +1415,13 @@ $removeAppButton.Add_Click({
     Refresh-Routing
 })
 
-$showWindow = { $form.Show(); $form.WindowState = 'Normal'; $form.Activate() }
+$showWindow = {
+    $form.Show()
+    $form.WindowState = 'Normal'
+    Refresh-All
+    $timer.Start()
+    $form.Activate()
+}
 $showItem.Add_Click($showWindow)
 $tray.Add_DoubleClick($showWindow)
 $disconnectItem.Add_Click({ if ((Invoke-AdminCtl @('windows', 'down')) -eq 0) { Refresh-Status } })
@@ -1346,12 +1430,13 @@ $form.Add_FormClosing({
     param($sender, $eventArgs)
     if (-not $script:Exiting) {
         $eventArgs.Cancel = $true
+        $timer.Stop()
         $form.Hide()
         $tray.ShowBalloonTip(1800, 'WProxy is still running', 'Double-click the tray icon to open it again.', 'Info')
     }
 })
 $form.Add_Resize({
-    if ($form.WindowState -eq 'Minimized') { $form.Hide() }
+    if ($form.WindowState -eq 'Minimized') { $timer.Stop(); $form.Hide() }
 })
 $form.Add_KeyDown({
     param($sender, $eventArgs)
@@ -1364,7 +1449,7 @@ $form.Add_KeyDown({
 })
 
 $timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 3000
+$timer.Interval = 15000
 $timer.Add_Tick({
     try { Refresh-Status }
     catch {
@@ -1372,7 +1457,6 @@ $timer.Add_Tick({
         $connectionDot.ForeColor = $script:Ui.Danger
     }
 })
-$timer.Start()
 [System.Windows.Forms.Application]::add_ThreadException({
     param($sender, $eventArgs)
     $statusLabel.Text = 'The last action failed; WProxy is still running.'
@@ -1390,11 +1474,14 @@ if ($Show) {
             $connectionDetail.Text = $_.Exception.Message
             $connectionDot.ForeColor = $script:Ui.Danger
         }
+        $timer.Start()
+        Start-AutomaticUpdate
     })
     $form.Show()
 } else {
     try { Refresh-All }
     catch { $tray.Text = 'WProxy - status unavailable' }
+    Start-AutomaticUpdate
 }
 [System.Windows.Forms.Application]::Run()
 $tray.Dispose()

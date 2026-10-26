@@ -36,6 +36,8 @@ WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subs
 
 The Windows installer includes WProxy, Xray and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [compatibility matrix](#compatibility) before installing on a new platform.
 
+To validate Linux dependencies, compile every native component and print the exact installation targets without changing the system, run `bash scripts/install.sh --desktop auto --dry-run`.
+
 > [!IMPORTANT]
 > Install this version to update the actual runtime; replacing a ZIP alone is not an upgrade. See the [connection fix and before/after tests](docs/CONNECTION-FIX-2.3.1.md).
 

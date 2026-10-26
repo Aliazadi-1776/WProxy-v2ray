@@ -28,6 +28,13 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("org.freedesktop.policykit.exec\"", helper)
         self.assertNotRegex(helper.lower(), r"password\s*=")
 
+    def test_linux_installer_has_a_non_mutating_build_dry_run(self):
+        installer = (ROOT / "scripts/install.sh").read_text()
+        self.assertIn("--dry-run)", installer)
+        self.assertIn("WProxy installer dry-run: PASS", installer)
+        self.assertIn("No system files, NetworkManager profiles, packages, or desktop extensions were changed.", installer)
+        self.assertLess(installer.index("WProxy installer dry-run: PASS"), installer.index("Creating backup:"))
+
     def test_windows_manager_handles_unicode_engine_failures_without_closing(self):
         source = (ROOT / "windows/WProxy.ps1").read_text()
         self.assertIn("$env:PYTHONIOENCODING = 'utf-8'", source)

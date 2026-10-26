@@ -6,11 +6,14 @@ cd "$PROJECT_DIR"
 MIN_XRAY_VERSION=26.9.30
 
 DESKTOP=auto
+DRY_RUN=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --desktop)
             [ "$#" -ge 2 ] || { echo 'Missing desktop: gnome, kde, none, auto, or preserve' >&2; exit 2; }
             DESKTOP=$2; shift 2 ;;
+        --dry-run)
+            DRY_RUN=1; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -58,6 +61,11 @@ install_deps_if_needed() {
         return 0
     fi
 
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo 'Dry-run failed: build/runtime dependencies are missing; no packages were installed.' >&2
+        exit 2
+    fi
+
     if command -v apt-get >/dev/null 2>&1; then
         echo "Installing WProxy build/runtime dependencies (Debian/Ubuntu)..."
         $SUDO apt-get update
@@ -96,6 +104,11 @@ install_xray_if_needed() {
             return 0
         fi
         echo "Xray $INSTALLED_XRAY_VERSION is too old for reliable app routing; upgrading to $MIN_XRAY_VERSION..."
+    fi
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "Dry-run failed: Xray $MIN_XRAY_VERSION or newer is not installed; no download was attempted." >&2
+        exit 2
     fi
 
     command -v curl >/dev/null 2>&1 || {
@@ -138,7 +151,7 @@ if [ "$DESKTOP" = kde ] && ! command -v kpackagetool6 >/dev/null 2>&1; then
     echo 'Plasma 6 / kpackagetool6 is required. Install a Plasma 6 desktop first.' >&2
     exit 2
 fi
-if [ "$DESKTOP" = kde ] && command -v apt-get >/dev/null 2>&1; then
+if [ "$DESKTOP" = kde ] && [ "$DRY_RUN" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
     $SUDO apt-get install -y qml6-module-org-kde-plasma-plasma5support
 fi
 
@@ -165,6 +178,15 @@ NM_PLUGIN_DIR="$LIBDIR/NetworkManager"
 EXT_DIR="/usr/share/gnome-shell/extensions/wproxy@wrench.local"
 NM_CONF="/etc/NetworkManager/conf.d/90-wproxy-unmanaged.conf"
 BACKUP="/var/backups/wproxy-$(date +%Y%m%d-%H%M%S)"
+NAME_FILE="$NM_VPN_DIR/nm-wproxy-service.name"
+PLUGIN_FILE="$NM_PLUGIN_DIR/libnm-vpn-plugin-wproxy.so"
+GTK3_EDITOR_FILE="$NM_PLUGIN_DIR/libnm-vpn-plugin-wproxy-editor.so"
+GTK4_EDITOR_FILE="$NM_PLUGIN_DIR/libnm-gtk4-vpn-plugin-wproxy-editor.so"
+SERVICE_FILE="$LIBEXEC/wproxy-service"
+RUNNER_FILE="$LIBEXEC/wproxy-xray-runner"
+DBUS_FILE="/etc/dbus-1/system.d/org.freedesktop.NetworkManager.wproxy.conf"
+ADMIN_HELPER="/usr/libexec/wproxy-admin"
+POLKIT_POLICY="/usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy"
 
 printf '%s\n' \
     "WProxy 2.7.0 installer" \
@@ -189,6 +211,21 @@ echo
 echo "Validating GTK-neutral libnm loader..."
 ./validate-plugin ./libnm-vpn-plugin-wproxy.so
 
+if [ "$DRY_RUN" -eq 1 ]; then
+    printf '%s\n' \
+        '' \
+        'WProxy installer dry-run: PASS' \
+        "  desktop:      $DESKTOP" \
+        "  target user:  $TARGET_USER" \
+        "  service:      $SERVICE_FILE" \
+        "  runner:       $RUNNER_FILE" \
+        "  admin helper: $ADMIN_HELPER" \
+        "  policy:       $POLKIT_POLICY" \
+        "  manager:      /usr/bin/wproxy-manager" \
+        'No system files, NetworkManager profiles, packages, or desktop extensions were changed.'
+    exit 0
+fi
+
 echo
 echo "Creating backup: $BACKUP"
 $SUDO mkdir -p "$BACKUP"
@@ -200,16 +237,6 @@ backup_file() {
         $SUDO cp -a "$f" "$BACKUP/${safe_name}.bak"
     fi
 }
-
-NAME_FILE="$NM_VPN_DIR/nm-wproxy-service.name"
-PLUGIN_FILE="$NM_PLUGIN_DIR/libnm-vpn-plugin-wproxy.so"
-GTK3_EDITOR_FILE="$NM_PLUGIN_DIR/libnm-vpn-plugin-wproxy-editor.so"
-GTK4_EDITOR_FILE="$NM_PLUGIN_DIR/libnm-gtk4-vpn-plugin-wproxy-editor.so"
-SERVICE_FILE="$LIBEXEC/wproxy-service"
-RUNNER_FILE="$LIBEXEC/wproxy-xray-runner"
-DBUS_FILE="/etc/dbus-1/system.d/org.freedesktop.NetworkManager.wproxy.conf"
-ADMIN_HELPER="/usr/libexec/wproxy-admin"
-POLKIT_POLICY="/usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy"
 
 for f in "$NAME_FILE" "$PLUGIN_FILE" "$GTK3_EDITOR_FILE" "$GTK4_EDITOR_FILE" \
          "$SERVICE_FILE" "$RUNNER_FILE" "$DBUS_FILE" "$NM_CONF" \

@@ -1,6 +1,6 @@
 [package]
 name = "wproxy-desktop"
-version = "2.7.0"
+version = "2.7.1"
 description = "A lightweight cross-platform desktop client for WProxy"
 authors = ["WProxy contributors"]
 license = "MIT"

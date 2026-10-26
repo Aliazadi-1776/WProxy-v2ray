@@ -1,6 +1,6 @@
 # Test coverage
 
-## 2.7.0 desktop, update and authorization regression checks
+## 2.7.1 desktop, update and authorization regression checks
 
 The Linux runner builds the real Tauri/WebKitGTK release executable and the Windows runner builds and launches the real Tauri/WebView2 executable long enough to catch startup and bridge failures. Frontend checks require the fixed navigation, responsive routing columns, native application picker, explicit empty states and a dependency set without Electron, React, Vue or Svelte. Fastest-server tie/timeout handling and verified update downloads are covered by backend tests. Source checks also require the fixed-operation Linux admin helper and active/local/user-scoped Polkit rule without password storage. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test with a real server.
 

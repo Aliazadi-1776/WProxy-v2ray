@@ -1,3 +1,8 @@
+# 2.7.1
+
+- Repair repeated WProxy Plasma panel icons during KDE installation and upgrades: duplicate System Tray entries and standalone panel copies are collapsed to one icon per panel.
+- Stop instructing users to add a second standalone panel widget when the System Tray integration is already active.
+
 # 2.7.0
 
 - Replace the legacy Windows PowerShell/WinForms and standalone GTK managers with one compact Tauri 2 shell for Linux and Windows, using the system WebView rather than Electron.

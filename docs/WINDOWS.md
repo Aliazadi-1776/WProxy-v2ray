@@ -1,6 +1,6 @@
 # Windows 10/11 x64
 
-WProxy 2.7.0 ships as a per-user `Setup.exe`. It includes the lightweight Tauri 2 desktop, a standalone WProxy command engine, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately. Windows 10/11 supplies the WebView2 runtime used by the Tauri window.
+WProxy 2.7.1 ships as a per-user `Setup.exe`. It includes the lightweight Tauri 2 desktop, a standalone WProxy command engine, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately. Windows 10/11 supplies the WebView2 runtime used by the Tauri window.
 
 The manager uses one compact graphite-and-blue, DPI-aware shell on both Linux and Windows. It has a fixed navigation rail, persistent connection status and dedicated pages for servers, subscriptions, importing, split routing and settings. Server names containing emoji or non-Latin text are carried over UTF-8, and command failures are reported inside the app. There is no background status polling loop, so an idle window does not repeatedly start the command engine.
 
@@ -12,13 +12,13 @@ References: [Microsoft answer about the missing Quick Settings extension API](ht
 
 ## Install
 
-1. Open the [WProxy v2.7.0 release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.0).
-2. Download `WProxy-2.7.0-Setup.exe` and `WProxy-2.7.0-Setup.exe.sha256`.
+1. Open the [WProxy v2.7.1 release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.1).
+2. Download `WProxy-2.7.1-Setup.exe` and `WProxy-2.7.1-Setup.exe.sha256`.
 3. In PowerShell, verify the download:
 
 ```powershell
-Get-FileHash .\WProxy-2.7.0-Setup.exe -Algorithm SHA256
-Get-Content .\WProxy-2.7.0-Setup.exe.sha256
+Get-FileHash .\WProxy-2.7.1-Setup.exe -Algorithm SHA256
+Get-Content .\WProxy-2.7.1-Setup.exe.sha256
 ```
 
 The two hexadecimal hashes must match. Run Setup, optionally enable **Start WProxy when I sign in**, then leave **Launch WProxy** checked. Program files are installed under `%LOCALAPPDATA%\Programs\WProxy`; saved servers stay under `%APPDATA%\WProxy`. The current installer is not Authenticode-signed, so Windows SmartScreen may show an unknown-publisher warning; verify the release checksum before continuing.
@@ -73,4 +73,4 @@ A CI runner cannot prove behavior on every physical network. A final Windows 10 
 
 ## خلاصهٔ فارسی
 
-برای ویندوز فقط `WProxy-2.7.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط مشترک و سبک Tauri دکمهٔ **Quick connect**، آپدیت خودکار اختیاری و چیدمان responsive دارد و در حالت بیکار polling دائمی انجام نمی‌دهد. نام‌های فارسی و ایموجی با UTF-8 خوانده می‌شوند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. در **Split routing → Choose application** فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و در پنجرهٔ مستقل اجرا می‌شود.
+برای ویندوز فقط `WProxy-2.7.1-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط مشترک و سبک Tauri دکمهٔ **Quick connect**، آپدیت خودکار اختیاری و چیدمان responsive دارد و در حالت بیکار polling دائمی انجام نمی‌دهد. نام‌های فارسی و ایموجی با UTF-8 خوانده می‌شوند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. در **Split routing → Choose application** فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و در پنجرهٔ مستقل اجرا می‌شود.

@@ -70,6 +70,7 @@ test: test-service-profile-lookup desktop-check
 	sh -n service/wproxy-xray-runner
 	node --input-type=module --check < gnome-extension/wproxy@wrench.local/extension.js
 	node tests/test-kde-commands.mjs
+	node tests/test-kde-dedupe.mjs
 	python3 tests/check-release.py
 
 clean:

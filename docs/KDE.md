@@ -31,10 +31,10 @@ bash scripts/install-kde-widget.sh
 
 Do not run the widget-only installer with sudo. It installs to the current user's Plasma packages using `kpackagetool6`. Other distributions have explicit KDE package commands in the READMEs. The module name Plasma5Support is correct for Plasma **6**; it does not mean this widget supports Plasma 5.
 
-Then choose one:
-
-1. **Configure System Tray → Entries → WProxy → Always shown**.
-2. **Edit panel → Add Widgets → WProxy**; drag it beside **Networks**.
+Open **Configure System Tray → Entries → WProxy** and choose **Always shown**.
+The installer removes repeated WProxy instances from each panel and keeps one
+copy in its System Tray. This also repairs duplicate icons left by earlier
+installs.
 
 If you keep it as an automatically hidden tray entry, it may live under the tray's expand arrow while disconnected. Showing it permanently makes the connect button easy to reach.
 
@@ -61,7 +61,7 @@ bash scripts/install-kde-widget.sh
 bash scripts/uninstall-kde-widget.sh
 ```
 
-Remove/re-add the widget or log out/in if Plasma retains an older QML instance. Removing the widget leaves the backend, servers and subscriptions intact.
+Log out/in if Plasma retains older QML after an update. Removing the widget leaves the backend, servers and subscriptions intact.
 
 ## Implementation references
 

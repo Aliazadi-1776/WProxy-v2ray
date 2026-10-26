@@ -103,6 +103,12 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("desktop/src-tauri/target/release/wproxy-desktop", source)
             self.assertNotIn("install -Dm755 manager/wproxy-manager.py /usr/bin/wproxy-manager", source)
 
+    def test_kde_widget_installer_repairs_duplicate_panel_icons(self):
+        installer = read_utf8("scripts/install-kde-widget.sh")
+        self.assertIn("kde-dedupe-widget.js", installer)
+        self.assertIn("org.kde.PlasmaShell.evaluateScript", installer)
+        self.assertIn("keeps one WProxy icon per panel", installer)
+
     def test_release_publishes_update_checksum_manifest(self):
         workflow = read_utf8(".github/workflows/windows-release.yml")
         self.assertIn("Create release checksum manifest", workflow)

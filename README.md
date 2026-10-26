@@ -258,7 +258,7 @@ Replaced WProxy files are backed up under `/var/backups/`. An upgrade stops WPro
 
 **GNOME:** log out/in once, then run `gnome-extensions enable wproxy@wrench.local` if the tile is not enabled. Close/reopen GNOME Settings before using its VPN editor.
 
-**KDE:** choose **Configure System Tray → Entries → WProxy → Always shown**, or **Edit panel → Add Widgets → WProxy** and drag it beside Networks. Log out/in or remove/re-add an older widget if Plasma caches it. See [KDE setup](docs/KDE.md).
+**KDE:** choose **Configure System Tray → Entries → WProxy → Always shown**. The installer repairs repeated panel instances and keeps one WProxy icon per panel. Log out/in once if Plasma retains cached QML. See [KDE setup](docs/KDE.md).
 
 Check installation with `wproxyctl --version`, then open `wproxy-manager`, add your own subscription/server and connect. No working server credentials are bundled, and a successful installation alone does not prove a VPN connection works.
 

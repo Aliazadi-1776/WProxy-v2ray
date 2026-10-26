@@ -257,7 +257,7 @@ bash scripts/install.sh --desktop none
 
 **گنوم:** یک بار Log out / Log in کن. اگر کاشی فعال نبود، `gnome-extensions enable wproxy@wrench.local` را بزن. برای ویرایشگر VPN، پنجرهٔ GNOME Settings را ببند و دوباره باز کن.
 
-**KDE:** از **Configure System Tray → Entries → WProxy → Always shown** نمایش دائمی را فعال کن؛ یا از **Edit panel → Add Widgets → WProxy** ویجت را اضافه کن و کنار Networks بکش. برای نسخهٔ کش‌شدهٔ قبلی، ویجت را حذف/اضافه کن یا یک بار از نشست خارج و وارد شو. [راهنمای KDE](docs/KDE.md)
+**KDE:** از **Configure System Tray → Entries → WProxy → Always shown** نمایش دائمی را فعال کن. نصب‌کننده نمونه‌های تکراری پنل را پاک می‌کند و در هر پنل فقط یک آیکن WProxy نگه می‌دارد. اگر Plasma نسخهٔ قدیمی QML را نگه داشت یک‌بار از نشست خارج و دوباره وارد شو. [راهنمای KDE](docs/KDE.md)
 
 با `wproxyctl --version` نصب را بررسی کن، سپس `wproxy-manager` را باز کن و ساب یا سرور خودت را اضافه کن. هیچ سرور واقعی یا مشخصات اتصال داخل بسته نیست؛ نصب موفق به‌تنهایی به معنی اتصال موفق VPN نیست.
 

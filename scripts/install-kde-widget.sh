@@ -22,7 +22,20 @@ else
     kpackagetool6 --type Plasma/Applet --install "$PROJECT_DIR/kde-plasmoid/$WIDGET_ID"
 fi
 
+QDBUS=
+if command -v qdbus6 >/dev/null 2>&1; then
+    QDBUS=qdbus6
+elif command -v qdbus >/dev/null 2>&1; then
+    QDBUS=qdbus
+fi
+if [ -n "$QDBUS" ] && $QDBUS org.kde.plasmashell /PlasmaShell >/dev/null 2>&1; then
+    if ! $QDBUS org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript \
+        "$(cat "$PROJECT_DIR/scripts/kde-dedupe-widget.js")"; then
+        echo 'Warning: WProxy was updated, but duplicate panel widgets could not be cleaned automatically.' >&2
+    fi
+fi
+
 echo 'WProxy Plasma 6 widget installed.'
 echo 'Configure System Tray → Entries → WProxy → Always shown.'
-echo 'Or: Edit panel → Add Widgets → WProxy, then place it beside Networks.'
-echo 'For updates, remove/re-add the widget or log out/in if Plasma keeps old QML cached.'
+echo 'The installer keeps one WProxy icon per panel and removes duplicate copies.'
+echo 'For cached QML after an update, log out and back in once.'

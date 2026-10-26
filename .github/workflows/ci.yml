@@ -24,8 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Shared parser and routing tests
-        run: python -m unittest tests/test_routing.py -v
+      - name: Shared parser, routing and update tests
+        run: python -m unittest tests/test_routing.py tests/test_runtime.py tests/test_updates.py tests/test_release.py -v
       - name: Parse PowerShell frontends
         shell: powershell
         run: |

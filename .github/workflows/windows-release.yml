@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Run shared Windows tests
-        run: python -m unittest tests/test_routing.py tests/test_runtime.py -v
+        run: python -m unittest tests/test_routing.py tests/test_runtime.py tests/test_updates.py tests/test_release.py -v
       - name: Build source and Plasma packages
         run: python scripts/build-release.py --output dist
       - name: Build standalone command engine

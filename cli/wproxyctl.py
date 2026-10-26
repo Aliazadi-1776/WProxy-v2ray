@@ -20,6 +20,7 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -28,8 +29,11 @@ SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
 VERSION = "2.6.2"
 USER_AGENT = f"WProxy/{VERSION} (Xray; v2rayNG-compatible subscription reader)"
+RELEASE_API = "https://api.github.com/repos/Aliazadi-1776/WProxy-v2ray/releases/latest"
 ROUTING_MODES = ("all", "bypass", "only")
 MAX_SUBSCRIPTION_BYTES = 8 * 1024 * 1024
+MAX_RELEASE_METADATA_BYTES = 1024 * 1024
+MAX_UPDATE_BYTES = 512 * 1024 * 1024
 MIN_WINDOWS_XRAY = (26, 9, 30)
 PRIVATE_NETWORKS = [
     "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
@@ -103,16 +107,23 @@ def store_path():
 def load_store():
     p = store_path()
     if not p.exists():
-        return {"subs": [], "nodes": [], "routing": default_routing_policy()}
+        return {
+            "subs": [], "nodes": [], "routing": default_routing_policy(),
+            "preferences": default_preferences(),
+        }
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
         data.setdefault("subs", [])
         data.setdefault("nodes", [])
         data["routing"] = normalize_routing_policy(data.get("routing"), strict=False)
+        data["preferences"] = normalize_preferences(data.get("preferences"))
         return data
     except Exception as e:
         print(f"Could not read {p}: {e}", file=sys.stderr)
-        return {"subs": [], "nodes": [], "routing": default_routing_policy()}
+        return {
+            "subs": [], "nodes": [], "routing": default_routing_policy(),
+            "preferences": default_preferences(),
+        }
 
 
 def save_store(data):
@@ -133,6 +144,15 @@ def save_store(data):
 
 def default_routing_policy():
     return {"version": 1, "mode": "all", "domains": [], "apps": []}
+
+
+def default_preferences():
+    return {"auto_update": False}
+
+
+def normalize_preferences(value):
+    source = value if isinstance(value, dict) else {}
+    return {"auto_update": bool(source.get("auto_update", False))}
 
 
 def normalize_domain(value):
@@ -1215,6 +1235,205 @@ def ping_node(node, timeout):
         return None
 
 
+def ping_nodes(nodes, timeout=2.0):
+    """Ping nodes concurrently while preserving their configured order."""
+    targets = list(nodes)
+    if not targets:
+        return []
+    rows = []
+    workers = min(16, max(1, len(targets)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        future_map = {pool.submit(ping_node, node, timeout): node for node in targets}
+        for future in concurrent.futures.as_completed(future_map):
+            node = future_map[future]
+            try:
+                latency = future.result()
+            except Exception:
+                latency = None
+            rows.append({"id": node["id"], "name": node["name"], "latency_ms": latency})
+    order = {node["id"]: index for index, node in enumerate(targets)}
+    rows.sort(key=lambda row: order.get(row["id"], len(order)))
+    return rows
+
+
+def fastest_ping(rows):
+    """Return the lowest successful latency, with stable order for ties."""
+    candidates = [row for row in rows if row.get("latency_ms") is not None]
+    return min(candidates, key=lambda row: row["latency_ms"]) if candidates else None
+
+
+def parse_release_version(value):
+    match = re.fullmatch(r"v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value or "")
+    if not match:
+        raise ValueError("Release tag is not a stable semantic version")
+    return tuple(int(part) for part in match.groups())
+
+
+def _read_https(url, limit, timeout=15.0):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise RuntimeError("Update URL must use HTTPS")
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        size = response.headers.get("Content-Length")
+        if size and int(size) > limit:
+            raise RuntimeError("Update download is larger than the safety limit")
+        payload = response.read(limit + 1)
+    if len(payload) > limit:
+        raise RuntimeError("Update download is larger than the safety limit")
+    return payload
+
+
+def latest_release(timeout=15.0):
+    try:
+        payload = _read_https(RELEASE_API, MAX_RELEASE_METADATA_BYTES, timeout)
+        release = json.loads(payload.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise RuntimeError(f"Could not check for updates: {exc}") from exc
+    tag = str(release.get("tag_name") or "")
+    version_tuple = parse_release_version(tag)
+    assets = {}
+    for asset in release.get("assets") or []:
+        name = str(asset.get("name") or "")
+        url = str(asset.get("browser_download_url") or "")
+        if name and url:
+            assets[name] = url
+    return {"tag": tag, "version": ".".join(map(str, version_tuple)), "version_tuple": version_tuple, "assets": assets}
+
+
+def update_status(timeout=15.0):
+    release = latest_release(timeout)
+    current = parse_release_version(VERSION)
+    return {
+        "current_version": VERSION,
+        "latest_version": release["version"],
+        "update_available": release["version_tuple"] > current,
+        "release": release,
+    }
+
+
+def _release_checksums(release, timeout=15.0):
+    url = release["assets"].get("SHA256SUMS")
+    if not url:
+        raise RuntimeError("The release is missing SHA256SUMS")
+    text = _read_https(url, MAX_RELEASE_METADATA_BYTES, timeout).decode("ascii", "strict")
+    checksums = {}
+    for line in text.splitlines():
+        match = re.fullmatch(r"([0-9a-fA-F]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*)", line.strip())
+        if match:
+            checksums[match.group(2)] = match.group(1).lower()
+    return checksums
+
+
+def update_asset_name(release, platform=None):
+    platform = platform or ("windows" if os.name == "nt" else "linux")
+    if platform == "windows":
+        return f"WProxy-{release['version']}-Setup.exe"
+    if platform == "linux":
+        return f"WProxy-{release['version']}-GitHub.zip"
+    raise ValueError("Unsupported update platform")
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def download_update(platform=None, timeout=30.0):
+    status = update_status(timeout)
+    if not status["update_available"]:
+        return {key: status[key] for key in ("current_version", "latest_version", "update_available")}
+    release = status["release"]
+    name = update_asset_name(release, platform)
+    url = release["assets"].get(name)
+    if not url:
+        raise RuntimeError(f"The release is missing {name}")
+    expected = _release_checksums(release, timeout).get(name)
+    if not expected:
+        raise RuntimeError(f"SHA256SUMS does not contain {name}")
+    directory = config_home() / "updates" / release["version"]
+    directory.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(directory, 0o700)
+    path = directory / name
+    if not path.exists() or _sha256_file(path) != expected:
+        payload = _read_https(url, MAX_UPDATE_BYTES, timeout)
+        temporary = path.with_suffix(path.suffix + ".part")
+        temporary.write_bytes(payload)
+        if os.name != "nt":
+            os.chmod(temporary, 0o600)
+        if _sha256_file(temporary) != expected:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError("Downloaded update failed SHA-256 verification")
+        temporary.replace(path)
+    return {
+        "current_version": VERSION,
+        "latest_version": release["version"],
+        "update_available": True,
+        "path": str(path),
+        "sha256": expected,
+    }
+
+
+def _verified_update_release(path, timeout=30.0):
+    release = latest_release(timeout)
+    name = update_asset_name(release)
+    if path.name != name:
+        raise RuntimeError("Update file does not match the latest release")
+    expected = _release_checksums(release, timeout).get(name)
+    if not expected or _sha256_file(path) != expected:
+        raise RuntimeError("Update file failed SHA-256 verification")
+    return release
+
+
+def _safe_extract_update(archive, destination, release):
+    prefix = f"WProxy-{release['version']}/"
+    with zipfile.ZipFile(archive) as bundle:
+        entries = bundle.infolist()
+        if not entries or bundle.testzip() is not None:
+            raise RuntimeError("Update archive is corrupt")
+        for entry in entries:
+            normalized = entry.filename.replace("\\", "/")
+            parts = Path(normalized).parts
+            mode = (entry.external_attr >> 16) & 0o170000
+            if (not normalized.startswith(prefix) or normalized.startswith("/") or
+                    ".." in parts or mode == 0o120000):
+                raise RuntimeError("Update archive contains an unsafe path")
+        bundle.extractall(destination)
+    root = destination / prefix.rstrip("/")
+    installer = root / "scripts/install.sh"
+    if not installer.is_file():
+        raise RuntimeError("Update archive does not contain the Linux installer")
+    return installer
+
+
+def install_update(path, timeout=30.0):
+    candidate = Path(path).resolve(strict=True)
+    release = _verified_update_release(candidate, timeout)
+    if os.name == "nt":
+        subprocess.Popen([
+            str(candidate), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+            "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS",
+        ], close_fds=True)
+        return
+    if not _is_root():
+        raise RuntimeError("Linux update installation requires administrator authorization")
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="wproxy-update-") as directory:
+        installer = _safe_extract_update(candidate, Path(directory), release)
+        environment = os.environ.copy()
+        environment["SUDO_USER"] = original_user().pw_name
+        result = subprocess.run(
+            ["bash", str(installer), "--desktop", "preserve"], env=environment,
+            text=True, capture_output=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Linux update installer failed")
+
+
 def cmd_sub(args, store):
     if args.action == "add":
         sid = stable_id(args.url)
@@ -1317,29 +1536,54 @@ def cmd_node(args, store):
             raise ValueError("Unknown node id")
         node["name"] = clean_name(args.name, node["name"])
         save_store(store)
-    elif args.action == "ping":
+    elif args.action in ("ping", "best"):
         targets = store["nodes"] if args.all else [next((n for n in store["nodes"] if n["id"] == args.id), None)]
         targets = [n for n in targets if n]
         if not targets:
             raise ValueError("No matching node")
-        rows = []
-        workers = min(16, max(1, len(targets)))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            future_map = {pool.submit(ping_node, n, args.timeout): n for n in targets}
-            for fut in concurrent.futures.as_completed(future_map):
-                n = future_map[fut]
-                try:
-                    ms = fut.result()
-                except Exception:
-                    ms = None
-                rows.append({"id": n["id"], "name": n["name"], "latency_ms": ms})
-        order = {n["id"]: i for i, n in enumerate(targets)}
-        rows.sort(key=lambda r: order.get(r["id"], 0))
+        rows = ping_nodes(targets, args.timeout)
+        if args.action == "best":
+            best = fastest_ping(rows)
+            if not best:
+                raise RuntimeError("No server responded to the latency test")
+            print(json.dumps(best, ensure_ascii=False) if args.json else f"{best['id']}  {best['name']}  {best['latency_ms']}ms")
+            return
         if args.json:
             print(json.dumps(rows, ensure_ascii=False))
         else:
             for r in rows:
                 print(f"{r['id']}  {r['name']}  {r['latency_ms'] if r['latency_ms'] is not None else 'timeout'}")
+
+
+def cmd_settings(args, store):
+    preferences = normalize_preferences(store.get("preferences"))
+    if args.action == "show":
+        print(json.dumps(preferences, ensure_ascii=False) if args.json else "\n".join(
+            f"{key}={str(value).lower()}" for key, value in preferences.items()
+        ))
+        return
+    if args.key != "auto_update":
+        raise ValueError("Unknown setting")
+    preferences[args.key] = args.value == "true"
+    store["preferences"] = preferences
+    save_store(store)
+    print(json.dumps(preferences, ensure_ascii=False))
+
+
+def cmd_update(args):
+    if args.action == "check":
+        status = update_status(args.timeout)
+        status.pop("release", None)
+        print(json.dumps(status, ensure_ascii=False) if args.json else (
+            f"WProxy {status['latest_version']} is available" if status["update_available"]
+            else f"WProxy {VERSION} is up to date"
+        ))
+    elif args.action == "download":
+        result = download_update(args.platform, args.timeout)
+        print(json.dumps(result, ensure_ascii=False) if args.json else result.get("path", "Already up to date"))
+    elif args.action == "install":
+        install_update(args.path, args.timeout)
+        print("Update installer started" if os.name == "nt" else "Update installed")
 
 
 def cmd_routing(args, store):
@@ -1400,6 +1644,18 @@ def build_parser():
     a = ns.add_parser("remove"); a.add_argument("id")
     a = ns.add_parser("rename"); a.add_argument("id"); a.add_argument("name")
     a = ns.add_parser("ping"); a.add_argument("id", nargs="?"); a.add_argument("--all", action="store_true"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0)
+    a = ns.add_parser("best"); a.add_argument("id", nargs="?"); a.set_defaults(all=True); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0)
+
+    pp = sp.add_parser("settings")
+    ps = pp.add_subparsers(dest="action", required=True)
+    a = ps.add_parser("show"); a.add_argument("--json", action="store_true")
+    a = ps.add_parser("set"); a.add_argument("key", choices=("auto_update",)); a.add_argument("value", choices=("true", "false"))
+
+    pu = sp.add_parser("update")
+    us = pu.add_subparsers(dest="action", required=True)
+    a = us.add_parser("check"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=15.0)
+    a = us.add_parser("download"); a.add_argument("--json", action="store_true"); a.add_argument("--platform", choices=("linux", "windows")); a.add_argument("--timeout", type=float, default=30.0)
+    a = us.add_parser("install"); a.add_argument("path"); a.add_argument("--timeout", type=float, default=30.0)
 
     pr = sp.add_parser("routing")
     rs = pr.add_subparsers(dest="action", required=True)
@@ -1443,6 +1699,10 @@ def main():
             if args.action in ("domain", "app") and args.operation in ("add", "remove") and not args.value:
                 raise ValueError("A domain or application value is required")
             cmd_routing(args, store)
+        elif args.cmd == "settings":
+            cmd_settings(args, store)
+        elif args.cmd == "update":
+            cmd_update(args)
         elif args.cmd == "nm":
             if args.action == "sync": nm_sync(store)
             elif args.action == "up": nm_up(store, args.id)

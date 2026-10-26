@@ -77,6 +77,19 @@ jobs:
           $setup = "dist/WProxy-$env:WPROXY_VERSION-Setup.exe"
           $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
           "$hash  WProxy-$env:WPROXY_VERSION-Setup.exe" | Set-Content -Encoding ascii "$setup.sha256"
+      - name: Create release checksum manifest
+        shell: powershell
+        run: |
+          $names = @(
+            "WProxy-$env:WPROXY_VERSION-Setup.exe",
+            "WProxy-$env:WPROXY_VERSION-GitHub.zip",
+            "WProxy-$env:WPROXY_VERSION-Plasma6.plasmoid"
+          )
+          $lines = foreach ($name in $names) {
+            $hash = (Get-FileHash -Algorithm SHA256 (Join-Path 'dist' $name)).Hash.ToLowerInvariant()
+            "$hash  $name"
+          }
+          $lines | Set-Content -Encoding ascii dist/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: WProxy-${{ env.WPROXY_VERSION }}-release
@@ -85,6 +98,7 @@ jobs:
             dist/WProxy-${{ env.WPROXY_VERSION }}-Setup.exe.sha256
             dist/WProxy-${{ env.WPROXY_VERSION }}-GitHub.zip
             dist/WProxy-${{ env.WPROXY_VERSION }}-Plasma6.plasmoid
+            dist/SHA256SUMS
           if-no-files-found: error
       - name: Publish tagged GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -97,4 +111,5 @@ jobs:
             "dist/WProxy-$env:WPROXY_VERSION-Setup.exe.sha256" `
             "dist/WProxy-$env:WPROXY_VERSION-GitHub.zip" `
             "dist/WProxy-$env:WPROXY_VERSION-Plasma6.plasmoid" `
+            "dist/SHA256SUMS" `
             --title "WProxy $env:WPROXY_VERSION" --generate-notes --verify-tag

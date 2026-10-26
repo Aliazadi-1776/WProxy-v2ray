@@ -74,6 +74,11 @@ class ReleaseTests(unittest.TestCase):
         ):
             self.assertIn(token, source)
 
+    def test_release_publishes_update_checksum_manifest(self):
+        workflow = (ROOT / ".github/workflows/windows-release.yml").read_text()
+        self.assertIn("Create release checksum manifest", workflow)
+        self.assertGreaterEqual(workflow.count("dist/SHA256SUMS"), 3)
+
     def test_desktop_managers_share_a_clear_material_app_shell(self):
         linux = (ROOT / "manager/wproxy-manager.py").read_text()
         windows = (ROOT / "windows/WProxy.ps1").read_text()

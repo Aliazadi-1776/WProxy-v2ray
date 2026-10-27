@@ -43,6 +43,7 @@ interface RoutingPolicy {
 
 interface Preferences {
   auto_update: boolean;
+  remember_authorization: boolean;
 }
 
 interface PingResult {
@@ -70,7 +71,7 @@ const state = {
   subscriptions: [] as Subscription[],
   status: { active: false, name: null, node_id: null } as TunnelStatus,
   routing: { version: 1, mode: "all", domains: [], apps: [] } as RoutingPolicy,
-  preferences: { auto_update: false } as Preferences,
+  preferences: { auto_update: false, remember_authorization: true } as Preferences,
   pings: new Map<string, number | null>(),
   selectedNode: null as string | null,
   selectedDomain: null as string | null,
@@ -134,7 +135,7 @@ function demoSnapshot(): void {
     { id: "sub-1", name: "Cloud subscription", remaining_human: "82.4 GiB", updated_at: Date.now() / 1000, node_count: 2 },
   ];
   state.routing = { version: 1, mode: "bypass", domains: ["internal.example.com"], apps: ["C:/Program Files/Firefox/firefox.exe"] };
-  state.preferences = { auto_update: true };
+  state.preferences = { auto_update: true, remember_authorization: true };
   state.pings = new Map([["19a2c0d1a7bb31f0", 42], ["a4b8fd9ae231c201", 68], ["bd70f2051d103c62", 121]]);
 }
 
@@ -258,12 +259,14 @@ function errorView(): string {
 
 function serverHero(): string {
   const connected = state.status.active;
+  const emptySelection = state.routing.mode === "only" && !state.routing.domains.length && !state.routing.apps.length;
   return `<section class="connection-hero ${connected ? "is-online" : ""}">
     <div class="hero-symbol">${icon(connected ? "shield" : "bolt", 25)}</div>
     <div class="hero-copy">
       <span class="eyebrow">${connected ? "SECURE TUNNEL" : "READY TO CONNECT"}</span>
       <h2>${connected ? escapeHtml(state.status.name || "Connected") : "Your connection is private when you need it"}</h2>
-      <p>${connected ? "Traffic is moving through the selected WProxy server." : "Quick connect tests your servers and chooses the lowest latency."}</p>
+      <p>${emptySelection ? "Only selected is empty. Add a site or application, or use All traffic." : connected ? `Routing: ${state.routing.mode === "all" ? "All traffic" : state.routing.mode === "bypass" ? "Bypass selected" : "Only selected"}.` : "Quick connect tests your servers and chooses the lowest latency."}</p>
+      ${emptySelection ? '<button class="text-button" data-action="routing-mode" data-mode="all">Use All traffic</button>' : ""}
     </div>
     <button class="button ${connected ? "danger-quiet" : "primary"} hero-action" data-action="${connected ? "disconnect" : "quick-connect"}" ${state.busy || (!connected && !state.nodes.length) ? "disabled" : ""}>
       ${connected ? "Disconnect" : `${icon("bolt", 16)} Quick connect`}
@@ -388,7 +391,7 @@ function settingsPage(): string {
     <div class="settings-card">
       <div class="setting-row"><div class="setting-icon">${icon("update", 20)}</div><div class="setting-copy"><strong>Automatic updates</strong><span>Check verified GitHub releases and install them automatically.</span></div><label class="switch"><input type="checkbox" data-setting="auto-update" ${state.preferences.auto_update ? "checked" : ""}/><span></span></label></div>
       <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.3</span></div><button class="button secondary" data-action="check-update">Check now</button></div>
-      ${state.platform === "linux" ? `<div class="setting-row"><div class="setting-icon">${icon("shield", 20)}</div><div class="setting-copy"><strong>Remember administrator approval</strong><span>Authorize only WProxy connect, disconnect, sync and verified update actions.</span></div><button class="button secondary" data-action="linux-authorize">Authorize</button></div>` : ""}
+      ${state.platform === "linux" ? `<div class="setting-row"><div class="setting-icon">${icon("shield", 20)}</div><div class="setting-copy"><strong>Ask for permission only once</strong><span>Your first connection remembers approval for WProxy. Turn off to revoke it.</span></div><label class="switch"><input type="checkbox" aria-label="Remember WProxy administrator approval" data-setting="remember-authorization" ${state.preferences.remember_authorization ? "checked" : ""}/><span></span></label></div>` : ""}
     </div>
     <div class="about-card"><div class="brand-mark large">W</div><div><h2>WProxy 2.7.3</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
   </section>`;
@@ -431,20 +434,24 @@ async function action(label: string, callback: () => Promise<void>): Promise<voi
   toast(failure || label, failure ? "error" : "success");
 }
 
-async function connect(nodeId: string): Promise<void> {
+async function connect(nodeId: string, verified = false): Promise<void> {
+  if (state.routing.mode === "only" && !state.routing.domains.length && !state.routing.apps.length) {
+    throw new Error("Only selected has no sites or applications. Choose All traffic or add an item in Split routing.");
+  }
   if (!isTauri) {
     const node = state.nodes.find((item) => item.id === nodeId);
     state.status = { active: true, verified: true, name: node?.name ?? "Demo server", node_id: nodeId };
     return;
   }
-  await invoke<CliOutput>("tunnel", { action: "up", nodeId });
+  if (!verified) await ctl<PingResult>(["node", "verify", nodeId, "--json"]);
+  await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
 }
 
 async function quickConnect(): Promise<void> {
   if (!isTauri) return connect(state.nodes[0]?.id ?? "");
-  const best = await ctl<PingResult>(["node", "best", "--json", "--timeout", "2"]);
+  const best = await ctl<PingResult>(["node", "best", "--verify", "--json", "--timeout", "2"]);
   state.pings.set(best.id, best.latency_ms);
-  await connect(best.id);
+  await connect(best.id, true);
 }
 
 async function disconnect(): Promise<void> {
@@ -522,9 +529,6 @@ app.addEventListener("click", async (event) => {
     await routeChanged();
   });
   if (command === "check-update") return void checkUpdate();
-  if (command === "linux-authorize") return void action("Administrator approval remembered", async () => {
-    if (isTauri) await invoke<CliOutput>("set_linux_authorization", { enable: true });
-  });
 });
 
 async function chooseApplication(): Promise<void> {
@@ -628,6 +632,15 @@ app.addEventListener("submit", async (event) => {
 
 app.addEventListener("change", async (event) => {
   const input = event.target as HTMLInputElement;
+  if (input.dataset.setting === "remember-authorization") {
+    const enabled = input.checked;
+    await action(enabled ? "WProxy approval remembered" : "WProxy approval revoked", async () => {
+      if (isTauri) {
+        await invoke<CliOutput>("set_linux_authorization", { enable: enabled });
+        await invoke<CliOutput>("run_ctl", { args: ["settings", "set", "remember_authorization", String(enabled)] });
+      } else state.preferences.remember_authorization = enabled;
+    });
+  }
   if (input.dataset.setting === "auto-update") {
     const enabled = input.checked;
     await action(enabled ? "Automatic updates enabled" : "Automatic updates disabled", async () => {

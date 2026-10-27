@@ -151,10 +151,10 @@ fn valid_ctl_args(args: &[String]) -> bool {
                             || matches!(value.as_str(), "--all" | "--json" | "--timeout")
                     })
             }
-            "best" => {
+            "best" | "verify" => {
                 args.len() >= 3
                     && args.iter().all(|value| {
-                        !value.starts_with('-') || matches!(value.as_str(), "--json" | "--timeout")
+                        !value.starts_with('-') || matches!(value.as_str(), "--json" | "--timeout" | "--verify")
                     })
             }
             _ => false,
@@ -179,7 +179,7 @@ fn valid_ctl_args(args: &[String]) -> bool {
             "show" => args.len() == 3 && is_json_tail(args),
             "set" => {
                 args.len() == 4
-                    && args[2] == "auto_update"
+                    && matches!(args[2].as_str(), "auto_update" | "remember_authorization")
                     && matches!(args[3].as_str(), "true" | "false")
             }
             _ => false,
@@ -205,11 +205,13 @@ fn platform() -> &'static str {
 }
 
 #[tauri::command]
-fn run_ctl(args: Vec<String>) -> Result<CliOutput, String> {
+async fn run_ctl(args: Vec<String>) -> Result<CliOutput, String> {
     if !valid_ctl_args(&args) {
         return Err("The desktop app rejected an unsupported command.".into());
     }
-    execute(ctl_command()?, &args)
+    tauri::async_runtime::spawn_blocking(move || execute(ctl_command()?, &args))
+        .await
+        .map_err(|error| format!("Could not complete the WProxy command: {error}"))?
 }
 
 #[tauri::command]
@@ -294,7 +296,13 @@ fn linux_admin(action: &str, argument: Option<&str>) -> Result<CliOutput, String
 }
 
 #[tauri::command]
-fn tunnel(action: String, node_id: Option<String>) -> Result<CliOutput, String> {
+async fn tunnel(action: String, node_id: Option<String>, remember: Option<bool>) -> Result<CliOutput, String> {
+    tauri::async_runtime::spawn_blocking(move || tunnel_command(action, node_id, remember))
+        .await
+        .map_err(|error| format!("Could not complete the tunnel command: {error}"))?
+}
+
+fn tunnel_command(action: String, node_id: Option<String>, remember: Option<bool>) -> Result<CliOutput, String> {
     if !matches!(action.as_str(), "up" | "down") {
         return Err("Unknown tunnel action.".into());
     }
@@ -304,6 +312,7 @@ fn tunnel(action: String, node_id: Option<String>) -> Result<CliOutput, String> 
 
     #[cfg(windows)]
     {
+        let _ = remember;
         let mut args = vec!["windows".to_owned(), action];
         if let Some(value) = node_id {
             args.push(value);
@@ -312,7 +321,8 @@ fn tunnel(action: String, node_id: Option<String>) -> Result<CliOutput, String> 
     }
     #[cfg(not(windows))]
     {
-        linux_admin(&action, node_id.as_deref())
+        let operation = if action == "up" && remember.unwrap_or(false) { "up-remember" } else { &action };
+        linux_admin(operation, node_id.as_deref())
     }
 }
 

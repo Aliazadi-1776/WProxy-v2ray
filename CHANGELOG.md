@@ -1,5 +1,9 @@
 # 2.7.3
 
+- Check actual HTTPS through Xray before desktop connection or automatic server selection, so an open TCP port cannot make a broken server the preferred VPN.
+- Restore the normal network automatically when a desktop full-tunnel connection fails its DNS/HTTPS check.
+- Remember limited Linux WProxy authorization on first connection by default, with a Settings switch to revoke it; sync current routing before activation.
+- Keep the desktop responsive during connection checks and explain empty "Only selected" routing before connecting.
 - Embed the compiled frontend in Linux and Windows Tauri release binaries instead of accidentally loading the Vite development server from `localhost:1420`.
 - Reject release binaries that do not embed the compiled frontend assets before they can be installed or published.
 

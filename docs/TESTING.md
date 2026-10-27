@@ -2,6 +2,10 @@
 
 ## 2.7.3 desktop, update and authorization regression checks
 
+Connection regressions cover rejecting an open-port server that fails HTTPS, restoring the normal network when the full tunnel fails verification, and executing the real admin helper against an isolated system to check first-connect approval, revocation, invalid arguments and sync failure. Desktop Connect verifies the remote proxy before changing system routes. The Linux helper then verifies system DNS/HTTPS for All traffic and disconnects on failure. Empty Only selected routing is explained instead of claiming all traffic is protected.
+
+On the Ubuntu host, 12 of 18 saved nodes passed an isolated real Xray/HTTPS test. A healthy node was then activated through NetworkManager with All traffic: route lookup used `wproxy0` and HTTPS returned 204 in 0.76 seconds. The tunnel was disconnected after the test. These are Linux host results, not physical Windows evidence.
+
 The Linux runner builds the real Tauri/WebKitGTK release executable and the Windows runner builds and launches the real Tauri/WebView2 executable long enough to catch startup and bridge failures. Frontend checks require the fixed navigation, responsive routing columns, native application picker, explicit empty states and a dependency set without Electron, React, Vue or Svelte. Fastest-server tie/timeout handling and verified update downloads are covered by backend tests. Source checks also require the fixed-operation Linux admin helper and active/local/user-scoped Polkit rule without password storage. The routing suite carries an exact `C:\Program Files\...\firefox.exe` selector through normalization and into the final Xray process rule. These checks complement parser and backend tests; they do not replace a final physical Windows TUN test with a real server.
 
 ## 2.6.0 desktop UI, Windows installer and live routing

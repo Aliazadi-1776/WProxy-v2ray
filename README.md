@@ -67,9 +67,9 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 - Display remaining subscription traffic when the provider supplies usage information.
 - One shared Tauri 2 desktop manager for Linux and Windows, plus the CLI and GTK3/GTK4 NetworkManager editors.
 - Three routing modes: all traffic through VPN, bypass listed sites/apps, or only listed sites/apps through VPN.
-- One-click fastest-server selection based on concurrent endpoint latency tests; unreachable servers are ignored.
+- Desktop Connect and Quick connect test real HTTPS through Xray before changing system routes; an open port alone cannot qualify a server.
 - Opt-in verified automatic updates on Linux and Windows, using the release `SHA256SUMS` manifest before installation.
-- Linux can remember a narrowly scoped WProxy Polkit authorization after one approval; passwords are never saved.
+- Linux remembers limited WProxy approval after the first desktop connection; disable "Ask for permission only once" in Settings to revoke it. Passwords are never saved.
 - Windows 10/11 x64 Setup.exe with no separate Python install, a UTF-8-safe Tauri/WebView2 manager, subscription counts/source labels, native application picker, zero periodic idle polling, verified connect/disconnect and Xray native TUN control.
 
 **Ping measures TCP connection latency to a server endpoint, not end-to-end VPN health.** A successful HTTPS-through-TUN test is stronger evidence than a ping result.

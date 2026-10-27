@@ -31,6 +31,21 @@ class FastestServerTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in rows], ["slow", "fast"])
         self.assertEqual(ctl.fastest_ping(rows)["id"], "fast")
 
+    def test_fastest_verified_rejects_open_port_with_broken_proxy(self):
+        nodes = [{"id": str(index), "name": str(index)} for index in range(5)]
+        rows = [{**node, "latency_ms": index + 1} for index, node in enumerate(nodes)]
+        responses = {"0": None, "1": None, "2": None, "3": 120, "4": 90}
+        with patch.object(ctl, "verify_node_https", side_effect=lambda node, _timeout: responses[node["id"]]):
+            best = ctl.fastest_verified_node(nodes, rows)
+        self.assertEqual(best["id"], "4")
+        self.assertTrue(best["verified"])
+
+    def test_no_verified_proxy_never_returns_a_tcp_only_result(self):
+        nodes = [{"id": "open", "name": "Open port"}]
+        rows = [{**nodes[0], "latency_ms": 1}]
+        with patch.object(ctl, "verify_node_https", return_value=None):
+            self.assertIsNone(ctl.fastest_verified_node(nodes, rows))
+
 
 class UpdateTests(unittest.TestCase):
     def release(self, version="9.8.7"):
@@ -87,8 +102,9 @@ class UpdateTests(unittest.TestCase):
                 ctl._safe_extract_update(archive, Path(directory) / "out", release)
 
     def test_preferences_default_to_opt_in_updates(self):
-        self.assertEqual(ctl.normalize_preferences(None), {"auto_update": False})
-        self.assertEqual(ctl.normalize_preferences({"auto_update": 1}), {"auto_update": True})
+        self.assertEqual(ctl.normalize_preferences(None), {"auto_update": False, "remember_authorization": True})
+        self.assertEqual(ctl.normalize_preferences({"auto_update": 1}), {"auto_update": True, "remember_authorization": True})
+        self.assertFalse(ctl.normalize_preferences({"remember_authorization": False})["remember_authorization"])
 
 
 if __name__ == "__main__":

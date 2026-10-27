@@ -18,6 +18,26 @@ spec.loader.exec_module(ctl)
 
 
 class ConfigTests(unittest.TestCase):
+    def test_failed_tunnel_internet_check_disconnects_before_reporting_error(self):
+        node = {"id": "0123456789abcdef", "name": "Node", "uri": "trojan://test@example.com:443"}
+        store = {"nodes": [node], "routing": {"mode": "all"}}
+        activated = SimpleNamespace(returncode=0, stdout="Activated", stderr="")
+        failed = SimpleNamespace(returncode=28, stdout="", stderr="DNS timeout")
+        with patch.object(ctl, "nm_down", return_value=True) as down, \
+                patch.object(ctl, "run", side_effect=(activated, failed)):
+            with self.assertRaisesRegex(RuntimeError, "disconnected to restore"):
+                ctl.nm_up(store, node["id"], verify=True)
+        self.assertEqual(down.call_count, 2)
+
+    def test_verified_tunnel_stays_active_after_https_succeeds(self):
+        node = {"id": "0123456789abcdef", "name": "Node", "uri": "trojan://test@example.com:443"}
+        store = {"nodes": [node], "routing": {"mode": "all"}}
+        success = SimpleNamespace(returncode=0, stdout="", stderr="")
+        with patch.object(ctl, "nm_down", return_value=True) as down, \
+                patch.object(ctl, "run", return_value=success):
+            ctl.nm_up(store, node["id"], verify=True)
+        self.assertEqual(down.call_count, 1)
+
     def test_windows_text_streams_are_reconfigured_as_utf8(self):
         class FakeStream:
             def __init__(self):

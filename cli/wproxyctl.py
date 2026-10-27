@@ -4,6 +4,7 @@ import base64
 import concurrent.futures
 import csv
 import hashlib
+import http.client
 import json
 import os
 try:
@@ -16,6 +17,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -147,12 +149,12 @@ def default_routing_policy():
 
 
 def default_preferences():
-    return {"auto_update": False}
+    return {"auto_update": False, "remember_authorization": True}
 
 
 def normalize_preferences(value):
     source = value if isinstance(value, dict) else {}
-    return {"auto_update": bool(source.get("auto_update", False))}
+    return {key: bool(source.get(key, default)) for key, default in default_preferences().items()}
 
 
 def normalize_domain(value):
@@ -1185,7 +1187,7 @@ def nm_down():
     return wait_for_linux_tun_removal() and ok
 
 
-def nm_up(store, node_id):
+def nm_up(store, node_id, verify=False):
     node = next((n for n in store["nodes"] if n["id"] == node_id), None)
     if not node:
         raise ValueError("Unknown node id")
@@ -1196,6 +1198,18 @@ def nm_up(store, node_id):
         # Preserve the actual failure. A generic 'sync first' error made the
         # extension re-import every profile after unrelated runtime failures.
         raise RuntimeError(p.stderr.strip() or p.stdout.strip() or 'VPN activation failed')
+    if verify and normalize_routing_policy(store.get("routing"))["mode"] == "all":
+        try:
+            check = run([
+                "curl", "--noproxy", "*", "--connect-timeout", "5", "--max-time", "8",
+                "--fail", "--silent", "--show-error", "--output", "/dev/null",
+                "https://cp.cloudflare.com/generate_204",
+            ], capture=True)
+            if check.returncode != 0:
+                raise RuntimeError("DNS/HTTPS did not work through the tunnel")
+        except (OSError, RuntimeError) as error:
+            nm_down()
+            raise RuntimeError(f"{error}. WProxy disconnected to restore your Internet connection.") from error
     if p.stdout:
         print(p.stdout, end='')
 
@@ -1260,6 +1274,74 @@ def fastest_ping(rows):
     """Return the lowest successful latency, with stable order for ties."""
     candidates = [row for row in rows if row.get("latency_ms") is not None]
     return min(candidates, key=lambda row: row["latency_ms"]) if candidates else None
+
+
+def verify_node_https(node, timeout=5.0):
+    """Check the real proxy before changing system routes; never use a direct fallback."""
+    xray = find_windows_xray() if os.name == "nt" else shutil.which("xray")
+    if not xray:
+        raise RuntimeError("Xray is missing. Reinstall WProxy before connecting.")
+    timeout = min(15.0, max(1.0, timeout))
+    try:
+        with tempfile.TemporaryDirectory(prefix="wproxy-probe-") as directory:
+            endpoint = write_gateway_metadata(node["uri"], Path(directory) / "gateway")
+            config = xray_config(node["uri"], endpoint, platform="windows")
+            with socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                port = listener.getsockname()[1]
+            config["inbounds"] = [{"listen": "127.0.0.1", "port": port, "protocol": "http"}]
+            path = Path(directory) / "config.json"
+            path.write_text(json.dumps(config), encoding="utf-8")
+            os.chmod(path, 0o600)
+            options = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+            process = subprocess.Popen(
+                [xray, "run", "-c", str(path)], stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **options,
+            )
+            try:
+                deadline = time.monotonic() + timeout
+                while True:
+                    if process.poll() is not None or time.monotonic() >= deadline:
+                        return None
+                    try:
+                        with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                            break
+                    except OSError:
+                        time.sleep(0.05)
+                started = time.monotonic()
+                connection = http.client.HTTPSConnection("127.0.0.1", port, timeout=timeout)
+                try:
+                    connection.set_tunnel("cp.cloudflare.com", 443)
+                    connection.request("GET", "/generate_204")
+                    response = connection.getresponse()
+                    if response.status != 204:
+                        return None
+                    return round((time.monotonic() - started) * 1000)
+                finally:
+                    connection.close()
+            finally:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+    except (OSError, ValueError, RuntimeError, http.client.HTTPException):
+        return None
+
+
+def fastest_verified_node(nodes, rows, timeout=5.0):
+    reachable = sorted((row for row in rows if row["latency_ms"] is not None), key=lambda row: row["latency_ms"])
+    by_id = {node["id"]: node for node in nodes}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        for start in range(0, len(reachable), 3):
+            batch = reachable[start:start + 3]
+            latencies = list(pool.map(lambda row: verify_node_https(by_id[row["id"]], timeout), batch))
+            verified = [{**row, "latency_ms": latency, "verified": True}
+                        for row, latency in zip(batch, latencies) if latency is not None]
+            if verified:
+                return fastest_ping(verified)
+    return None
 
 
 def parse_release_version(value):
@@ -1558,6 +1640,14 @@ def cmd_node(args, store):
             raise ValueError("Unknown node id")
         node["name"] = clean_name(args.name, node["name"])
         save_store(store)
+    elif args.action == "verify":
+        node = next((node for node in store["nodes"] if node["id"] == args.id), None)
+        if not node:
+            raise ValueError("Unknown node id")
+        latency = verify_node_https(node, args.timeout)
+        if latency is None:
+            raise RuntimeError("This server failed the HTTPS connection test. Your system network was left unchanged. Try another server or Quick connect.")
+        print(json.dumps({"id": node["id"], "name": node["name"], "latency_ms": latency, "verified": True}, ensure_ascii=False))
     elif args.action in ("ping", "best"):
         targets = store["nodes"] if args.all else [next((n for n in store["nodes"] if n["id"] == args.id), None)]
         targets = [n for n in targets if n]
@@ -1565,9 +1655,9 @@ def cmd_node(args, store):
             raise ValueError("No matching node")
         rows = ping_nodes(targets, args.timeout)
         if args.action == "best":
-            best = fastest_ping(rows)
+            best = fastest_verified_node(targets, rows, max(5.0, args.timeout)) if args.verify else fastest_ping(rows)
             if not best:
-                raise RuntimeError("No server responded to the latency test")
+                raise RuntimeError("No server passed the HTTPS test. Your system network was left unchanged." if args.verify else "No server responded to the latency test")
             print(json.dumps(best, ensure_ascii=False) if args.json else f"{best['id']}  {best['name']}  {best['latency_ms']}ms")
             return
         if args.json:
@@ -1584,7 +1674,7 @@ def cmd_settings(args, store):
             f"{key}={str(value).lower()}" for key, value in preferences.items()
         ))
         return
-    if args.key != "auto_update":
+    if args.key not in default_preferences():
         raise ValueError("Unknown setting")
     preferences[args.key] = args.value == "true"
     store["preferences"] = preferences
@@ -1671,12 +1761,13 @@ def build_parser():
     a = ns.add_parser("remove"); a.add_argument("id")
     a = ns.add_parser("rename"); a.add_argument("id"); a.add_argument("name")
     a = ns.add_parser("ping"); a.add_argument("id", nargs="?"); a.add_argument("--all", action="store_true"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0)
-    a = ns.add_parser("best"); a.add_argument("id", nargs="?"); a.set_defaults(all=True); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0)
+    a = ns.add_parser("best"); a.add_argument("id", nargs="?"); a.set_defaults(all=True); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0); a.add_argument("--verify", action="store_true")
+    a = ns.add_parser("verify"); a.add_argument("id"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=5.0)
 
     pp = sp.add_parser("settings")
     ps = pp.add_subparsers(dest="action", required=True)
     a = ps.add_parser("show"); a.add_argument("--json", action="store_true")
-    a = ps.add_parser("set"); a.add_argument("key", choices=("auto_update",)); a.add_argument("value", choices=("true", "false"))
+    a = ps.add_parser("set"); a.add_argument("key", choices=tuple(default_preferences())); a.add_argument("value", choices=("true", "false"))
 
     pu = sp.add_parser("update")
     us = pu.add_subparsers(dest="action", required=True)
@@ -1698,7 +1789,7 @@ def build_parser():
     pm = sp.add_parser("nm")
     ms = pm.add_subparsers(dest="action", required=True)
     ms.add_parser("sync")
-    a = ms.add_parser("up"); a.add_argument("id")
+    a = ms.add_parser("up"); a.add_argument("id"); a.add_argument("--verify", action="store_true")
     ms.add_parser("down")
 
     pw = sp.add_parser("windows")
@@ -1733,7 +1824,7 @@ def main():
             cmd_update(args)
         elif args.cmd == "nm":
             if args.action == "sync": nm_sync(store)
-            elif args.action == "up": nm_up(store, args.id)
+            elif args.action == "up": nm_up(store, args.id, verify=args.verify)
             elif args.action == "down": sys.exit(0 if nm_down() else 1)
         elif args.cmd == "windows":
             if args.action == "up": windows_up(store, args.id)

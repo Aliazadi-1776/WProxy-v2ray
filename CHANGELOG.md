@@ -1,3 +1,8 @@
+# 2.7.3
+
+- Embed the compiled frontend in Linux and Windows Tauri release binaries instead of accidentally loading the Vite development server from `localhost:1420`.
+- Reject release binaries that do not embed the compiled frontend assets before they can be installed or published.
+
 # 2.7.2
 
 - Stop the KDE Plasma widget from launching three CLI refresh commands every five seconds while collapsed; refresh only when the popup opens or after explicit actions.

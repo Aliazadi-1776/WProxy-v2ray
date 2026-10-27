@@ -24,6 +24,10 @@ serde = { version = "1", features = ["derive"] }
 tauri = { version = "2.12.3", features = [] }
 tauri-plugin-dialog = "2.8.2"
 
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
 [profile.release]
 codegen-units = 1
 lto = true

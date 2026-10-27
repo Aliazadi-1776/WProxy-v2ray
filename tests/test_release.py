@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import tomllib
 import unittest
 import zipfile
 
@@ -72,6 +73,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("cargo build --release", workflow)
         self.assertIn("Smoke test Tauri startup on Windows", workflow)
         self.assertIn("Start-Process -FilePath", workflow)
+
+    def test_tauri_release_embeds_assets_instead_of_loading_the_dev_server(self):
+        cargo = tomllib.loads(read_utf8("desktop/src-tauri/Cargo.toml"))
+        self.assertIn("custom-protocol", cargo["features"]["default"])
+        self.assertEqual(cargo["features"]["custom-protocol"], ["tauri/custom-protocol"])
+        checker = "tests/check-tauri-production.py"
+        self.assertIn(checker, read_utf8("Makefile"))
+        self.assertIn(checker, read_utf8(".github/workflows/windows-release.yml"))
 
     def test_tauri_frontend_has_no_heavy_ui_framework(self):
         package = json.loads(read_utf8("desktop/package.json"))

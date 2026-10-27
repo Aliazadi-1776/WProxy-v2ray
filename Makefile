@@ -45,6 +45,7 @@ validate-plugin: plugin/validate-plugin.c
 desktop:
 	cd desktop && npm ci --prefer-offline --no-audit --no-fund && npm run build
 	cargo build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
+	python3 tests/check-tauri-production.py desktop/src-tauri/target/release/wproxy-desktop
 
 desktop-check:
 	cd desktop && npm run build

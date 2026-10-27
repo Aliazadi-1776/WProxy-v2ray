@@ -47,6 +47,7 @@ jobs:
           npm run build
           Pop-Location
           cargo build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
+          python tests/check-tauri-production.py desktop/src-tauri/target/release/wproxy-desktop.exe
           Copy-Item desktop/src-tauri/target/release/wproxy-desktop.exe build/windows/WProxy.exe
           if (-not (Test-Path build/windows/WProxy.exe)) { throw 'Tauri desktop executable was not built' }
       - name: Smoke test Tauri startup on Windows

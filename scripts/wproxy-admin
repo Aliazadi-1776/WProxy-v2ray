@@ -20,8 +20,7 @@ require_ctl() {
     [ -x "$CTL" ] || { echo 'WProxy is not installed correctly.' >&2; exit 127; }
 }
 
-case "${1:-}" in
-    authorize)
+remember_authorization() {
         mkdir -p "$RULE_DIR"
         temporary=$(mktemp "$RULE_DIR/.wproxy-rule.XXXXXX")
         trap 'rm -f "$temporary"' EXIT INT TERM
@@ -34,6 +33,11 @@ case "${1:-}" in
         chmod 0644 "$temporary"
         mv -f "$temporary" "$RULE_FILE"
         trap - EXIT INT TERM
+}
+
+case "${1:-}" in
+    authorize)
+        remember_authorization
         ;;
     revoke)
         rm -f "$RULE_FILE"
@@ -42,11 +46,14 @@ case "${1:-}" in
         require_ctl
         exec env SUDO_USER="$CALLER_USER" "$CTL" nm sync
         ;;
-    up)
+    up|up-remember)
         require_ctl
+        [ "$#" -eq 2 ] || { echo 'A single node id is required.' >&2; exit 2; }
         case "${2:-}" in ''|*[!0-9a-f]*) echo 'Invalid node id.' >&2; exit 2 ;; esac
         [ "${#2}" -eq 16 ] || { echo 'Invalid node id.' >&2; exit 2; }
-        exec env SUDO_USER="$CALLER_USER" "$CTL" nm up "$2"
+        if [ "$1" = up-remember ]; then remember_authorization; fi
+        env SUDO_USER="$CALLER_USER" "$CTL" nm sync >/dev/null
+        exec env SUDO_USER="$CALLER_USER" "$CTL" nm up "$2" --verify
         ;;
     down)
         require_ctl
@@ -64,7 +71,7 @@ case "${1:-}" in
         exec env SUDO_USER="$CALLER_USER" "$CTL" update install "$archive"
         ;;
     *)
-        echo 'Usage: wproxy-admin {authorize|revoke|sync|up NODE_ID|down|update ARCHIVE}' >&2
+        echo 'Usage: wproxy-admin {authorize|revoke|sync|up NODE_ID|up-remember NODE_ID|down|update ARCHIVE}' >&2
         exit 2
         ;;
 esac

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject Tauri binaries that still load Vite's development server."""
+"""Reject Tauri binaries that do not embed Vite's production assets."""
 from pathlib import Path
 import sys
 
@@ -10,7 +10,7 @@ if len(sys.argv) != 2:
 binary = Path(sys.argv[1])
 if not binary.is_file():
     raise SystemExit(f"Tauri binary not found: {binary}")
-if b"http://localhost:1420" in binary.read_bytes():
-    raise SystemExit("Tauri binary still targets the localhost development server")
+if b"assets/index-" not in binary.read_bytes():
+    raise SystemExit("Tauri binary does not contain the compiled frontend assets")
 
 print("Tauri production asset check: PASS")

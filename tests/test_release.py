@@ -193,6 +193,9 @@ class ReleaseTests(unittest.TestCase):
                     archive.read(prefix + "THIRD_PARTY_NOTICES.md"),
                     (ROOT / "THIRD_PARTY_NOTICES.md").read_bytes(),
                 )
+                for name in ("Makefile", "scripts/wproxy-admin", "service/wproxy-xray-runner",
+                             "scripts/install.sh", "cli/wproxyctl.py"):
+                    self.assertNotIn(b"\r", archive.read(prefix + name), name)
                 for name in ("README.md", "README.fa.md", ".github/workflows/ci.yml",
                              ".github/workflows/windows-release.yml",
                              "docs/screenshots/gnome-quick-settings.png", "docs/screenshots/manager.png",

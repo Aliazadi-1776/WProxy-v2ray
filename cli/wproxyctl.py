@@ -1516,8 +1516,8 @@ def _safe_extract_update(archive, destination, release):
 
 def install_update(path, timeout=30.0):
     candidate = Path(path).resolve(strict=True)
-    release = _verified_update_release(candidate, timeout)
     if os.name == "nt":
+        _verified_update_release(candidate, timeout)
         subprocess.Popen([
             str(candidate), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
             "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS",
@@ -1527,7 +1527,11 @@ def install_update(path, timeout=30.0):
         raise RuntimeError("Linux update installation requires administrator authorization")
     import tempfile
     with tempfile.TemporaryDirectory(prefix="wproxy-update-") as directory:
-        installer = _safe_extract_update(candidate, Path(directory), release)
+        # The caller can replace its download; verify and install only a root-private snapshot.
+        snapshot = Path(directory) / candidate.name
+        shutil.copyfile(candidate, snapshot)
+        release = _verified_update_release(snapshot, timeout)
+        installer = _safe_extract_update(snapshot, Path(directory), release)
         environment = os.environ.copy()
         environment["SUDO_USER"] = original_user().pw_name
         result = subprocess.run(

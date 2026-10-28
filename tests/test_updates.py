@@ -2,8 +2,11 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -100,6 +103,46 @@ class UpdateTests(unittest.TestCase):
                 bundle.writestr("WProxy-9.8.7/../../escape", "no")
             with self.assertRaisesRegex(RuntimeError, "unsafe path"):
                 ctl._safe_extract_update(archive, Path(directory) / "out", release)
+
+    @unittest.skipIf(os.name == "nt", "Linux privileged source installer")
+    def test_install_uses_verified_snapshot_when_caller_replaces_download(self):
+        version = "9.8.7"
+        trusted_script = "echo verified release\n"
+        replaced_script = "echo substituted download\n"
+
+        def archive_bytes(script):
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w") as bundle:
+                bundle.writestr(f"WProxy-{version}/scripts/install.sh", script)
+            return buffer.getvalue()
+
+        trusted = archive_bytes(trusted_script)
+        digest = hashlib.sha256(trusted).hexdigest()
+        release = {"version": version}
+        real_hash = ctl._sha256_file
+        executed_scripts = []
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / f"WProxy-{version}-GitHub.zip"
+            candidate.write_bytes(trusted)
+
+            def hash_then_replace(path):
+                result = real_hash(path)
+                candidate.write_bytes(archive_bytes(replaced_script))
+                return result
+
+            def capture_installer(arguments, **_kwargs):
+                executed_scripts.append(Path(arguments[1]).read_text())
+                return subprocess.CompletedProcess(arguments, 0, "", "")
+
+            with patch.object(ctl, "_is_root", return_value=True), \
+                    patch.object(ctl, "latest_release", return_value=release), \
+                    patch.object(ctl, "_release_checksums", return_value={candidate.name: digest}), \
+                    patch.object(ctl, "_sha256_file", side_effect=hash_then_replace), \
+                    patch.object(ctl, "original_user", return_value=SimpleNamespace(pw_name="tester")), \
+                    patch.object(ctl.subprocess, "run", side_effect=capture_installer):
+                ctl.install_update(candidate)
+
+        self.assertEqual(executed_scripts, [trusted_script])
 
     def test_preferences_default_to_opt_in_updates(self):
         self.assertEqual(ctl.normalize_preferences(None), {"auto_update": False, "remember_authorization": True})

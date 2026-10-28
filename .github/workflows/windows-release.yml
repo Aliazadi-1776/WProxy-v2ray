@@ -100,6 +100,30 @@ jobs:
           $setup = "dist/WProxy-$env:WPROXY_VERSION-Setup.exe"
           $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
           "$hash  WProxy-$env:WPROXY_VERSION-Setup.exe" | Set-Content -Encoding ascii "$setup.sha256"
+      - name: Test installed native Windows UI and command bridge
+        timeout-minutes: 4
+        shell: powershell
+        run: |
+          $installed = Join-Path $env:RUNNER_TEMP 'wproxy-installed-test'
+          $setup = (Resolve-Path "dist/WProxy-$env:WPROXY_VERSION-Setup.exe").Path
+          $install = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$installed`"") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Setup installation failed: $($install.ExitCode)" }
+          node tests/windows-desktop-smoke.mjs $installed build/windows/test-results
+          if ($LASTEXITCODE -ne 0) { throw 'Installed Windows UI/bridge test failed' }
+      - name: Test installed Windows Wintun, DNS, HTTPS and rollback
+        timeout-minutes: 5
+        shell: powershell
+        run: |
+          $installed = Join-Path $env:RUNNER_TEMP 'wproxy-installed-test'
+          python tests/windows-tunnel-smoke.py $installed build/windows/test-results
+          if ($LASTEXITCODE -ne 0) { throw 'Installed Windows TUN test failed' }
+      - name: Upload native Windows test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WProxy-native-Windows-test-evidence
+          path: build/windows/test-results
+          if-no-files-found: warn
       - name: Create release checksum manifest
         shell: powershell
         run: |

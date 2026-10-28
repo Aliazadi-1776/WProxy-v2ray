@@ -252,7 +252,7 @@ fn elevated_windows_ctl(args: &[String]) -> Result<CliOutput, String> {
         .collect::<Vec<_>>()
         .join(",");
     let script = format!(
-        "$ErrorActionPreference='Stop'; $p=Start-Process -FilePath {} -ArgumentList @({}) -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode",
+        "$ErrorActionPreference='Stop'; $p=Start-Process -FilePath {} -ArgumentList @({}) -Verb RunAs -WindowStyle Hidden -PassThru; $p.WaitForExit(); exit $p.ExitCode",
         powershell_literal(&program),
         arguments,
     );

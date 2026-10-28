@@ -1,3 +1,11 @@
+# 2.7.4
+
+- Fix Windows Connect and Quick connect remaining busy after a successful connection: wait for the elevated command controller to exit while the detached Xray tunnel continues running.
+- Expand Windows checks to exercise the installed WebView interface and the native TUN, route, DNS and HTTPS path with an isolated local server.
+- Add repeatable GNOME Quick Settings action tests in a private Shell session, alongside the existing layout checks and Linux installer dry-run.
+- Validate the real Plasma widget host and temporary package install/upgrade/remove lifecycle alongside the Qt Quick suite.
+- Preserve LF line endings in Linux Makefiles and extensionless helpers when source archives are built on Windows.
+
 # 2.7.3
 
 - Check actual HTTPS through Xray before desktop connection or automatic server selection, so an open TCP port cannot make a broken server the preferred VPN.

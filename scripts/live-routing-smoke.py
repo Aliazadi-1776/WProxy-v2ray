@@ -66,9 +66,9 @@ def retry_probe(probe, url, timeout, attempts=2):
 
 
 def sync_profiles():
-    command = [
-        'pkexec', sys.executable, str(ROOT / 'cli/wproxyctl.py'), 'nm', 'sync',
-    ]
+    helper = Path('/usr/libexec/wproxy-admin')
+    command = (['pkexec', str(helper), 'sync'] if helper.is_file() else
+               ['pkexec', sys.executable, str(ROOT / 'cli/wproxyctl.py'), 'nm', 'sync'])
     result = subprocess.run(command, text=True, capture_output=True)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or 'Profile sync was cancelled')

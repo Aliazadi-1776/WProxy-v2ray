@@ -1,5 +1,17 @@
 # Test coverage
 
+## 2.7.4 verification on 2026-10-29
+
+- Ubuntu host: the real `bash scripts/install.sh --desktop gnome --dry-run` completed its clean Make/C and optimized Tauri builds, embedded-asset check and libnm plugin validation without changing system files. Live full-tunnel preflight, only-empty, bypass-application, only-application and only-domain checks passed with actual saved servers and HTTPS; the original policy/profiles and disconnected state were verified after cleanup. An independent recovery process was authorized before route changes.
+- Native Windows Server 2022 runner: [installer run 40767424143](https://github.com/Aliazadi-1776/WProxy-v2ray/actions/runs/40767424143) installed the actual Setup payload, rendered the real WebView2 frontend, called the Tauri/native CLI bridge, clicked the real Connect and Disconnect buttons through the Rust elevation bridge, saved/removed a server through the UI and checked routing layout at default and 960-pixel widths. Screenshots including the connected window and JSON results are available in the run's `WProxy-native-Windows-test-evidence` artifact.
+- The same Windows run passed an actual Wintun/default-route/DNS/HTTPS test using a synthetic local Xray proxy with physical-interface egress. Server logs proved both DNS and HTTPS crossed the proxy. An unreachable-server test failed activation, removed the VPN route and restored HTTPS. A detached recovery watchdog was armed before activation; no personal servers or credentials were used.
+- GNOME Shell 51: all 10 layout cases and 11 production-extension action/lifecycle scenarios passed in private headless sessions. The action suite uses real asynchronous subprocess execution with a fake CLI, while real Linux networking is covered separately by the host tests above.
+- KDE Plasma 6.7.5 / Qt 6.11.2: all 29 QML cases passed with no failures or skips. The real isolated Plasma viewer loaded the unmodified widget with 100 fixture servers, exactly three visible rows, the final row reachable, fixed footer controls and exactly one applet. Temporary KPackage install/upgrade/remove/reinstall also passed.
+
+These results do not cover interactive Windows UAC from a standard-user account, suspend/resume or every desktop/distribution version. Native Windows network tests are intentionally restricted to disposable GitHub Actions runners.
+
+The native UI connection regression first reproduced the Windows busy-state hang: PowerShell `Start-Process -Wait` waited for the persistent Xray descendant after the controller had exited. Version 2.7.4 waits for the controller process handle only. The unchanged connection test now reaches Connected, keeps Xray running and successfully disconnects.
+
 ## 2.7.3 desktop, update and authorization regression checks
 
 Connection regressions cover rejecting an open-port server that fails HTTPS, restoring the normal network when the full tunnel fails verification, and executing the real admin helper against an isolated system to check first-connect approval, revocation, invalid arguments and sync failure. Desktop Connect verifies the remote proxy before changing system routes. The Linux helper then verifies system DNS/HTTPS for All traffic and disconnects on failure. Empty Only selected routing is explained instead of claiming all traffic is protected.
@@ -16,7 +28,7 @@ The Linux runner builds the real Tauri/WebKitGTK release executable and the Wind
 
 Python tests cover the full-tunnel compatibility default, bypass and only rule ordering, independent domain/process rules, hostname/IP normalization, Windows executable-name normalization, invalid and oversized input, encoded policy round trips, NetworkManager profile embedding, quota/expiry announcement filtering, same-URI ownership across multiple subscriptions, JSON/mixed subscription extraction, ownership-safe stale-profile selection, corrupt-policy fallback without node loss, and Windows automatic TUN/WFP fields. The C service test verifies bounded `routing64` recovery from a NetworkManager keyfile. Xray's installed `run -test` validation covers generated Linux configs during runtime tests.
 
-Windows GitHub Actions run shared parser, runtime, routing, updater and release tests, compile `wproxyctl.exe`, build and startup-smoke the Tauri application, verify the pinned official Xray archive, compile `Setup.exe`, and publish individual plus aggregate SHA-256 metadata. A real Windows UAC/Wintun/DNS/sleep/YouTube test is still required; runtime verification refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
+Windows GitHub Actions run shared parser, runtime, routing, updater and release tests, compile `wproxyctl.exe`, build and startup-smoke the Tauri application, verify the pinned official Xray archive, compile `Setup.exe`, and publish individual plus aggregate SHA-256 metadata. The current native CI additionally covers rendered UI, real button-driven connection, Wintun, DNS and HTTPS; interactive standard-user UAC, sleep and video playback remain unverified; runtime verification refuses to claim Connected without an adapter, IPv4 default route and HTTPS success.
 
 ## 2.3.1 transport correction
 
@@ -40,6 +52,8 @@ Release checks additionally parse every README Bash example without executing it
 
 An isolated GNOME Shell 51 test covers 0/1/3/4/100 rows at normal and 140% text size on a 1366×768 virtual display. It checks construction with GNOME 51's orientation API, three-row allocation, the last row, retained scroll position and fixed Ping/Update/Manager controls. It does not model every physical-device tile or theme.
 
+The separate GNOME action test enables the production extension in a private Shell session and redirects WProxy subprocess calls to an isolated fake CLI. Its 11 scenarios cover server activation/disconnection, ping and duplicate suppression, Ping all/Update/Manager buttons, missing-profile sync and retry, authorization cancellation, subscription add/update/sync, and enable/disable/re-enable without duplicate indicators. It does not invoke the real NetworkManager or Polkit service.
+
 ## KDE
 
 Qt Quick tests exercise the actual Popup, Backend and Plasma5Support CommandRunner components. Synthetic server data is used; tests do not modify real subscriptions or call `nm up`.
@@ -51,7 +65,7 @@ Qt Quick tests exercise the actual Popup, Backend and Plasma5Support CommandRunn
 - Actual command execution with quoted shell metacharacters/newlines and nonzero exit propagation.
 - Missing-profile synchronization/retry, Polkit cancellation, subscription update/sync ordering, and duplicate ping prevention, using a fake executor (no system changes).
 
-KPackage installation succeeded in a temporary user data directory. A full plasmoidviewer desktop could not be exercised without the host's missing desktop-containment package; this is not reported as a successful full-session test.
+KPackage install, upgrade, removal and reinstallation succeeded in a temporary user data directory. The real Plasma 6.7.5 viewer and desktop containment loaded the unmodified widget with 100 synthetic servers and captured the last three rows with fixed footer controls. `tests/kde-host-smoke.sh` reproduces this test with the Plasma SDK and desktop-containment dependencies installed. It uses private XDG directories and a separate session bus; it does not modify the real panel.
 
 Tested development runtime: Qt **6.11.2** with Plasma libraries **6.7.5**. Qt Test reported **29 passed, 0 failed**, including compilation of the actual Plasma entrypoint with its real imports. The offscreen/extracted runtime emitted theme/platform/registration warnings; these are not represented as a full desktop pass. Test tools were extracted into an isolated development directory, not installed over the desktop.
 
@@ -65,7 +79,9 @@ make desktop-check
 make test
 bash scripts/install.sh --desktop preserve --dry-run
 bash scripts/test-kde.sh
+bash tests/kde-host-smoke.sh
 bash tests/headless-smoke.sh
+bash tests/headless-actions.sh
 ```
 
 The KDE and GNOME tests need their corresponding desktop/test dependencies. CI runs the portable build, unit and source-release checks; it does not claim to exercise the host's root TUN or physical network.

@@ -1,6 +1,7 @@
 // Exercise the installed Tauri/WebView2 application and real command bridge.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
@@ -29,11 +30,16 @@ function ctl(args) {
   return result.stdout;
 }
 const fixtureName = "CI Windows · Berlin";
-ctl(["node", "add", "trojan://synthetic@example.invalid:443?security=tls#CI", "--name", fixtureName]);
+const tunnelUri = process.env.WPROXY_TEST_URI;
+if (tunnelUri) assert.equal(process.env.GITHUB_ACTIONS, "true", "UI route changes require a disposable Actions runner");
+ctl(["node", "add", tunnelUri || "trojan://synthetic@example.invalid:443?security=tls#CI", "--name", fixtureName]);
 const app = spawn(path.join(installation, "WProxy.exe"), [], { env: environment, cwd: installation, stdio: "ignore" });
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 let socket;
 let sequence = 0;
+let recovery;
+let uiTunnel = null;
+const cancel = path.join(profile, "cancel-ui-watchdog");
 const pending = new Map();
 async function command(method, params = {}) {
   const id = ++sequence;
@@ -49,8 +55,8 @@ async function evaluate(expression) {
   assert(!value.exceptionDetails, JSON.stringify(value.exceptionDetails));
   return value.result.value;
 }
-async function waitFor(expression, label) {
-  for (let attempt = 0; attempt < 60; attempt++) {
+async function waitFor(expression, label, attempts = 60) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     if (await evaluate(expression)) return;
     await delay(250);
   }
@@ -105,6 +111,31 @@ try {
   const defaultWidth = await assertLayout();
   await screenshot("windows-servers-default.png");
 
+  if (tunnelUri) {
+    assert(process.env.WPROXY_TEST_PYTHON && process.env.WPROXY_TEST_WATCHDOG, "The native UI connection test requires the independent watchdog");
+    recovery = spawn(process.env.WPROXY_TEST_PYTHON, [
+      process.env.WPROXY_TEST_WATCHDOG, installation, outputDirectory, "--watchdog", cancel,
+    ], { env: environment, detached: true, windowsHide: true, stdio: "ignore" });
+    recovery.unref();
+    for (let attempt = 0; attempt < 100; attempt++) {
+      assert.equal(recovery.exitCode, null, "UI network recovery watchdog exited before it was armed");
+      if (existsSync(`${cancel}.armed`)) break;
+      await delay(50);
+    }
+    assert(existsSync(`${cancel}.armed`), "UI network recovery watchdog did not arm");
+    await evaluate("document.querySelector('[data-action=connect]').click()");
+    await waitFor("document.querySelector('.server-row.is-connected') !== null", "a connection through the real Rust elevation bridge", 360);
+    const connected = JSON.parse(ctl(["windows", "status", "--json"]));
+    assert(connected.active && connected.verified, JSON.stringify(connected));
+    assert(await evaluate("document.querySelector('.connection-hero.is-online') !== null"));
+    await screenshot("windows-connected-through-ui.png");
+    await evaluate("document.querySelector('[data-action=disconnect]').click()");
+    await waitFor("document.querySelector('.server-row.is-connected') === null", "Disconnect through the real Rust elevation bridge", 120);
+    assert.equal(JSON.parse(ctl(["windows", "status", "--json"])).active, false);
+    await writeFile(cancel, "disconnected");
+    uiTunnel = { connected: true, verified: true, disconnected: true, rustElevationBridge: true };
+  }
+
   await evaluate("document.querySelector('[data-page=add]').click()");
   await waitFor("document.querySelector('#node-form') !== null", "Add connection");
   await evaluate(`(() => {
@@ -133,7 +164,8 @@ try {
   await screenshot("windows-settings.png");
   await writeFile(path.join(outputDirectory, "desktop-result.json"), JSON.stringify({
     platform: "windows", installed: true, rendered: true, bridge: true,
-    addAndRemovePersisted: true, widths: [defaultWidth, 960], screenshots: 4,
+    addAndRemovePersisted: true, widths: [defaultWidth, 960], screenshots: tunnelUri ? 5 : 4,
+    uiTunnel,
   }, null, 2));
   console.log("Installed native Windows UI: PASS (rendered assets, Tauri bridge, persisted add/remove, routing layout, screenshots)");
 } catch (error) {
@@ -148,7 +180,17 @@ try {
   }
   throw error;
 } finally {
+  let recoveryError;
+  if (recovery) {
+    try {
+      ctl(["windows", "down"]);
+      await writeFile(cancel, "disconnected");
+    } catch (error) {
+      recoveryError = error; // Leave the independent watchdog armed if cleanup failed.
+    }
+  }
   socket?.close();
   for (const request of pending.values()) clearTimeout(request.timer);
   spawnSync("taskkill", ["/PID", String(app.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+  if (recoveryError) throw recoveryError;
 }

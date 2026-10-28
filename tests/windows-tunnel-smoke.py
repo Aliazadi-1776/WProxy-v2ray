@@ -141,6 +141,24 @@ def main():
         assert preflight["verified"] is True
         results["preflight"] = preflight
 
+        ui_output = args.output.resolve() / "ui-tunnel"
+        ui_environment = os.environ.copy()
+        ui_environment.update(
+            WPROXY_TEST_URI=uri, WPROXY_TEST_PYTHON=sys.executable,
+            WPROXY_TEST_WATCHDOG=str(Path(__file__).resolve()),
+        )
+        ui = subprocess.run(
+            ["node", str(Path(__file__).with_name("windows-desktop-smoke.mjs").resolve()),
+             str(args.installation.resolve()), str(ui_output)],
+            env=ui_environment, text=True, capture_output=True, timeout=135,
+        )
+        if ui.returncode:
+            raise RuntimeError(ui.stderr or ui.stdout or "Native UI connection test failed")
+        print(ui.stdout.strip())
+        ui_result = json.loads((ui_output / "desktop-result.json").read_text(encoding="utf-8"))
+        assert ui_result["uiTunnel"]["rustElevationBridge"] and ui_result["uiTunnel"]["disconnected"]
+        results["ui_tunnel"] = ui_result["uiTunnel"]
+
         # Arm recovery in an independent process BEFORE the client can add routes.
         with (args.output / "watchdog.log").open("w", encoding="utf-8") as recovery_log:
             recovery = subprocess.Popen(

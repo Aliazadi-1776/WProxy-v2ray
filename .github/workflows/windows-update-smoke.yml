@@ -1,0 +1,26 @@
+name: Windows automatic upgrade
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Upgrade the published app using its Automatic updates checkbox
+        run: node tests/windows-update-smoke.mjs build/windows-update/test-results
+      - name: Upload real automatic upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WProxy-Windows-automatic-upgrade-evidence
+          path: build/windows-update/test-results
+          if-no-files-found: warn

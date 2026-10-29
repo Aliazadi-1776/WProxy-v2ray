@@ -43,6 +43,7 @@ Item {
             fixture.nodes = [];
             fixture.selected = "";
             fixture.latencies = {};
+            fixture.errorMessage = "";
         }
 
         function test_viewport_data() {
@@ -80,6 +81,22 @@ Item {
             verify(row !== null);
             mouseClick(row, 35, row.height / 2);
             compare(fixture.selected, "two");
+        }
+
+        function test_error_keeps_servers_and_footer_visible() {
+            fixture.nodes = [{id: "one", name: "A long subscription server name that must remain on one line"}];
+            const list = findChild(popup, "serverList");
+            const footer = findChild(popup, "fixedActions");
+            tryCompare(list, "count", 1);
+            waitForRendering(popup);
+            const normalHeight = popup.height;
+            fixture.errorMessage = "The connection could not be started. Try another server or open Manager for details. ".repeat(6);
+            waitForRendering(popup);
+            compare(popup.height, normalHeight, "An error must fit the existing status area");
+            compare(list.height, popup.rowHeight);
+            verify(footer.y >= list.y + list.height);
+            verify(footer.y + footer.height <= popup.height);
+            verify(popup.height < 700, "A long error must not hide the actions");
         }
     }
 }

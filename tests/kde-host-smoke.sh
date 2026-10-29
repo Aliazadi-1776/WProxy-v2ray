@@ -25,12 +25,13 @@ export XDG_CACHE_HOME="$TEST_ROOT/cache"
 export XDG_DATA_DIRS="$XDG_DATA_HOME:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 export QT_QPA_PLATFORM=offscreen
 export QT_QUICK_BACKEND=software
-export QT_QUICK_CONTROLS_STYLE=Basic
+export QT_QUICK_CONTROLS_STYLE=${QT_QUICK_CONTROLS_STYLE:-Basic}
 mkdir -p "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME/plasma/shells" "$XDG_CONFIG_HOME/wproxy" "$XDG_CACHE_HOME"
 chmod 700 "$XDG_RUNTIME_DIR"
 cp -a "$SHELL_PACKAGE" "$XDG_DATA_HOME/plasma/shells/"
 python3 - "$REPO_ROOT" "$TEST_ROOT" <<'PY'
 import json
+import os
 from pathlib import Path
 import sys
 repo, root = map(Path, sys.argv[1:])
@@ -38,6 +39,15 @@ fixture = (repo / 'tests/kde-host/Desktop.qml').read_text()
 fixture = fixture.replace('EVIDENCE_DIRECTORY', json.dumps(str(root)))
 shell = root / 'data/plasma/shells/org.kde.plasma.plasmoidviewershell/contents/views/Desktop.qml'
 shell.write_text(fixture)
+scheme = os.environ.get('WPROXY_TEST_COLOR_SCHEME')
+if scheme:
+    for directory in os.environ.get('XDG_DATA_DIRS', '').split(':'):
+        colors = Path(directory) / 'color-schemes' / (scheme + '.colors')
+        if colors.is_file():
+            (root / 'config/kdeglobals').write_text(colors.read_text() + '\n[General]\nColorScheme=' + scheme + '\n')
+            break
+    else:
+        raise SystemExit('Requested KDE color scheme was not found: ' + scheme)
 store = {'nodes': [
     {'id': f'{index:016x}', 'name': f'Test server {index + 1:03d}',
      'uri': 'trojan://fixture@example.invalid:443?security=tls', 'source': None}

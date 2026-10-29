@@ -17,7 +17,7 @@
 </p>
 
 <p align="center" dir="rtl">
-  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.4"><strong>دانلود نسخهٔ 2.7.4</strong></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.5"><strong>دانلود نسخهٔ 2.7.5</strong></a>
   · <a href="README.md">English</a>
   · <a href="docs/ROUTING.md">مسیریابی</a>
   · <a href="docs/WINDOWS.md">ویندوز</a>
@@ -26,13 +26,13 @@
   · <a href="CHANGELOG.md">تغییرات</a>
 </p>
 
-نسخهٔ **2.7.4** مدیر قدیمی GTK/WinForms را با یک رابط سبک و مشترک Tauri 2 برای لینوکس و ویندوز جایگزین می‌کند، انتخاب خودکار سریع‌ترین سرور، آپدیت امن خودکار و مجوز محدود و قابل‌حفظ لینوکس را اضافه می‌کند؛ کد Quick Settings گنوم و الگوریتم تونل لینوکس دست‌نخورده مانده‌اند.
+نسخهٔ **2.7.5** مدیر قدیمی GTK/WinForms را با یک رابط سبک و مشترک Tauri 2 برای لینوکس و ویندوز جایگزین می‌کند، انتخاب خودکار سریع‌ترین سرور، آپدیت امن خودکار و مجوز محدود و قابل‌حفظ لینوکس را اضافه می‌کند؛ کد Quick Settings گنوم و الگوریتم تونل لینوکس دست‌نخورده مانده‌اند.
 
 ## دریافت WProxy
 
 | Windows 10/11 x64 | GNOME 45–51 | KDE Plasma 6 |
 | --- | --- | --- |
-| فایل **`WProxy-2.7.4-Setup.exe`** را از [آخرین Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest) دانلود کن. | وابستگی‌های توزیع را طبق ادامهٔ راهنما نصب کن و سپس `bash scripts/install.sh --desktop gnome` را بزن. | وابستگی‌های توزیع و Plasma را نصب کن و سپس `bash scripts/install.sh --desktop kde` را بزن. |
+| فایل **`WProxy-2.7.5-Setup.exe`** را از [آخرین Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest) دانلود کن. | وابستگی‌های توزیع را طبق ادامهٔ راهنما نصب کن و سپس `bash scripts/install.sh --desktop gnome` را بزن. | وابستگی‌های توزیع و Plasma را نصب کن و سپس `bash scripts/install.sh --desktop kde` را بزن. |
 
 نصب‌کنندهٔ ویندوز WProxy، Xray و Wintun را همراه خود دارد. نسخهٔ لینوکس از NetworkManager و TUN سیستم استفاده می‌کند. پیش از نصب روی سیستم جدید، [جدول پشتیبانی](#چه-سیستمهایی-پشتیبانی-میشوند) را بخوان.
 
@@ -71,7 +71,7 @@
 
 ## چه سیستم‌هایی پشتیبانی می‌شوند؟
 
-موتور اصلی و تست‌شده‌تر WProxy مخصوص لینوکس است و به systemd، NetworkManager و TUN نیاز دارد. نسخهٔ 2.7.4 برای Windows x64 هم نصب‌کننده دارد و از TUN داخلی Xray استفاده می‌کند؛ فرمت ذخیره و قوانین مسیریابی مشترک‌اند ولی یکپارچه‌سازی سیستم‌عامل جداست.
+موتور اصلی و تست‌شده‌تر WProxy مخصوص لینوکس است و به systemd، NetworkManager و TUN نیاز دارد. نسخهٔ 2.7.5 برای Windows x64 هم نصب‌کننده دارد و از TUN داخلی Xray استفاده می‌کند؛ فرمت ذخیره و قوانین مسیریابی مشترک‌اند ولی یکپارچه‌سازی سیستم‌عامل جداست.
 
 | محیط | وضعیت |
 | --- | --- |
@@ -101,7 +101,7 @@
 ZIP را استخراج کن و ترمینال را در پوشه‌ای باز کن که `Makefile` و `scripts/` داخل آن است. برای آرشیو این نسخه:
 
 ```bash
-cd WProxy-2.7.4
+cd WProxy-2.7.5
 ```
 
 اگر از Download ZIP گیت‌هاب گرفته‌ای، نام پوشه ممکن است متفاوت باشد؛ وارد همان پوشهٔ استخراج‌شده شو. دستورها را از **حساب معمولی دسکتاپ** اجرا کن، نه ورود مستقیم با root. از محیط virtualenv/Conda خارج شو. اینترنت و دسترسی مجاز به sudo لازم است.
@@ -270,7 +270,7 @@ bash scripts/install.sh --desktop none
 
 ### نصب روی Windows 10/11
 
-فایل `WProxy-2.7.4-Setup.exe` و فایل `.sha256` کنارش را از [Release نسخهٔ 2.7.4](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.4) بگیر، هش را بررسی و Setup را اجرا کن. Python و دانلود جداگانهٔ Xray لازم نیست. برنامه بعد از نصب باز می‌شود و فقط هنگام وصل/قطع TUN پنجرهٔ Administrator نشان می‌دهد.
+فایل `WProxy-2.7.5-Setup.exe` و فایل `.sha256` کنارش را از [Release نسخهٔ 2.7.5](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.5) بگیر، هش را بررسی و Setup را اجرا کن. Python و دانلود جداگانهٔ Xray لازم نیست. برنامه بعد از نصب باز می‌شود و فقط هنگام وصل/قطع TUN پنجرهٔ Administrator نشان می‌دهد.
 
 داخل نصب‌کننده نسخهٔ رسمی Xray **26.9.30** و Wintun قرار می‌گیرد؛ GitHub Actions هش SHA-256 آرشیو بالادستی را قبل از ساخت کنترل می‌کند. جزئیات استفاده، Routing و محدودیت تست فعلی در [راهنمای ویندوز](docs/WINDOWS.md) آمده است.
 

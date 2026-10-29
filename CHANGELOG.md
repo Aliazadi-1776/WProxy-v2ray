@@ -1,3 +1,13 @@
+# 2.7.5
+
+- Restyle only the Manager with the requested rounded navy surfaces, blue controls and clearer connected state, preserving its navigation and actions.
+
+- Install native Plasma VPN support so Fedora/Arch KDE Networks can activate WProxy profiles; preserve installed GNOME and KDE integrations during updates.
+- Run each Plasma command with a fresh execution identity, use remembered WProxy authorization for connect/sync/disconnect, and detach Manager launches to avoid false timeouts.
+- Prevent delayed cleanup or stale service callbacks from stopping a replacement tunnel; keep Disconnect pending until the owned runtime has exited.
+- Keep the Plasma popup aligned under native light/dark themes and distinguish successful disconnects from errors.
+- Check for updates whenever Automatic updates is enabled, prevent duplicate installations and keep the desktop responsive while installing.
+
 # 2.7.4
 
 - Fix Windows Connect and Quick connect remaining busy after a successful connection: wait for the elevated command controller to exit while the detached Xray tunnel continues running.

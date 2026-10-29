@@ -1,5 +1,18 @@
 # Test coverage
 
+## 2.7.5 reliability regression checks on 2026-10-29
+
+- `make test`: 71 Python cases, 5 C service cases, TypeScript/Vite and Rust checks passed. All three new C lifecycle regressions fail against the previous service and pass with this fix. Runner regressions cover replacement PID files and serialization of shared routing cleanup.
+- Fedora 44 (PlasmaNM 6.7.5 / Qt 6.11.2 / KF 6.31) and Arch (PlasmaNM 6.8.2 / Qt 6.12 / KF 6.31): native Plasma plugin build, CTest, container installation and discovery from the actual system Qt plugin directory passed. Factory/editor/auth construction, unchanged VPN settings and masked URI were checked; dynamic dependencies resolved. The 5 C service tests and 20 Python runtime tests also passed on both distributions.
+- In Fedora, real KPackage install and upgrade as an unprivileged user passed with verified sources beneath an inaccessible root directory. Update staging exposes only root-owned, read-only widget files; the verified source snapshot remains private.
+- Plasma 6.7.5: 45 QML cases passed. Native Breeze light/dark viewer checks cover 100 servers, reaching the final row, fixed footer bounds, connected/error states and isolated KPackage lifecycle. A subprocess regression reproduced reused execution results before the fix; repeated identical requests now each execute once after completion. Manager launch returns without waiting for the GUI to close.
+- [Native Windows run 40927771236](https://github.com/Aliazadi-1776/WProxy-v2ray/actions/runs/40927771236) passed actual installed WebView2 UI, two Automatic updates off/on checks through the real IPC/CLI, button-driven Connect/Disconnect, Wintun, DNS, HTTPS and failure rollback. This run precedes the final 2.7.5 version bump and manager visual changes.
+
+- GNOME Shell 51: all 10 layout and 11 production-extension action/lifecycle scenarios passed again with 2.7.5 metadata in private sessions.
+- Manager CSS: 14 browser cases passed at 1180×760 and 960×640, including all five pages, connected/disconnected states, long Unicode server names, visible keyboard focus and reduced motion. Primary blue and Disconnect controls have at least 4.7:1 text contrast.
+
+Container Qt tests do not establish a complete KDE/Polkit login session or a live Fedora/Arch VPN session. The initial laptop baseline stopped after an HTTPS endpoint failure while NetworkManager and remembered authorization were still active; that result is not evidence of sudo expiry or a reproduced ten-minute disconnect.
+
 ## 2.7.4 verification on 2026-10-29
 
 - Ubuntu host: the real `bash scripts/install.sh --desktop gnome --dry-run` completed its clean Make/C and optimized Tauri builds, embedded-asset check and libnm plugin validation without changing system files. Live full-tunnel preflight, only-empty, bypass-application, only-application and only-domain checks passed with actual saved servers and HTTPS; the original policy/profiles and disconnected state were verified after cleanup. An independent recovery process was authorized before route changes.

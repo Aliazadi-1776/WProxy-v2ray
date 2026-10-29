@@ -248,7 +248,7 @@ POLKIT_POLICY="/usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy"
 PLASMA_PLUGIN_FILE=
 
 printf '%s\n' \
-    "WProxy 2.7.4 installer" \
+    "WProxy 2.7.5 installer" \
     "  libdir:       $LIBDIR" \
     "  libexec:      $LIBEXEC" \
     "  VPN metadata: $NM_VPN_DIR" \
@@ -436,7 +436,7 @@ echo
 [ -x /usr/bin/wproxyctl ] || { echo "Installation failed: /usr/bin/wproxyctl was not installed." >&2; exit 5; }
 /usr/bin/wproxyctl --version
 
-echo "Installed WProxy 2.7.4."
+echo "Installed WProxy 2.7.5."
 XRAY_PATH=$(find_xray 2>/dev/null || true)
 [ -n "$XRAY_PATH" ] && "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 if [ "$INSTALL_GNOME" -eq 1 ]; then

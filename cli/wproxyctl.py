@@ -1184,14 +1184,18 @@ def nm_down():
     for connection in active_wproxy_connections():
         p = run(["nmcli", "connection", "down", "uuid", connection["uuid"]])
         ok = ok and p.returncode == 0
-    return wait_for_linux_tun_removal() and ok
+    removed = wait_for_linux_tun_removal()
+    if not removed:
+        print("WProxy is still cleaning up its tunnel interface. Wait a moment and try again.", file=sys.stderr)
+    return removed and ok
 
 
 def nm_up(store, node_id, verify=False):
     node = next((n for n in store["nodes"] if n["id"] == node_id), None)
     if not node:
         raise ValueError("Unknown node id")
-    nm_down()
+    if not nm_down():
+        raise RuntimeError("The previous WProxy tunnel has not finished shutting down. Wait a moment and try again.")
     cuuid = deterministic_uuid(node_id)
     p = run(["nmcli", "--wait", "25", "connection", "up", "uuid", cuuid], capture=True)
     if p.returncode != 0:

@@ -7,6 +7,7 @@ Item {
     property string cliPath: "/usr/bin/wproxyctl"
     property string managerPath: "/usr/bin/wproxy-manager"
     property string pkexecPath: "/usr/bin/pkexec"
+    property string adminPath: "/usr/libexec/wproxy-admin"
     property bool busy: false
     property bool active: false
     property string activeId: ""
@@ -19,7 +20,6 @@ Item {
     property var latencies: ({})
     property var pinging: ({})
     property string nodeSignature: ""
-    property bool syncRetried: false
     property var executor: commands
     signal subscriptionAdded()
 
@@ -49,8 +49,7 @@ Item {
         errorMessage = "";
         connectingId = id;
         selectedId = id;
-        syncRetried = false;
-        run("connect", ["nm", "up", id]);
+        run("connect-preferences", ["settings", "show", "--json"]);
     }
 
     function toggleConnection() {
@@ -64,11 +63,11 @@ Item {
         if (busy)
             return;
         busy = true;
-        run("disconnect", ["nm", "down"]);
+        executor.run("disconnect", [pkexecPath, adminPath, "down"]);
     }
 
     function sync(token) {
-        executor.run(token, [pkexecPath, cliPath, "nm", "sync"]);
+        executor.run(token, [pkexecPath, adminPath, "sync"]);
     }
 
     function addSubscription(url) {
@@ -111,28 +110,26 @@ Item {
     }
 
     function openManager() {
-        executor.run("manager", [managerPath]);
+        executor.run("manager", [managerPath], true);
     }
 
     function consume(token, code, output, error) {
         const failure = error.trim() || output.trim() || qsTr("Command failed (%1)").arg(code);
-        if (token === "connect") {
-            if (code && !syncRetried && Commands.needsSync(failure)) {
-                syncRetried = true;
-                sync("connect-sync");
-            } else {
-                finish(code ? failure : "");
+        if (token === "connect-preferences") {
+            if (code) {
+                finish(failure);
+                return;
+            }
+            try {
+                const preferences = JSON.parse(output);
+                const action = preferences.remember_authorization === false ? "up" : "up-remember";
+                executor.run("connect", [pkexecPath, adminPath, action, connectingId]);
+            } catch (error) {
+                finish(qsTr("Invalid WProxy settings response: %1").arg(String(error)));
             }
             return;
         }
-        if (token === "connect-sync") {
-            if (code)
-                finish(failure);
-            else
-                run("connect", ["nm", "up", connectingId]);
-            return;
-        }
-        if (token === "disconnect" || token === "sub-sync") {
+        if (token === "connect" || token === "disconnect" || token === "sub-sync") {
             finish(code ? failure : "");
             return;
         }

@@ -10,14 +10,23 @@ Plasma5Support.DataSource {
 
     property var jobs: ({})
     property int activeJobs: 0
+    property int sequence: 0
+    readonly property string instanceId: Date.now().toString(36) + Math.random().toString(36).slice(2)
     signal completed(string token, int exitCode, string output, string error)
 
-    function run(token, args) {
-        const source = Commands.command(args);
-        if (jobs[source])
+    function run(token, args, detached) {
+        const command = Commands.command(args);
+        if (Object.keys(jobs).some(function(source) { return jobs[source].command === command; }))
             return false;
+        // Plasma keeps completed sources briefly; a unique source must start a fresh process.
+        const script = detached
+            ? "command -v " + Commands.quote(args[0]) + " >/dev/null 2>&1 || { printf '%s\\n' "
+                + Commands.quote("Application was not found: " + args[0]) + " >&2; exit 127; }; "
+                + command + " </dev/null >/dev/null 2>&1 &"
+            : "exec " + command;
+        const source = Commands.command(["/bin/sh", "-c", script, "wproxy-" + instanceId + "-" + (++sequence)]);
         const next = Object.assign({}, jobs);
-        next[source] = {token: token, started: Date.now()};
+        next[source] = {token: token, command: command, started: Date.now()};
         jobs = next;
         activeJobs += 1;
         connectSource(source);

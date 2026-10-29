@@ -161,11 +161,29 @@ try {
   await screenshot("windows-routing-minimum.png");
   await evaluate("document.querySelector('[data-page=settings]').click()");
   assert(await evaluate("document.querySelector('#content').textContent.includes('Automatic updates')"));
+  await evaluate(`(() => {
+    window.__wproxyUpdateChecks = 0;
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = function(command, arguments_, options) {
+      if (command === 'run_ctl' && arguments_?.args?.[0] === 'update' && arguments_?.args?.[1] === 'download')
+        window.__wproxyUpdateChecks++;
+      return original.call(this, command, arguments_, options);
+    };
+  })()`);
+  for (let count = 1; count <= 2; count++) {
+    await evaluate("document.querySelector('[data-setting=auto-update]').click()");
+    await waitFor(`window.__wproxyUpdateChecks === ${count} && !document.querySelector('[data-setting=auto-update]').disabled && document.querySelector('#content').textContent.includes('Up to date')`, "an immediate update check each time automatic updates are enabled", 120);
+    assert.equal(JSON.parse(ctl(["settings", "show", "--json"])).auto_update, true);
+    await evaluate("document.querySelector('[data-setting=auto-update]').click()");
+    await waitFor("!document.querySelector('[data-setting=auto-update]').checked && !document.querySelector('[data-setting=auto-update]').disabled", "automatic updates disabled");
+    assert.equal(JSON.parse(ctl(["settings", "show", "--json"])).auto_update, false);
+  }
   await screenshot("windows-settings.png");
   await writeFile(path.join(outputDirectory, "desktop-result.json"), JSON.stringify({
     platform: "windows", installed: true, rendered: true, bridge: true,
     addAndRemovePersisted: true, widths: [defaultWidth, 960], screenshots: tunnelUri ? 5 : 4,
     uiTunnel,
+    automaticUpdateChecksOnEnable: 2,
   }, null, 2));
   console.log("Installed native Windows UI: PASS (rendered assets, Tauri bridge, persisted add/remove, routing layout, screenshots)");
 } catch (error) {

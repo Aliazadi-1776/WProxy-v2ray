@@ -356,7 +356,13 @@ fn set_linux_authorization(enable: bool) -> Result<CliOutput, String> {
 }
 
 #[tauri::command]
-fn install_update(path: String) -> Result<CliOutput, String> {
+async fn install_update(path: String) -> Result<CliOutput, String> {
+    tauri::async_runtime::spawn_blocking(move || install_update_command(path))
+        .await
+        .map_err(|error| format!("Could not complete the update: {error}"))?
+}
+
+fn install_update_command(path: String) -> Result<CliOutput, String> {
     let archive = PathBuf::from(&path);
     if !archive.is_file() {
         return Err("The downloaded update no longer exists.".into());

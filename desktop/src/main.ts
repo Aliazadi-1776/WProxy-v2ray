@@ -63,6 +63,7 @@ const applicationRoot = document.querySelector<HTMLDivElement>("#app");
 if (!applicationRoot) throw new Error("WProxy application root is missing");
 const app: HTMLDivElement = applicationRoot;
 let automaticUpdateStarted = false;
+let updateInProgress = false;
 
 const state = {
   page: "servers" as Page,
@@ -389,8 +390,8 @@ function routingPage(): string {
 function settingsPage(): string {
   return `<section class="settings-layout constrained">
     <div class="settings-card">
-      <div class="setting-row"><div class="setting-icon">${icon("update", 20)}</div><div class="setting-copy"><strong>Automatic updates</strong><span>Check verified GitHub releases and install them automatically.</span></div><label class="switch"><input type="checkbox" data-setting="auto-update" ${state.preferences.auto_update ? "checked" : ""}/><span></span></label></div>
-      <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.4</span></div><button class="button secondary" data-action="check-update">Check now</button></div>
+      <div class="setting-row"><div class="setting-icon">${icon("update", 20)}</div><div class="setting-copy"><strong>Automatic updates</strong><span>Check verified GitHub releases and install them automatically.</span></div><label class="switch"><input type="checkbox" aria-label="Automatic updates" data-setting="auto-update" ${state.preferences.auto_update ? "checked" : ""} ${updateInProgress ? "disabled" : ""}/><span></span></label></div>
+      <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.4</span></div><button class="button secondary" data-action="check-update" ${updateInProgress ? "disabled" : ""}>Check now</button></div>
       ${state.platform === "linux" ? `<div class="setting-row"><div class="setting-icon">${icon("shield", 20)}</div><div class="setting-copy"><strong>Ask for permission only once</strong><span>Your first connection remembers approval for WProxy. Turn off to revoke it.</span></div><label class="switch"><input type="checkbox" aria-label="Remember WProxy administrator approval" data-setting="remember-authorization" ${state.preferences.remember_authorization ? "checked" : ""}/><span></span></label></div>` : ""}
     </div>
     <div class="about-card"><div class="brand-mark large">W</div><div><h2>WProxy 2.7.4</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
@@ -548,25 +549,43 @@ async function chooseApplication(): Promise<void> {
 }
 
 async function checkUpdate(): Promise<void> {
-  await action("Update check complete", async () => {
-    if (!isTauri) return;
-    const update = await ctl<UpdateStatus>(["update", "check", "--json", "--timeout", "15"]);
-    if (!update.update_available) {
-      state.updateLabel = "Up to date";
-      return;
-    }
-    state.updateLabel = `v${update.latest_version} available`;
-    const proceed = window.confirm(`WProxy ${update.latest_version} is available. Download and install it now?`);
-    if (!proceed) return;
-    const result = await ctl<{ path?: string; update_available: boolean }>(["update", "download", "--json", "--platform", state.platform, "--timeout", "30"]);
-    if (result.path) {
-      state.updateLabel = "Installing update";
-      await invoke<CliOutput>("install_update", { path: result.path });
-    }
-  });
+  if (updateInProgress) return;
+  updateInProgress = true;
+  try {
+    await action("Update check complete", async () => {
+      try {
+        if (!isTauri) return;
+        const update = await ctl<UpdateStatus>(["update", "check", "--json", "--timeout", "15"]);
+        if (!update.update_available) {
+          state.updateLabel = "Up to date";
+          return;
+        }
+        state.updateLabel = `v${update.latest_version} available`;
+        const proceed = window.confirm(`WProxy ${update.latest_version} is available. Download and install it now?`);
+        if (!proceed) return;
+        const result = await ctl<{ path?: string; update_available: boolean }>(["update", "download", "--json", "--platform", state.platform, "--timeout", "30"]);
+        if (result.path) {
+          state.updateLabel = "Installing update";
+          if (state.page === "settings") render();
+          await invoke<CliOutput>("install_update", { path: result.path });
+          state.updateLabel = "Installed. Reopen WProxy";
+        }
+      } catch (error) {
+        state.updateLabel = "Update failed";
+        throw error;
+      }
+    });
+  } finally {
+    updateInProgress = false;
+    if (state.page === "settings") render();
+  }
 }
 
 async function runAutomaticUpdate(): Promise<void> {
+  if (!state.preferences.auto_update || updateInProgress) return;
+  updateInProgress = true;
+  state.updateLabel = "Checking for updates";
+  if (state.page === "settings") render();
   try {
     const result = await ctl<{ path?: string; latest_version: string; update_available: boolean }>([
       "update", "download", "--json", "--platform", state.platform, "--timeout", "30",
@@ -579,11 +598,15 @@ async function runAutomaticUpdate(): Promise<void> {
     state.updateLabel = `Installing v${result.latest_version}`;
     if (state.page === "settings") render();
     await invoke<CliOutput>("install_update", { path: result.path });
-    toast(`WProxy ${result.latest_version} update started`);
+    state.updateLabel = "Installed. Reopen WProxy";
+    toast(`WProxy ${result.latest_version} installed. Reopen WProxy to finish.`);
   } catch (error) {
-    state.updateLabel = "Update check failed";
+    state.updateLabel = "Update failed";
     if (state.page === "settings") render();
     console.warn("Automatic update failed", error);
+  } finally {
+    updateInProgress = false;
+    if (state.page === "settings") render();
   }
 }
 
@@ -643,10 +666,12 @@ app.addEventListener("change", async (event) => {
   }
   if (input.dataset.setting === "auto-update") {
     const enabled = input.checked;
+    automaticUpdateStarted = enabled;
     await action(enabled ? "Automatic updates enabled" : "Automatic updates disabled", async () => {
       if (isTauri) await invoke<CliOutput>("run_ctl", { args: ["settings", "set", "auto_update", String(enabled)] });
       else state.preferences.auto_update = enabled;
     });
+    if (enabled && state.preferences.auto_update) await runAutomaticUpdate();
   }
 });
 

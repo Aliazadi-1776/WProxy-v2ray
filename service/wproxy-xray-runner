@@ -75,6 +75,15 @@ need_runtime() {
     }
 }
 
+acquire_runtime() {
+    command -v flock >/dev/null 2>&1 || { echo 'flock (util-linux) is required.' >&2; exit 127; }
+    exec 9>"$RUNTIME/runtime.lock"
+    flock -w 8 9 || {
+        echo 'Another WProxy runtime is still stopping; try again after it finishes.' >&2
+        exit 73
+    }
+}
+
 detect_outbound_iface() {
     command -v ip >/dev/null 2>&1 || { echo 'iproute2 is required.' >&2; exit 127; }
 
@@ -225,17 +234,15 @@ cleanup() {
         systemctl stop "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
         [ -n "${SYSTEMD_RUN_PID:-}" ] && wait "$SYSTEMD_RUN_PID" 2>/dev/null || true
         systemctl reset-failed "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
-    elif [ -f "$XRAY_PID" ]; then
-        XPID=$(cat "$XRAY_PID" 2>/dev/null || true)
-        if [ -n "${XPID:-}" ]; then
-            kill "$XPID" 2>/dev/null || true
-            i=0
-            while kill -0 "$XPID" 2>/dev/null && [ "$i" -lt 20 ]; do
-                sleep 0.1
-                i=$((i + 1))
-            done
-            kill -9 "$XPID" 2>/dev/null || true
-        fi
+    elif [ -n "${XPID:-}" ]; then
+        # Use this generation's child, never a replacement's shared PID file.
+        kill "$XPID" 2>/dev/null || true
+        i=0
+        while kill -0 "$XPID" 2>/dev/null && [ "$i" -lt 20 ]; do
+            sleep 0.1
+            i=$((i + 1))
+        done
+        kill -9 "$XPID" 2>/dev/null || true
     fi
     remove_stale_tun
     rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$ROUTING_FILE" "$GATEWAY"
@@ -256,10 +263,11 @@ case "${1:-}" in
   check)
     URI=${WPROXY_URI:-${2:-}}
     unset WPROXY_URI 2>/dev/null || true
-    prepare_routing
     [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
     need_root
     need_runtime
+    acquire_runtime
+    prepare_routing
     render_and_test "$URI"
     rm -f "$CONFIG" "$ROUTING_FILE"
     ;;
@@ -267,10 +275,11 @@ case "${1:-}" in
   start)
     URI=${WPROXY_URI:-${2:-}}
     unset WPROXY_URI 2>/dev/null || true
-    prepare_routing
     [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
     need_root
     need_runtime
+    # Serialize all shared files and TUN cleanup through the previous exit trap.
+    acquire_runtime
 
     rm -f "$READY"
 
@@ -294,6 +303,7 @@ case "${1:-}" in
         rm -f "$RUNNER_PID"
     fi
 
+    prepare_routing
     render_and_test "$URI"
     echo $$ > "$RUNNER_PID"
     trap cleanup INT TERM EXIT
@@ -345,8 +355,11 @@ case "${1:-}" in
     rm -f "$READY"
     if [ -f "$RUNNER_PID" ]; then
         PID=$(cat "$RUNNER_PID" 2>/dev/null || true)
-        [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null || true
-    elif [ -f "$XRAY_PID" ]; then
+        if [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null; then
+            exit 0
+        fi
+    fi
+    if [ -f "$XRAY_PID" ]; then
         PID=$(cat "$XRAY_PID" 2>/dev/null || true)
         [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null || true
     fi

@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -195,6 +196,65 @@ class ConfigTests(unittest.TestCase):
 
 @unittest.skipIf(os.name == "nt", "Linux TUN runner tests require a POSIX shell")
 class RunnerTests(unittest.TestCase):
+    def function(self, name):
+        runner = (ROOT / "service/wproxy-xray-runner").read_text()
+        return re.search(rf"^{name}\(\) \{{.*?^\}}", runner, re.M | re.S).group()
+
+    def test_cleanup_never_reads_a_replacement_xray_pid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pid = Path(directory) / "xray.pid"
+            pid.write_text("99999\n")
+            script = r'''
+XRAY_MANAGED_BY_SYSTEMD=0
+XPID=11111
+IFACE=wproxy0
+RUNTIME=$1
+READY="$RUNTIME/ready"
+RUNNER_PID="$RUNTIME/runner.pid"
+XRAY_PID="$RUNTIME/xray.pid"
+CONFIG="$RUNTIME/xray.json"
+ROUTING_FILE="$RUNTIME/routing64"
+GATEWAY="$RUNTIME/gateway"
+kill() { printf 'signal:%s\n' "$*" >> "$RUNTIME/signals"; return 1; }
+resolvectl() { return 0; }
+remove_stale_tun() { return 0; }
+'''
+            result = subprocess.run(["sh", "-c", script + self.function("cleanup") + "\ncleanup\n", "test", directory],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            signals = (Path(directory) / "signals").read_text()
+            self.assertIn("signal:11111", signals)
+            self.assertNotIn("99999", signals)
+
+    @unittest.skipUnless(shutil.which("flock"), "util-linux flock is required")
+    def test_replacement_routing_waits_until_previous_cleanup_finishes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            functions = self.function("acquire_runtime") + "\n" + self.function("prepare_routing")
+            common = 'RUNTIME=$1\nROUTING_FILE="$RUNTIME/routing64"\n' + functions
+            previous = subprocess.Popen(["sh", "-c", common + '''
+acquire_runtime
+WPROXY_ROUTING64=previous
+prepare_routing
+printf 'locked\n'
+sleep 0.3
+rm -f "$ROUTING_FILE"
+''', "test", directory], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(previous.stdout.readline().strip(), "locked")
+                replacement = subprocess.run(["sh", "-c", common + '''
+acquire_runtime
+WPROXY_ROUTING64=replacement
+prepare_routing
+''', "test", directory], capture_output=True, text=True, timeout=3)
+                self.assertEqual(replacement.returncode, 0, replacement.stderr)
+                previous.communicate(timeout=3)
+                self.assertEqual((base / "routing64").read_text(), "replacement\n")
+            finally:
+                if previous.poll() is None:
+                    previous.kill()
+                    previous.communicate()
+
     def test_process_routing_escapes_networkmanager_capability_sandbox(self):
         source = (ROOT / "service/wproxy-xray-runner").read_text()
         self.assertIn("needs_process_visibility", source)

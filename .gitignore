@@ -3,6 +3,7 @@
 /wproxyctl
 /validate-plugin
 /test-service-profile-lookup
+/test-service-lifecycle
 *.so
 *.o
 __pycache__/

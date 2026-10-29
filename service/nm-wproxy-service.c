@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/wait.h>
 
 #define WPROXY_PATH "/org/freedesktop/NetworkManager/VPN/Plugin"
 #define WPROXY_IFACE "org.freedesktop.NetworkManager.VPN.Plugin"
@@ -383,6 +384,10 @@ static gchar *extract_routing(GVariant *connection) {
 
 static void child_watch(GPid pid, gint status, gpointer user_data) {
     App *app = user_data;
+    if (app->child != pid) {
+        g_spawn_close_pid(pid);
+        return;
+    }
     gboolean was_connecting = app->connecting;
 
     if (app->child == pid)
@@ -396,9 +401,17 @@ static void child_watch(GPid pid, gint status, gpointer user_data) {
     }
     app->connecting = FALSE;
 
-    if (app->state == 3 || app->state == 4) {
-        if (was_connecting || status != 0)
+    if (app->state == 3 || app->state == 4 || app->state == 5) {
+        if (app->state != 5) {
+            const gchar *stage = was_connecting ? "waiting for tunnel readiness" : "tunnel active";
+            if (WIFEXITED(status))
+                g_warning("WProxy runtime exited with status %d while %s.", WEXITSTATUS(status), stage);
+            else if (WIFSIGNALED(status))
+                g_warning("WProxy runtime terminated by signal %d while %s.", WTERMSIG(status), stage);
+            else
+                g_warning("WProxy runtime stopped (wait status %d) while %s.", status, stage);
             emit_failure(app, 1);
+        }
         emit_state(app, 6);
     }
 }
@@ -427,6 +440,7 @@ static gboolean ready_poll(gpointer user_data) {
 
     app->ready_checks++;
     if (app->ready_checks >= 150) {
+        g_warning("WProxy runtime did not report tunnel readiness within 15 seconds.");
         app->connecting = FALSE;
         app->ready_source = 0;
         if (app->child)
@@ -479,17 +493,13 @@ static gboolean start_runner_async(App *app, gchar **message) {
 }
 
 static void stop_runner(App *app) {
-    gchar *argv[] = { WPROXY_RUNNER_PATH, "stop", NULL };
-
     if (app->ready_source) {
         g_source_remove(app->ready_source);
         app->ready_source = 0;
     }
     app->connecting = FALSE;
 
-    g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH,
-                  NULL, NULL, NULL, NULL);
-
+    /* A delayed global 'stop' helper could read the next connection's PID. */
     if (app->child)
         kill(app->child, SIGTERM);
 }
@@ -555,7 +565,8 @@ static void method_call(
     if (g_str_equal(method_name, "Disconnect")) {
         emit_state(app, 5);
         stop_runner(app);
-        emit_state(app, 6);
+        if (!app->child)
+            emit_state(app, 6);
         g_dbus_method_invocation_return_value(invocation, NULL);
         return;
     }

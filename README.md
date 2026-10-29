@@ -95,7 +95,7 @@ The mature backend is Linux-specific: it needs a normal writable installation, s
 | NixOS / Alpine / immutable systems | These installation scripts are not supported; no Nix module, OpenRC, rpm-ostree or transactional installation is supplied |
 | ARM / other CPU architectures | Source builds may be possible with a suitable Xray binary, but are untested; do not treat this as a universal binary release |
 
-The KDE widget does **not** inject rows into Plasma's built-in Networks applet, hide its VPN entries, or provide a Qt VPN editor. Place the separate WProxy widget beside Networks.
+The separate KDE widget can sit beside Networks. The KDE installer also builds a native Plasma VPN plugin so Networks recognizes WProxy connections. Its editor preserves the saved configuration and opens Manager for changes; proxy credentials stay hidden. Qt/KF build dependencies are required only with KDE integration. The plugin factory/editor test passed against Plasma NM 6.7.5 on Fedora 44 and 6.8.2 on Arch; a complete KDE login/connection test is still pending.
 
 Windows does not expose a public API for arbitrary third-party controls inside Win+A Quick Settings. WProxy therefore uses a normal standalone Tauri window. Windows' native VPN quick setting requires a curated VPN provider package and cannot host WProxy's custom server/subscription list. See [Windows support and limitations](docs/WINDOWS.md).
 
@@ -145,7 +145,9 @@ sudo apt-get install -y \
 ```bash
 sudo apt-get install -y \
   kpackagetool6 qml6-module-org-kde-kirigami \
-  qml6-module-org-kde-plasma-plasma5support polkit-kde-agent-1
+  qml6-module-org-kde-plasma-plasma5support polkit-kde-agent-1 \
+  cmake extra-cmake-modules qt6-base-dev libkf6coreaddons-dev \
+  libkf6networkmanagerqt-dev libkf6widgetsaddons-dev plasma-nm
 ```
 
 If these Plasma 6 packages are unavailable, stop: do not substitute Plasma 5 packages or mix repositories from another distro release. Use `--desktop none` or a distribution release with Plasma 6. Mint's default Cinnamon is **not** GNOME; use `--desktop none` there unless you separately run a supported desktop. If Ubuntu reports a missing package, check that the official repositories for your release (including Universe where applicable) are enabled.
@@ -165,7 +167,8 @@ This also performs a system upgrade; read the package manager's proposed transac
 **Plasma 6 only**, also install:
 
 ```bash
-sudo pacman -S --needed kpackage kirigami plasma5support polkit-kde-agent
+sudo pacman -S --needed kpackage kirigami plasma5support polkit-kde-agent \
+  cmake extra-cmake-modules qt6-base kcoreaddons networkmanager-qt kwidgetsaddons plasma-nm
 ```
 
 Arch's package names and PyGObject setup are documented in the [official GLib development package](https://archlinux.org/packages/core/x86_64/glib2-devel/), [KPackage file list](https://archlinux.org/packages/extra/x86_64/kpackage/files/) and [PyGObject installation guide](https://pygobject.gnome.org/getting_started.html).
@@ -184,7 +187,9 @@ sudo dnf install \
 **Plasma 6 only**, also install:
 
 ```bash
-sudo dnf install kf6-kpackage kf6-kirigami plasma5support polkit-kde
+sudo dnf install kf6-kpackage kf6-kirigami plasma5support polkit-kde \
+  cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel kf6-kcoreaddons-devel \
+  kf6-networkmanager-qt-devel kf6-kwidgetsaddons-devel plasma-nm
 ```
 
 Package references: [NetworkManager development files](https://packages.fedoraproject.org/pkgs/NetworkManager/NetworkManager-libnm-devel/), [KPackage](https://packages.fedoraproject.org/pkgs/kf6-kpackage/kf6-kpackage/), [Plasma5Support](https://packages.fedoraproject.org/pkgs/plasma5support/plasma5support/). These instructions do **not** cover Silverblue, Kinoite, other Atomic variants, RHEL or CentOS. Keep SELinux enabled; investigate policy denials instead of disabling it to force an installation.
@@ -205,7 +210,9 @@ sudo zypper install \
 **Plasma 6 only**, also install:
 
 ```bash
-sudo zypper install kf6-kpackage kf6-kirigami-imports plasma5support6 polkit-kde-agent-6
+sudo zypper install kf6-kpackage kf6-kirigami-imports plasma5support6 polkit-kde-agent-6 \
+  cmake extra-cmake-modules qt6-base-devel kf6-kcoreaddons-devel \
+  kf6-networkmanager-qt-devel kf6-kwidgetsaddons-devel plasma6-nm
 ```
 
 See the [upstream PyGObject/openSUSE instructions](https://pygobject.gnome.org/getting_started.html#opensuse) and [openSUSE Plasma5Support package](https://build.opensuse.org/package/show/openSUSE:Factory/plasma5support6). This is an **untested Tumbleweed recipe**, not a promise for every Leap/SUSE version. If a package is unavailable in your enabled official repositories, resolve the package/version difference first; do not add arbitrary third-party repositories. MicroOS/Aeon/Kalpa and transactional installations are not covered.

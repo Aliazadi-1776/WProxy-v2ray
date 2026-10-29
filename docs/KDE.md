@@ -9,10 +9,10 @@
 - Select a server row to connect; use the header switch to disconnect/reconnect.
 - Scroll past the first three servers without moving the subscription/footer controls.
 - Use the small refresh button to ping one endpoint, or **Ping all** for all endpoints.
-- Paste an HTTP(S) subscription and choose **Add**, or use **Update**.
-- **Manager** opens the GTK4 application. GTK dependencies are still needed on KDE.
+- Paste an HTTP(S) subscription and choose **Add**, or use **Refresh**.
+- **Manager** opens the Tauri application. GTK/WebKitGTK dependencies are still needed on KDE.
 
-The applet is independent of KDE's built-in Networks applet. It does not modify that applet's server list or automatically rearrange the panel.
+The applet is independent of KDE's built-in Networks applet. The KDE installer also builds a native Plasma VPN plugin, which lets Networks recognize WProxy connections instead of reporting missing VPN support. Its editor preserves all saved fields, masks the URI, and opens Manager for changes. The plugin is built against the installed Qt/KF/Plasma libraries and must pass its native factory/editor test before installation.
 
 ## Installation
 
@@ -22,10 +22,9 @@ Install the common dependencies **and** the KDE-only packages for your distribut
 bash scripts/install.sh --desktop kde
 ```
 
-On Debian/Ubuntu with the backend already installed:
+With the backend and native Plasma VPN plugin already installed, update only the widget:
 
 ```bash
-sudo apt-get install kpackagetool6 qml6-module-org-kde-kirigami qml6-module-org-kde-plasma-plasma5support polkit-kde-agent-1
 bash scripts/install-kde-widget.sh
 ```
 
@@ -40,7 +39,9 @@ If you keep it as an automatically hidden tray entry, it may live under the tray
 
 ## Permissions and dependencies
 
-The applet runs as the desktop user, never root. Ordinary status/ping/connect operations call the CLI. New or updated subscription profiles use `pkexec /usr/bin/wproxyctl nm sync`, so the Plasma Polkit agent must be running. No password is collected by the widget itself.
+The applet runs as the desktop user, never root. Status and ping call the CLI. Connect, disconnect and profile synchronization use the scoped `pkexec /usr/libexec/wproxy-admin` helper. The **Remember WProxy administrator approval** setting in Manager also applies to connections started from the widget. The Plasma Polkit agent must be running for the initial approval; no password is collected or stored by WProxy.
+
+The additional CMake, Qt6 and KF6 development dependencies are listed in the KDE-only distribution commands in the READMEs. They are not required for `--desktop gnome` or `--desktop none`. A source auto-update preserves both integrations if GNOME and KDE were installed together. During a privileged update, only read-only widget files are staged for the desktop user; the verified source snapshot stays private.
 
 The widget uses the **Plasma5Support `executable` data engine** to invoke safely quoted commands. Its module name contains “plasma5support” even on Plasma 6. If a distro/policy disables this engine, it must be available for the widget to work; do not mistake its absence for a server outage.
 
@@ -50,7 +51,7 @@ The widget uses the **Plasma5Support `executable` data engine** to invoke safely
 bash scripts/test-kde.sh
 ```
 
-The test requires Qt 6's `qmltestrunner`, QtTest QML, Qt Quick Controls/Layouts, Kirigami and Plasma5Support QML. `QMLTESTRUNNER=/path/to/qmltestrunner` can override tool discovery. Tests run offscreen using software rendering and synthetic data, including 100 servers, selection, fixed footer, scroll preservation and real command-runner quoting.
+The test requires Qt 6's `qmltestrunner`, QtTest QML, Qt Quick Controls/Layouts, Kirigami and Plasma5Support QML. `QMLTESTRUNNER=/path/to/qmltestrunner` can override tool discovery. Tests run offscreen using software rendering and synthetic data, including 100 servers, selection, fixed footer, scroll preservation and real command-runner quoting. `make plasma-plugin` separately builds and tests native plugin discovery, factory loading, editor/auth widgets, hidden URI and settings preservation. This passed against Fedora 44's Plasma NM 6.7.5 and Arch's 6.8.2 libraries.
 
 Full desktop placement, Polkit prompts and connection switching in an actual KDE login still need field testing. The shared NetworkManager/TUN backend has a successful host HTTPS report from GNOME; that is not an end-to-end KDE certification.
 

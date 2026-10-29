@@ -31,6 +31,10 @@ for VPN_DIR in "$LIBDIR/NetworkManager/VPN" "/usr/lib/NetworkManager/VPN"; do
     [ -f "$VPN_DIR/nm-wproxy-service.name" ] && $SUDO rm -f "$VPN_DIR/nm-wproxy-service.name"
 done
 
+for QT_PLUGIN_ROOT in "$LIBDIR/qt6/plugins" /usr/lib/qt6/plugins /usr/lib64/qt6/plugins; do
+    $SUDO rm -f "$QT_PLUGIN_ROOT/plasma/network/vpn/plasmanetworkmanagement_wproxyui.so"
+done
+
 $SUDO rm -f \
     "$LIBDIR/NetworkManager/libnm-vpn-plugin-wproxy.so" \
     "$LIBDIR/NetworkManager/libnm-vpn-plugin-wproxy-editor.so" \

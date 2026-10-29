@@ -90,7 +90,7 @@
 | NixOS / Alpine / سیستم‌های immutable | نصب‌کنندهٔ مناسب Nix، OpenRC، rpm-ostree یا transactional در این بسته وجود ندارد |
 | ARM و معماری‌های دیگر | احتمال ساخت از سورس با Xray مناسب وجود دارد، اما تست نشده‌اند؛ این فایل باینری آماده برای همهٔ معماری‌ها نیست |
 
-ویجت KDE مستقل است: آن را کنار Networks می‌گذاری؛ داخل منوی اصلی Networks دست‌کاری نمی‌کند، لیست VPN آن را مخفی نمی‌کند و ویرایشگر Qt برای آن نمی‌سازد.
+ویجت KDE مستقل است و کنار Networks قرار می‌گیرد. نصب‌کنندهٔ KDE یک افزونهٔ بومی VPN هم می‌سازد تا Networks اتصال‌های WProxy را بشناسد. ویرایشگر آن تنظیمات ذخیره‌شده را حفظ می‌کند و برای تغییرات Manager را باز می‌کند؛ اطلاعات اتصال پنهان می‌مانند. وابستگی‌های ساخت Qt/KF فقط برای نصب KDE لازم‌اند. تست بارگذاری و ویرایشگر روی Plasma NM 6.7.5 در Fedora 44 و نسخهٔ 6.8.2 در Arch موفق بوده؛ تست کامل اتصال در یک نشست واقعی KDE هنوز انجام نشده است.
 
 ویندوز API عمومی برای افزودن کنترل دلخواه داخل Win+A Quick Settings ندارد. بنابراین WProxy در یک پنجرهٔ عادی و مستقل Tauri اجرا می‌شود. کاشی VPN خود ویندوز به VPN Provider تأییدشده نیاز دارد و نمی‌تواند فهرست ساب و سرور اختصاصی WProxy را نمایش دهد. [محدودیت‌ها و نصب ویندوز](docs/WINDOWS.md)
 
@@ -144,7 +144,9 @@ sudo apt-get install -y \
 ```bash
 sudo apt-get install -y \
   kpackagetool6 qml6-module-org-kde-kirigami \
-  qml6-module-org-kde-plasma-plasma5support polkit-kde-agent-1
+  qml6-module-org-kde-plasma-plasma5support polkit-kde-agent-1 \
+  cmake extra-cmake-modules qt6-base-dev libkf6coreaddons-dev \
+  libkf6networkmanagerqt-dev libkf6widgetsaddons-dev plasma-nm
 ```
 
 اگر بسته‌های Plasma 6 پیدا نشدند، بسته‌های Plasma 5 را جایگزین نکن و مخزن نسخه‌های مختلف توزیع را با هم مخلوط نکن؛ از `--desktop none` یا نسخه‌ای با Plasma 6 استفاده کن. دسکتاپ پیش‌فرض Cinnamon در Mint گنوم نیست؛ آنجا `--desktop none` مناسب است، مگر خودت دسکتاپ پشتیبانی‌شده‌ای نصب کرده باشی. در Ubuntu، در صورت پیدا نشدن بسته، فعال‌بودن مخازن رسمی همان نسخه، از جمله Universe در صورت نیاز، را بررسی کن.
@@ -164,7 +166,8 @@ sudo pacman -Syu --needed \
 **فقط Plasma 6:**
 
 ```bash
-sudo pacman -S --needed kpackage kirigami plasma5support polkit-kde-agent
+sudo pacman -S --needed kpackage kirigami plasma5support polkit-kde-agent \
+  cmake extra-cmake-modules qt6-base kcoreaddons networkmanager-qt kwidgetsaddons plasma-nm
 ```
 
 نام بسته‌ها را می‌توان در [بستهٔ رسمی توسعهٔ GLib](https://archlinux.org/packages/core/x86_64/glib2-devel/)، [فهرست فایل‌های KPackage](https://archlinux.org/packages/extra/x86_64/kpackage/files/) و [راهنمای رسمی PyGObject](https://pygobject.gnome.org/getting_started.html) بررسی کرد.
@@ -183,7 +186,9 @@ sudo dnf install \
 **فقط Plasma 6:**
 
 ```bash
-sudo dnf install kf6-kpackage kf6-kirigami plasma5support polkit-kde
+sudo dnf install kf6-kpackage kf6-kirigami plasma5support polkit-kde \
+  cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel kf6-kcoreaddons-devel \
+  kf6-networkmanager-qt-devel kf6-kwidgetsaddons-devel plasma-nm
 ```
 
 مراجع بسته‌ها: [توسعهٔ NetworkManager](https://packages.fedoraproject.org/pkgs/NetworkManager/NetworkManager-libnm-devel/)، [KPackage](https://packages.fedoraproject.org/pkgs/kf6-kpackage/kf6-kpackage/)، [Plasma5Support](https://packages.fedoraproject.org/pkgs/plasma5support/plasma5support/). این دستورها برای Silverblue، Kinoite، سایر نسخه‌های Atomic، RHEL و CentOS نیستند. SELinux را برای راه‌اندازی برنامه خاموش نکن؛ خطاهای سیاست امنیتی باید جداگانه بررسی شوند.
@@ -204,7 +209,9 @@ sudo zypper install \
 **فقط Plasma 6:**
 
 ```bash
-sudo zypper install kf6-kpackage kf6-kirigami-imports plasma5support6 polkit-kde-agent-6
+sudo zypper install kf6-kpackage kf6-kirigami-imports plasma5support6 polkit-kde-agent-6 \
+  cmake extra-cmake-modules qt6-base-devel kf6-kcoreaddons-devel \
+  kf6-networkmanager-qt-devel kf6-kwidgetsaddons-devel plasma6-nm
 ```
 
 مراجع: [راهنمای رسمی PyGObject برای openSUSE](https://pygobject.gnome.org/getting_started.html#opensuse) و [بستهٔ Plasma5Support در openSUSE](https://build.opensuse.org/package/show/openSUSE:Factory/plasma5support6). این **راهنمای آزمایشی Tumbleweed** است، نه تضمین همهٔ نسخه‌های Leap/SUSE. اگر بسته‌ای در مخازن رسمی فعال تو پیدا نشد، اول تفاوت نام/نسخه را حل کن؛ مخزن شخص ثالث تصادفی اضافه نکن. نصب‌های MicroOS/Aeon/Kalpa و transactional پوشش داده نشده‌اند.

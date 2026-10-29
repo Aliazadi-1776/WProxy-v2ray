@@ -29,16 +29,31 @@ TARGET_USER=${SUDO_USER:-$(id -un)}
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 TARGET_UID=$(id -u "$TARGET_USER")
 TARGET_GID=$(id -g "$TARGET_USER")
-if [ "$DESKTOP" = preserve ]; then
-    if [ -d /usr/share/gnome-shell/extensions/wproxy@wrench.local ] || \
-       [ -d "$TARGET_HOME/.local/share/gnome-shell/extensions/wproxy@wrench.local" ]; then
-        DESKTOP=gnome
-    elif [ -d "$TARGET_HOME/.local/share/plasma/plasmoids/org.wproxy.WProxy" ]; then
-        DESKTOP=kde
-    else
-        DESKTOP=none
-    fi
-fi
+select_desktop_integrations() {
+    INSTALL_GNOME=0
+    INSTALL_KDE=0
+    case "$DESKTOP" in
+        gnome) INSTALL_GNOME=1 ;;
+        kde) INSTALL_KDE=1 ;;
+        preserve)
+            if [ -d /usr/share/gnome-shell/extensions/wproxy@wrench.local ] || \
+               [ -d "$TARGET_HOME/.local/share/gnome-shell/extensions/wproxy@wrench.local" ]; then
+                INSTALL_GNOME=1
+            fi
+            if [ -d "$TARGET_HOME/.local/share/plasma/plasmoids/org.wproxy.WProxy" ] || \
+               [ -d /usr/share/plasma/plasmoids/org.wproxy.WProxy ]; then
+                INSTALL_KDE=1
+            fi
+            for plugin in /usr/lib/qt6/plugins/plasma/network/vpn/plasmanetworkmanagement_wproxyui.so \
+                          /usr/lib64/qt6/plugins/plasma/network/vpn/plasmanetworkmanagement_wproxyui.so \
+                          /usr/lib/*/qt6/plugins/plasma/network/vpn/plasmanetworkmanagement_wproxyui.so; do
+                [ ! -f "$plugin" ] || INSTALL_KDE=1
+            done
+            if [ "$INSTALL_GNOME" -eq 0 ] && [ "$INSTALL_KDE" -eq 0 ]; then DESKTOP=none; fi
+            ;;
+    esac
+}
+select_desktop_integrations
 if [ "$TARGET_USER" = root ] && [ "$DESKTOP" != none ]; then
     echo 'Run from your regular desktop account (or with sudo), not a root login.' >&2
     exit 2
@@ -151,11 +166,36 @@ install_xray_if_needed() {
 install_deps_if_needed
 install_xray_if_needed
 
-if [ "$DESKTOP" = kde ] && ! command -v kpackagetool6 >/dev/null 2>&1; then
+install_kde_deps_if_needed() {
+    [ "$INSTALL_KDE" -eq 1 ] || return 0
+    if command -v cmake >/dev/null 2>&1 &&
+       cmake -S plasma-nm -B build/plasma-nm -DCMAKE_INSTALL_PREFIX=/usr >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ "$DRY_RUN" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
+        $SUDO apt-get install -y cmake extra-cmake-modules qt6-base-dev \
+            libkf6coreaddons-dev libkf6networkmanagerqt-dev libkf6widgetsaddons-dev plasma-nm \
+            kpackagetool6 qml6-module-org-kde-kirigami qml6-module-org-kde-plasma-plasma5support polkit-kde-agent-1
+    elif [ "$DRY_RUN" -eq 0 ] && command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel \
+            kf6-kcoreaddons-devel kf6-networkmanager-qt-devel kf6-kwidgetsaddons-devel plasma-nm \
+            kf6-kpackage kf6-kirigami plasma5support polkit-kde
+    else
+        echo 'KDE integration needs CMake, ECM, Qt6 base and KF6 CoreAddons/NetworkManagerQt/WidgetsAddons development packages, plus plasma-nm. See the KDE-only dependency command in README.md.' >&2
+        if command -v pacman >/dev/null 2>&1; then
+            echo 'On Arch, update the system first and install: cmake extra-cmake-modules qt6-base kcoreaddons networkmanager-qt kwidgetsaddons plasma-nm kpackage kirigami plasma5support polkit-kde-agent' >&2
+        fi
+        exit 2
+    fi
+    cmake -S plasma-nm -B build/plasma-nm -DCMAKE_INSTALL_PREFIX=/usr
+}
+install_kde_deps_if_needed
+
+if [ "$INSTALL_KDE" -eq 1 ] && ! command -v kpackagetool6 >/dev/null 2>&1; then
     echo 'Plasma 6 / kpackagetool6 is required. Install a Plasma 6 desktop first.' >&2
     exit 2
 fi
-if [ "$DESKTOP" = kde ] && [ "$DRY_RUN" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
+if [ "$INSTALL_KDE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
     $SUDO apt-get install -y qml6-module-org-kde-plasma-plasma5support
 fi
 
@@ -205,6 +245,7 @@ RUNNER_FILE="$LIBEXEC/wproxy-xray-runner"
 DBUS_FILE="/etc/dbus-1/system.d/org.freedesktop.NetworkManager.wproxy.conf"
 ADMIN_HELPER="/usr/libexec/wproxy-admin"
 POLKIT_POLICY="/usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy"
+PLASMA_PLUGIN_FILE=
 
 printf '%s\n' \
     "WProxy 2.7.4 installer" \
@@ -234,6 +275,19 @@ DESKTOP_BINARY="$PROJECT_DIR/desktop/src-tauri/target/release/wproxy-desktop"
 echo
 echo "Validating GTK-neutral libnm loader..."
 ./validate-plugin ./libnm-vpn-plugin-wproxy.so
+
+if [ "$INSTALL_KDE" -eq 1 ]; then
+    echo 'Building and validating native Plasma VPN integration...'
+    command -v cmake >/dev/null 2>&1 || {
+        echo 'KDE integration needs CMake, ECM, Qt6 base and KF6 CoreAddons/NetworkManagerQt/WidgetsAddons development packages, plus plasma-nm.' >&2
+        exit 2
+    }
+    make plasma-plugin
+    PLASMA_PLUGIN_FILE=$(cat build/plasma-nm/installed-plugin-path)
+    case "$PLASMA_PLUGIN_FILE" in /*/plasma/network/vpn/plasmanetworkmanagement_wproxyui.so) ;;
+        *) echo 'Invalid native Plasma VPN plugin installation path.' >&2; exit 3 ;;
+    esac
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
     printf '%s\n' \
@@ -265,13 +319,14 @@ backup_file() {
 for f in "$NAME_FILE" "$PLUGIN_FILE" "$GTK3_EDITOR_FILE" "$GTK4_EDITOR_FILE" \
          "$SERVICE_FILE" "$RUNNER_FILE" "$DBUS_FILE" "$NM_CONF" \
          "$ADMIN_HELPER" "$POLKIT_POLICY" \
+         "$PLASMA_PLUGIN_FILE" \
          /usr/bin/wproxyctl /usr/bin/wproxy-manager \
          /usr/share/applications/wproxy-manager.desktop \
          /usr/share/icons/hicolor/scalable/apps/wproxy.svg "$EXT_DIR"; do
     backup_file "$f"
 done
 
-if [ "$DESKTOP" = gnome ] && [ -d "$TARGET_HOME/.local/share/gnome-shell/extensions/wproxy@wrench.local" ]; then
+if [ "$INSTALL_GNOME" -eq 1 ] && [ -d "$TARGET_HOME/.local/share/gnome-shell/extensions/wproxy@wrench.local" ]; then
     backup_file "$TARGET_HOME/.local/share/gnome-shell/extensions/wproxy@wrench.local"
 fi
 if [ -f "$TARGET_HOME/.local/bin/wproxyctl" ]; then
@@ -317,7 +372,11 @@ $SUDO install -Dm644 icons/wproxy.svg /usr/share/icons/hicolor/scalable/apps/wpr
 
 $SUDO install -Dm644 data/90-wproxy-unmanaged.conf "$NM_CONF"
 
-if [ "$DESKTOP" = gnome ]; then
+if [ "$INSTALL_KDE" -eq 1 ]; then
+    $SUDO cmake --install "$PROJECT_DIR/build/plasma-nm"
+fi
+
+if [ "$INSTALL_GNOME" -eq 1 ]; then
     $SUDO mkdir -p "$EXT_DIR"
     for name in metadata.json extension.js stylesheet.css; do
         $SUDO install -m644 "gnome-extension/wproxy@wrench.local/$name" "$EXT_DIR/$name"
@@ -347,17 +406,30 @@ elif command -v gtk-update-icon-cache >/dev/null 2>&1; then
     $SUDO gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 fi
 
-if [ "$DESKTOP" = gnome ] && command -v gnome-extensions >/dev/null 2>&1; then
+if [ "$INSTALL_GNOME" -eq 1 ] && command -v gnome-extensions >/dev/null 2>&1; then
     gnome-extensions enable wproxy@wrench.local >/dev/null 2>&1 || true
 fi
 
-if [ "$DESKTOP" = kde ]; then
-    if [ "$(id -u)" -eq 0 ]; then
-        runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
-            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" bash "$PROJECT_DIR/scripts/install-kde-widget.sh"
-    else
-        bash "$PROJECT_DIR/scripts/install-kde-widget.sh"
-    fi
+if [ "$INSTALL_KDE" -eq 1 ]; then
+    install_kde_widget() {
+        if [ "$(id -u)" -eq 0 ]; then
+            # Verified updater sources live below a private root directory.
+            KDE_STAGE=$(mktemp -d /tmp/wproxy-kde-install.XXXXXX)
+            trap 'rm -rf -- "$KDE_STAGE"' 0
+            trap 'exit 1' HUP INT TERM
+            install -d -m755 "$KDE_STAGE/scripts" "$KDE_STAGE/kde-plasmoid"
+            install -m644 "$PROJECT_DIR/scripts/install-kde-widget.sh" "$PROJECT_DIR/scripts/kde-dedupe-widget.js" "$KDE_STAGE/scripts/"
+            cp -R "$PROJECT_DIR/kde-plasmoid/org.wproxy.WProxy" "$KDE_STAGE/kde-plasmoid/"
+            chmod -R u=rwX,go=rX "$KDE_STAGE"
+            runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" bash "$KDE_STAGE/scripts/install-kde-widget.sh"
+            rm -rf -- "$KDE_STAGE"
+            trap - 0 HUP INT TERM
+        else
+            bash "$PROJECT_DIR/scripts/install-kde-widget.sh"
+        fi
+    }
+    install_kde_widget
 fi
 
 echo
@@ -367,7 +439,7 @@ echo
 echo "Installed WProxy 2.7.4."
 XRAY_PATH=$(find_xray 2>/dev/null || true)
 [ -n "$XRAY_PATH" ] && "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
-if [ "$DESKTOP" = gnome ]; then
+if [ "$INSTALL_GNOME" -eq 1 ]; then
     echo 'Close/reopen GNOME Settings. Log out/in to load the new Quick Settings extension.'
 fi
 echo "Diagnostics: $PROJECT_DIR/scripts/diagnose.sh"

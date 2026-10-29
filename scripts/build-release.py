@@ -10,11 +10,11 @@ SOURCE_ENTRIES = [
     "README.md", "README.fa.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "Makefile", ".gitignore", ".gitattributes", ".github", "docs", "cli", "data", "desktop",
-    "examples", "gnome-extension", "kde-plasmoid", "icons", "manager", "plugin",
+    "examples", "gnome-extension", "kde-plasmoid", "icons", "manager", "plugin", "plasma-nm",
     "scripts", "service", "tests", "windows",
 ]
 EXCLUDED = {
-    "__pycache__", ".git", "node_modules", "target", "dist", "store.json",
+    "__pycache__", ".git", "node_modules", "target", "dist", "build", "store.json",
     "verification.txt", "xray.json", "gateway",
 }
 

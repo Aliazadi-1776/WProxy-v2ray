@@ -1,0 +1,11 @@
+{
+    "KPlugin": {
+        "Name": "WProxy",
+        "Description": "Connections managed by WProxy",
+        "Category": "VPNService",
+        "EnabledByDefault": false,
+        "License": "MIT",
+        "Version": "2.7.4"
+    },
+    "X-NetworkManager-Services": "org.freedesktop.NetworkManager.wproxy"
+}

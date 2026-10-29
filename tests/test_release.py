@@ -4,7 +4,9 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -118,6 +120,64 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("org.kde.PlasmaShell.evaluateScript", installer)
         self.assertIn("keeps one WProxy icon per panel", installer)
 
+    @unittest.skipIf(os.name == "nt", "Linux desktop installer")
+    def test_update_preserves_both_installed_desktop_integrations(self):
+        source = read_utf8("scripts/install.sh")
+        function = re.search(r"^select_desktop_integrations\(\) \{\n.*?^\}", source, re.M | re.S).group(0)
+        with tempfile.TemporaryDirectory(prefix="wproxy-desktop-selection-") as directory:
+            fixture = Path(directory)
+            function = function.replace("/usr/share/", str(fixture / "usr/share") + "/")
+            function = function.replace("/usr/lib", str(fixture / "usr/lib"))
+            home = fixture / "home"
+            (home / ".local/share/gnome-shell/extensions/wproxy@wrench.local").mkdir(parents=True)
+            kde = home / ".local/share/plasma/plasmoids/org.wproxy.WProxy"
+            kde.mkdir(parents=True)
+            command = function + '\nDESKTOP=preserve\nTARGET_HOME="$1"\nselect_desktop_integrations\nprintf "%s %s\\n" "$INSTALL_GNOME" "$INSTALL_KDE"\n'
+            result = subprocess.run(["sh", "-eu", "-c", command, "installer-test", str(home)], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "1 1")
+
+    @unittest.skipIf(os.name == "nt", "Linux root-to-user desktop installer")
+    def test_kde_update_stages_public_read_only_files_outside_private_sources(self):
+        source = read_utf8("scripts/install.sh")
+        function = re.search(r"    install_kde_widget\(\) \{\n.*?^    \}", source, re.M | re.S).group(0)
+        with tempfile.TemporaryDirectory(prefix="wproxy-private-update-") as directory:
+            fixture = Path(directory)
+            project = fixture / "private/source"
+            scripts = project / "scripts"
+            widget = project / "kde-plasmoid/org.wproxy.WProxy"
+            scripts.mkdir(parents=True)
+            widget.mkdir(parents=True)
+            (fixture / "private").chmod(0o700)
+            (scripts / "install-kde-widget.sh").write_text("# fixture installer\n")
+            (scripts / "kde-dedupe-widget.js").write_text("// fixture deduplication\n")
+            (widget / "metadata.json").write_text('{"KPlugin":{"Id":"org.wproxy.WProxy"}}')
+            fakebin = fixture / "bin"
+            fakebin.mkdir()
+            (fakebin / "id").write_text("#!/bin/sh\nprintf '0\\n'\n")
+            log = fixture / "stage.json"
+            (fakebin / "runuser").write_text(f"#!{sys.executable}\n" + r'''
+import json, os, pathlib, sys
+stage = pathlib.Path(sys.argv[-1]).parent.parent
+assert str(stage).startswith('/tmp/wproxy-kde-install.')
+for item in [stage, *stage.rglob('*')]:
+    mode = item.stat().st_mode
+    assert not mode & 0o022, (item, oct(mode))
+    assert mode & 0o004, (item, oct(mode))
+    if item.is_dir(): assert mode & 0o001, (item, oct(mode))
+assert (stage / 'scripts/kde-dedupe-widget.js').is_file()
+assert (stage / 'kde-plasmoid/org.wproxy.WProxy/metadata.json').is_file()
+pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)}))
+''')
+            for executable in fakebin.iterdir():
+                executable.chmod(0o755)
+            command = function + f'\nPROJECT_DIR={shlex.quote(str(project))}\nTARGET_USER=fixture\nTARGET_UID=1000\ninstall_kde_widget\n'
+            result = subprocess.run(["sh", "-eu", "-c", command], text=True, capture_output=True,
+                                    env={**os.environ, "PATH": str(fakebin) + os.pathsep + os.environ["PATH"], "STAGE_LOG": str(log)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(Path(json.loads(log.read_text())["stage"]).exists())
+            self.assertTrue((scripts / "install-kde-widget.sh").is_file())
+
     def test_kde_widget_is_idle_until_opened_or_used(self):
         backend = read_utf8("kde-plasmoid/org.wproxy.WProxy/contents/ui/Backend.qml")
         runner = read_utf8("kde-plasmoid/org.wproxy.WProxy/contents/ui/CommandRunner.qml")
@@ -204,7 +264,10 @@ class ReleaseTests(unittest.TestCase):
                              "desktop/src-tauri/Cargo.toml", "desktop/src-tauri/Cargo.lock",
                              "desktop/src-tauri/src/lib.rs", "desktop/src-tauri/tauri.conf.json",
                              "windows/WProxy.ps1", "windows/WProxy.iss",
-                             "windows/install-windows.ps1", "icons/wproxy.ico"):
+                             "windows/install-windows.ps1", "icons/wproxy.ico",
+                             "plasma-nm/CMakeLists.txt", "plasma-nm/wproxy.cpp", "plasma-nm/metadata.json",
+                             "plasma-nm/compat/vpnuiplugin.h", "plasma-nm/compat/settingwidget.h",
+                             "plasma-nm/compat/COPYING.LGPL-2.1", "plasma-nm/compat/README.md"):
                     self.assertEqual(archive.read(prefix + name), (ROOT / name).read_bytes())
                 for name in archive.namelist():
                     path = Path(name)

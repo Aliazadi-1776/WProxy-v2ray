@@ -1,5 +1,14 @@
 # Third-party notices
 
+## KDE plasma-nm interface headers
+
+The optional native Plasma VPN plugin dynamically links the distribution's
+`libplasmanm_editor`. Two unmodified interface headers from KDE plasma-nm
+v6.7.5 are included in `plasma-nm/compat` under LGPL-2.1; their original
+copyright notices, source attribution and license text are retained there.
+No KDE implementation is bundled. These private interfaces require a matching
+Plasma ABI and the native factory/widget test before installation.
+
 ## sushTun
 
 The compact Windows navigation, color palette, and related interface direction

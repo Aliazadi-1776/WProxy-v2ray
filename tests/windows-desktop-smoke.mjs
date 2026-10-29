@@ -163,11 +163,15 @@ try {
   assert(await evaluate("document.querySelector('#content').textContent.includes('Automatic updates')"));
   await evaluate(`(() => {
     window.__wproxyUpdateChecks = 0;
-    const original = window.__TAURI_INTERNALS__.invoke;
-    window.__TAURI_INTERNALS__.invoke = function(command, arguments_, options) {
-      if (command === 'run_ctl' && arguments_?.args?.[0] === 'update' && arguments_?.args?.[1] === 'download')
-        window.__wproxyUpdateChecks++;
-      return original.call(this, command, arguments_, options);
+    // Tauri's invoke property is read-only. Observe real IPC fetches without replacing responses.
+    const original = window.fetch;
+    window.fetch = function(resource, options) {
+      if (String(resource).endsWith('/run_ctl') && typeof options?.body === 'string') {
+        const arguments_ = JSON.parse(options.body);
+        if (arguments_?.args?.[0] === 'update' && arguments_?.args?.[1] === 'download')
+          window.__wproxyUpdateChecks++;
+      }
+      return original.call(this, resource, options);
     };
   })()`);
   for (let count = 1; count <= 2; count++) {
@@ -192,7 +196,7 @@ try {
       await screenshot("windows-ui-failure.png");
       await writeFile(path.join(outputDirectory, "desktop-failure.json"), JSON.stringify({
         error: String(error),
-        page: await evaluate("({url:location.href,text:document.body.innerText})"),
+        page: await evaluate("({url:location.href,text:document.body.innerText,updateChecks:window.__wproxyUpdateChecks})"),
       }, null, 2));
     } catch { /* Preserve the original failure if WebView2 also crashed. */ }
   }

@@ -38,6 +38,6 @@ $shortcut.IconLocation = (Join-Path $target 'icons\wproxy.ico')
 $shortcut.Save()
 
 & $python.Source (Join-Path $target 'cli\wproxyctl.py') --version
-Write-Host "Installed WProxy 2.7.7 for the current Windows user: $target"
+Write-Host "Installed WProxy 2.7.8 for the current Windows user: $target"
 Write-Host 'Open WProxy from the Start menu. Windows will request administrator permission only when connecting or disconnecting the TUN.'
 if ($Start) { Start-Process $shortcutPath }

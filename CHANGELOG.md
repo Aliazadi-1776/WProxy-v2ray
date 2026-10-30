@@ -1,3 +1,9 @@
+# 2.7.8
+
+- Remove the 2.7.7 targeted Linux profile modification that triggered a NetworkManager 1.58.1 assertion and briefly interrupted Wi-Fi. Restore the proven Linux sync/helper/activation implementation.
+- Keep Linux server switching in Manager: if a connection is active, disconnect it before verifying and connecting the selected server. Retain the SVG logo and connection progress feedback.
+- Preserve the independently tested Windows connection path.
+
 # 2.7.7
 
 - Switch servers from Manager with one click and one authorization request. Check the replacement after stopping the old tunnel, and restore the previous saved connection if the replacement fails.

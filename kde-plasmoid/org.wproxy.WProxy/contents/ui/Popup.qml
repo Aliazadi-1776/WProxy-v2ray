@@ -52,7 +52,7 @@ Item {
                 Controls.Label { text: "WProxy"; font.weight: Font.DemiBold; font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2 }
                 Controls.Label { text: qsTr("Private routing"); color: Kirigami.Theme.disabledTextColor; font: Kirigami.Theme.smallFont }
             }
-            Controls.Label { text: "2.7.7"; color: Kirigami.Theme.disabledTextColor; font: Kirigami.Theme.smallFont }
+            Controls.Label { text: "2.7.8"; color: Kirigami.Theme.disabledTextColor; font: Kirigami.Theme.smallFont }
         }
 
         Controls.Frame {

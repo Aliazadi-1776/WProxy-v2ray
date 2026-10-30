@@ -5,7 +5,7 @@
 
 #define WPROXY_SERVICE "org.freedesktop.NetworkManager.wproxy"
 #define WPROXY_NAME "WProxy"
-#define WPROXY_VERSION "2.7.7"
+#define WPROXY_VERSION "2.7.8"
 
 typedef struct {
     GObject parent;

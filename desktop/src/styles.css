@@ -94,26 +94,16 @@ textarea:focus-visible {
 }
 
 .brand-mark {
-  display: grid;
+  display: block;
   flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  border: 1px solid #3194fa;
-  border-radius: 14px;
-  background: linear-gradient(155deg, #1689f5, #0557c9);
-  color: white;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%), 0 3px 6px rgb(0 0 0 / 30%);
-  font-size: 24px;
-  font-weight: 730;
-  letter-spacing: -0.04em;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
 }
 
 .brand-mark.large {
-  width: 48px;
-  height: 48px;
-  border-radius: 13px;
-  font-size: 23px;
+  width: 56px;
+  height: 56px;
 }
 
 .brand strong,

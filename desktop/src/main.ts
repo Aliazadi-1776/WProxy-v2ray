@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import logoUrl from "../../icons/wproxy.svg?url";
 import "./styles.css";
 
 type Page = "servers" | "subscriptions" | "add" | "routing" | "settings";
@@ -79,6 +80,7 @@ const state = {
   selectedApp: null as string | null,
   selectedSubscription: null as string | null,
   busy: false,
+  connectionProgress: null as { switching: boolean; nodeId: string } | null,
   loading: true,
   error: "",
   updateLabel: "Ready",
@@ -187,9 +189,12 @@ function navItem(page: Page, label: string, iconName: keyof typeof icons): strin
 
 function connectionPill(): string {
   const connected = state.status.active;
-  return `<div class="connection-pill ${connected ? "is-online" : ""}">
+  const progress = state.connectionProgress;
+  const label = progress ? connectionProgressLabel() : connected ? "Connected" : "Disconnected";
+  const detail = progress ? state.nodes.find(node => node.id === progress.nodeId)?.name || "Selected server" : connected ? state.status.name || "Private tunnel" : `${state.platform === "windows" ? "Windows TUN" : "NetworkManager"} ready`;
+  return `<div class="connection-pill ${connected && !progress ? "is-online" : ""}" role="status">
     <span class="connection-pulse"></span>
-    <span><strong>${connected ? "Connected" : "Disconnected"}</strong><small>${connected ? escapeHtml(state.status.name || "Private tunnel") : `${state.platform === "windows" ? "Windows TUN" : "NetworkManager"} ready`}</small></span>
+    <span><strong>${label}</strong><small>${escapeHtml(detail)}</small></span>
   </div>`;
 }
 
@@ -197,7 +202,7 @@ function renderShell(content: string): void {
   app.innerHTML = `<div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">W</div>
+        <img class="brand-mark" src="${logoUrl}" alt="" aria-hidden="true"/>
         <div><strong>WProxy</strong><span>Private routing</span></div>
       </div>
       <nav class="navigation" aria-label="Main navigation">
@@ -270,7 +275,7 @@ function serverHero(): string {
       ${emptySelection ? '<button class="text-button" data-action="routing-mode" data-mode="all">Use All traffic</button>' : ""}
     </div>
     <button class="button ${connected ? "danger-quiet" : "primary"} hero-action" data-action="${connected ? "disconnect" : "quick-connect"}" ${state.busy || (!connected && !state.nodes.length) ? "disabled" : ""}>
-      ${connected ? "Disconnect" : `${icon("bolt", 16)} Quick connect`}
+      ${state.connectionProgress ? connectionProgressLabel() : connected ? "Disconnect" : `${icon("bolt", 16)} Quick connect`}
     </button>
   </section>`;
 }
@@ -292,7 +297,7 @@ function serverRow(node: NodeRecord, index: number): string {
     <div class="server-identity"><strong>${escapeHtml(node.name)}</strong><span>${escapeHtml(node.source_name || "Manual")}</span></div>
     <div class="latency ${quality}"><span class="latency-dot"></span>${latencyFor(node)}</div>
     <div class="row-actions">
-      ${active ? '<span class="active-label">Active</span>' : `<button class="button small secondary" data-action="connect" data-node="${node.id}" ${state.busy ? "disabled" : ""}>Connect</button>`}
+      ${active ? '<span class="active-label">Active</span>' : `<button class="button small secondary" data-action="connect" data-node="${node.id}" ${state.busy ? "disabled" : ""}>${state.connectionProgress?.nodeId === node.id ? connectionProgressLabel() : state.status.active ? "Switch" : "Connect"}</button>`}
       <button class="icon-button subtle" data-action="remove-node" data-node="${node.id}" title="Remove server" aria-label="Remove ${escapeHtml(node.name)}">${icon("trash", 17)}</button>
     </div>
   </article>`;
@@ -394,7 +399,7 @@ function settingsPage(): string {
       <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.6</span></div><button class="button secondary" data-action="check-update" ${updateInProgress ? "disabled" : ""}>Check now</button></div>
       ${state.platform === "linux" ? `<div class="setting-row"><div class="setting-icon">${icon("shield", 20)}</div><div class="setting-copy"><strong>Ask for permission only once</strong><span>Your first connection remembers approval for WProxy. Turn off to revoke it.</span></div><label class="switch"><input type="checkbox" aria-label="Remember WProxy administrator approval" data-setting="remember-authorization" ${state.preferences.remember_authorization ? "checked" : ""}/><span></span></label></div>` : ""}
     </div>
-    <div class="about-card"><div class="brand-mark large">W</div><div><h2>WProxy 2.7.6</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
+    <div class="about-card"><img class="brand-mark large" src="${logoUrl}" alt="" aria-hidden="true"/><div><h2>WProxy 2.7.6</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
   </section>`;
 }
 
@@ -435,7 +440,7 @@ async function action(label: string, callback: () => Promise<void>): Promise<voi
   toast(failure || label, failure ? "error" : "success");
 }
 
-async function connect(nodeId: string, verified = false): Promise<void> {
+async function connect(nodeId: string): Promise<void> {
   if (state.routing.mode === "only" && !state.routing.domains.length && !state.routing.apps.length) {
     throw new Error("Only selected has no sites or applications. Choose All traffic or add an item in Split routing.");
   }
@@ -444,15 +449,25 @@ async function connect(nodeId: string, verified = false): Promise<void> {
     state.status = { active: true, verified: true, name: node?.name ?? "Demo server", node_id: nodeId };
     return;
   }
-  if (!verified) await ctl<PingResult>(["node", "verify", nodeId, "--json"]);
-  await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
+  if (state.status.active && state.status.node_id === nodeId) return;
+  state.connectionProgress = { switching: state.status.active, nodeId };
+  render();
+  try {
+    await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
+  } finally {
+    state.connectionProgress = null;
+  }
+}
+
+function connectionProgressLabel(): string {
+  return state.connectionProgress?.switching ? "Switching…" : "Connecting…";
 }
 
 async function quickConnect(): Promise<void> {
   if (!isTauri) return connect(state.nodes[0]?.id ?? "");
   const best = await ctl<PingResult>(["node", "best", "--verify", "--json", "--timeout", "2"]);
   state.pings.set(best.id, best.latency_ms);
-  await connect(best.id, true);
+  await connect(best.id);
 }
 
 async function disconnect(): Promise<void> {

@@ -1204,13 +1204,21 @@ def nm_up(store, node_id, verify=False):
         raise RuntimeError(p.stderr.strip() or p.stdout.strip() or 'VPN activation failed')
     if verify and normalize_routing_policy(store.get("routing"))["mode"] == "all":
         try:
-            check = run([
-                "curl", "--noproxy", "*", "--connect-timeout", "5", "--max-time", "8",
-                "--fail", "--silent", "--show-error", "--output", "/dev/null",
-                "https://cp.cloudflare.com/generate_204",
-            ], capture=True)
-            if check.returncode != 0:
-                raise RuntimeError("DNS/HTTPS did not work through the tunnel")
+            # NetworkManager can report activation before the DNS handoff settles.
+            for attempt in range(3):
+                check = run([
+                    "curl", "--noproxy", "*", "--connect-timeout", "5", "--max-time", "8",
+                    "--fail", "--silent", "--show-error", "--output", "/dev/null",
+                    "--write-out", "%{http_code}", "https://cp.cloudflare.com/generate_204",
+                ], capture=True)
+                if check.returncode == 0 and check.stdout.strip() == "204":
+                    break
+                detail = " ".join("".join(c if c.isprintable() else " " for c in check.stderr).split())[:240]
+                reason = detail or f"HTTP {check.stdout.strip() or 'no response'} (expected 204; curl exit {check.returncode})"
+                if attempt < 2:
+                    time.sleep(1)
+            else:
+                raise RuntimeError(f"DNS/HTTPS did not work through the tunnel: {reason}")
         except (OSError, RuntimeError) as error:
             nm_down()
             raise RuntimeError(f"{error}. WProxy disconnected to restore your Internet connection.") from error

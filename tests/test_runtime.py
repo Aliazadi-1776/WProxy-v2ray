@@ -23,21 +23,53 @@ class ConfigTests(unittest.TestCase):
         node = {"id": "0123456789abcdef", "name": "Node", "uri": "trojan://test@example.com:443"}
         store = {"nodes": [node], "routing": {"mode": "all"}}
         activated = SimpleNamespace(returncode=0, stdout="Activated", stderr="")
-        failed = SimpleNamespace(returncode=28, stdout="", stderr="DNS timeout")
+        failed = SimpleNamespace(returncode=6, stdout="000", stderr="curl: (6) Could not resolve host: cp.cloudflare.com\n")
         with patch.object(ctl, "nm_down", return_value=True) as down, \
-                patch.object(ctl, "run", side_effect=(activated, failed)):
-            with self.assertRaisesRegex(RuntimeError, "disconnected to restore"):
+                patch.object(ctl, "run", side_effect=(activated, failed, failed, failed)) as run, \
+                patch.object(ctl.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "Could not resolve host.*disconnected to restore"):
                 ctl.nm_up(store, node["id"], verify=True)
         self.assertEqual(down.call_count, 2)
+        self.assertEqual(run.call_count, 4)
+        self.assertEqual(sleep.call_args_list, [((1,),), ((1,),)])
 
     def test_verified_tunnel_stays_active_after_https_succeeds(self):
         node = {"id": "0123456789abcdef", "name": "Node", "uri": "trojan://test@example.com:443"}
         store = {"nodes": [node], "routing": {"mode": "all"}}
-        success = SimpleNamespace(returncode=0, stdout="", stderr="")
+        activated = SimpleNamespace(returncode=0, stdout="", stderr="")
+        success = SimpleNamespace(returncode=0, stdout="204", stderr="")
         with patch.object(ctl, "nm_down", return_value=True) as down, \
-                patch.object(ctl, "run", return_value=success):
+                patch.object(ctl, "run", side_effect=(activated, success)):
             ctl.nm_up(store, node["id"], verify=True)
         self.assertEqual(down.call_count, 1)
+
+    def test_tunnel_dns_readiness_retry_keeps_recovered_connection(self):
+        node = {"id": "0123456789abcdef", "name": "Node", "uri": "trojan://test@example.com:443"}
+        store = {"nodes": [node], "routing": {"mode": "all"}}
+        activated = SimpleNamespace(returncode=0, stdout="", stderr="")
+        pending_dns = SimpleNamespace(returncode=6, stdout="000", stderr="curl: (6) Could not resolve host")
+        ready = SimpleNamespace(returncode=0, stdout="204", stderr="")
+        with patch.object(ctl, "nm_down", return_value=True) as down, \
+                patch.object(ctl, "run", side_effect=(activated, pending_dns, ready)) as run, \
+                patch.object(ctl.time, "sleep") as sleep:
+            ctl.nm_up(store, node["id"], verify=True)
+        self.assertEqual(down.call_count, 1)
+        self.assertEqual(run.call_count, 3)
+        sleep.assert_called_once_with(1)
+        self.assertIn("--write-out", run.call_args.args[0])
+
+    def test_tunnel_http_200_does_not_pass_the_204_check(self):
+        node = {"id": "0123456789abcdef", "name": "Node", "uri": "trojan://test@example.com:443"}
+        store = {"nodes": [node], "routing": {"mode": "all"}}
+        activated = SimpleNamespace(returncode=0, stdout="", stderr="")
+        wrong_response = SimpleNamespace(returncode=0, stdout="200", stderr="")
+        with patch.object(ctl, "nm_down", return_value=True) as down, \
+                patch.object(ctl, "run", side_effect=(activated, wrong_response, wrong_response, wrong_response)) as run, \
+                patch.object(ctl.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 200.*disconnected to restore"):
+                ctl.nm_up(store, node["id"], verify=True)
+        self.assertEqual(down.call_count, 2)
+        self.assertEqual(run.call_count, 4)
 
     def test_windows_text_streams_are_reconfigured_as_utf8(self):
         class FakeStream:

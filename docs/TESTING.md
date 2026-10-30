@@ -1,5 +1,27 @@
 # Test coverage
 
+## 2.7.8 Linux recovery checks on 2026-10-30
+
+The targeted profile load/combined modification added in 2.7.7 crashed the installed NetworkManager 1.58.1 with an assertion in `nm-settings-utils.c:103`, before VPN activation. Its service restart interrupted Wi-Fi. That Linux path and its new helper/CLI actions have been removed. The Linux helper and 85 shared functions, including sync, activation, disconnect, routing/config generation and HTTPS verification, match 2.7.6. Manager now handles Linux switching with an explicit active-connection condition: disconnect, verify the selected server, then invoke the existing connection helper. The SVG logo and progress feedback remain.
+
+The full Python suite passed 84 tests after rollback. Metadata/routing checks passed after the 2.7.8 version bump; the optimized native Tauri build and production-asset check passed. Regression tests require the established full reload and separate routing/permission modifications, and reject the removed targeted-sync/Linux-connect arguments. Thirteen browser fixture scenarios passed: Linux down → verify → up ordering, no redundant initial disconnect, no activation after failed disconnect, disconnected state after a failed replacement probe, same-server no-op, the unchanged single-command Windows path and SVG/layout checks. Browser fixture tests do not replace native networking.
+
+The installed 2.7.6 CLI and scoped helper were restored through the verified update installer and checked byte for byte against the known-good source before native Manager verification.
+
+The actual optimized native Manager 2.7.8 then passed Connect A → Switch B → Switch A using AT-SPI button clicks with that restored backend, without a mocked bridge or manual Disconnect. All three selected-node/TUN/approval checks and six HTTPS probes passed. NetworkManager MainPID 199202 and its process birth remained unchanged across 613 monitoring samples. The independent guard restored the original `only` policy, profiles, disconnected state and saved data/preferences. Observed GUI completion was 14.4 seconds initially, 22.8 seconds A → B and 11.0 seconds B → A; this is correctness evidence, not a speed improvement claim.
+
+[Native Windows 2.7.8 run 41088447551](https://github.com/Aliazadi-1776/WProxy-v2ray/actions/runs/41088447551) and [shared build/test run 41088447354](https://github.com/Aliazadi-1776/WProxy-v2ray/actions/runs/41088447354) passed at `3ee99b5`. Actual installed UI switching took 7.277 seconds; Wintun, DNS, HTTPS, rollback and restoration passed. The SVG and 2.7.8 version were visually checked. All payload hashes and all 134 source archive members matched that tested commit.
+
+After stable publication, the actual installed Manager's automatic updater installed 2.7.8. CLI, service and helper matched the released source; automatic updates and remembered authorization stayed enabled. The exact installed-GUI rerun stopped before any connection click because the accessibility application reference became unavailable, despite the Manager process remaining alive with no crash log. Its cleanup restored the original state, and this rerun is not counted as a passed GUI test. The separate native three-click proof above remains the GUI verification result.
+
+A separate actual installed-backend smoke then passed the fixed helper sequence up A → automated down → up B, with both real remote servers, the correct selected node/TUN/remembered approval and four HTTPS 204 responses. NetworkManager MainPID 199202 and process birth stayed unchanged across 372 monitoring samples. Helper activation took 11.108 and 11.774 seconds; disconnect took 0.547 seconds. The independent guard restored the original policy, profiles, disconnected state, saved data and preferences; installed CLI/helper hashes were unchanged. This is backend-only verification and is not presented as an installed-GUI rerun.
+
+## 2.7.7 verification and installed Linux failure
+
+Pre-publication checks passed 90 Python tests, C/build checks and the optimized Linux installer dry-run. [Native Windows run 41055336222](https://github.com/Aliazadi-1776/WProxy-v2ray/actions/runs/41055336222) passed actual installed UI Connect/Switch/Disconnect, Wintun, DNS, HTTPS and rollback; its switch took 7.271 seconds. The 134 source archive members matched commit `233e2a7`.
+
+The Linux source candidate also passed real A → B → A activation and a failed-server rollback with ten HTTPS 204 responses. However, it delegated profile synchronization to the old installed helper and therefore did **not** exercise the new targeted-sync operation. The subsequent installed 2.7.7 test failed on its first targeted profile modification, before any activation or HTTPS check; NetworkManager's assertion/restart was captured in the system journal. Its cleanup restored the original policy, profiles, disconnected state and unchanged nodes/subscriptions/preferences. Neither the candidate run nor the Windows results establish a successful installed Linux 2.7.7 result.
+
 ## 2.7.6 DNS readiness regression checks on 2026-10-30
 
 The installed 2.7.5 tunnel stayed active for 780 seconds with all 54 HTTPS probes successful and remembered authorization valid. Its first reconnect then failed the single immediate system HTTPS check. Guarded follow-up captured curl error 6 (DNS resolution failure) immediately after activation, with both default and IPv4 requests. Authorization remained valid; all tests restored the original policy/profiles and preserved nodes/subscriptions.

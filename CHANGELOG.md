@@ -1,3 +1,9 @@
+# 2.7.6
+
+- Allow a bounded DNS readiness interval after NetworkManager activation instead of immediately tearing down an otherwise healthy tunnel. Require an actual HTTPS 204 response, retain failure rollback and report the final curl reason.
+- Explicitly publish stable releases as latest so automatic update discovery does not stay on an older stable version.
+- Add a native Windows regression that upgrades the previously published app through its actual Automatic updates checkbox, preserving settings and servers.
+
 # 2.7.5
 
 - Restyle only the Manager with the requested rounded navy surfaces, blue controls and clearer connected state, preserving its navigation and actions.

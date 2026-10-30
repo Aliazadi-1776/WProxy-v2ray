@@ -210,7 +210,7 @@ function renderShell(content: string): void {
         <button class="nav-item${state.page === "settings" ? " is-active" : ""}" data-page="settings">
           <span class="nav-icon">${icon("settings", 17)}</span><span>Settings</span>
         </button>
-        <div class="version-row"><span>WProxy 2.7.5</span><span>${state.platform === "windows" ? "Windows" : "Linux"}</span></div>
+        <div class="version-row"><span>WProxy 2.7.6</span><span>${state.platform === "windows" ? "Windows" : "Linux"}</span></div>
       </div>
     </aside>
     <section class="workspace">
@@ -391,10 +391,10 @@ function settingsPage(): string {
   return `<section class="settings-layout constrained">
     <div class="settings-card">
       <div class="setting-row"><div class="setting-icon">${icon("update", 20)}</div><div class="setting-copy"><strong>Automatic updates</strong><span>Check verified GitHub releases and install them automatically.</span></div><label class="switch"><input type="checkbox" aria-label="Automatic updates" data-setting="auto-update" ${state.preferences.auto_update ? "checked" : ""} ${updateInProgress ? "disabled" : ""}/><span></span></label></div>
-      <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.5</span></div><button class="button secondary" data-action="check-update" ${updateInProgress ? "disabled" : ""}>Check now</button></div>
+      <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.6</span></div><button class="button secondary" data-action="check-update" ${updateInProgress ? "disabled" : ""}>Check now</button></div>
       ${state.platform === "linux" ? `<div class="setting-row"><div class="setting-icon">${icon("shield", 20)}</div><div class="setting-copy"><strong>Ask for permission only once</strong><span>Your first connection remembers approval for WProxy. Turn off to revoke it.</span></div><label class="switch"><input type="checkbox" aria-label="Remember WProxy administrator approval" data-setting="remember-authorization" ${state.preferences.remember_authorization ? "checked" : ""}/><span></span></label></div>` : ""}
     </div>
-    <div class="about-card"><div class="brand-mark large">W</div><div><h2>WProxy 2.7.5</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
+    <div class="about-card"><div class="brand-mark large">W</div><div><h2>WProxy 2.7.6</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
   </section>`;
 }
 

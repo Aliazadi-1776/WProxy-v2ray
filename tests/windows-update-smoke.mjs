@@ -10,7 +10,7 @@ import path from "node:path";
 assert.equal(process.platform, "win32", "This test requires native Windows/WebView2");
 assert.equal(process.env.GITHUB_ACTIONS, "true", "Run only on a disposable GitHub Actions runner");
 const fromVersion = "2.7.4";
-const targetVersion = "2.7.5";
+const targetVersion = "2.7.6";
 const baselineSha256 = "6a428f8f6fdc72dda38c399dde71953e0bcadbdb247540f3a6a2a3c7664cdfa1";
 const repository = "Aliazadi-1776/WProxy-v2ray";
 const output = path.resolve(process.argv[2] || "build/windows-update/test-results");

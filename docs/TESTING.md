@@ -1,5 +1,15 @@
 # Test coverage
 
+## 2.7.6 DNS readiness regression checks on 2026-10-30
+
+The installed 2.7.5 tunnel stayed active for 780 seconds with all 54 HTTPS probes successful and remembered authorization valid. Its first reconnect then failed the single immediate system HTTPS check. Guarded follow-up captured curl error 6 (DNS resolution failure) immediately after activation, with both default and IPv4 requests. Authorization remained valid; all tests restored the original policy/profiles and preserved nodes/subscriptions.
+
+The bounded readiness retry candidate then passed an initial activation and three reconnects. A separate 780-second run passed all 27 samples (54 HTTPS 204 responses), maintained the selected NetworkManager profile, tunnel route and remembered approval throughout, and passed three further reconnects with both HTTPS probes successful. The final restore verified the original `only` policy, disconnected state and unchanged nodes/subscriptions. The candidate used the normal user's source CLI for activation and the installed scoped helper for sync/cleanup; installed files were not modified for this candidate test.
+
+The three regressions fail against the previous verifier and pass with the fix: recovery after initial DNS failure; rollback with the actual reason after all attempts fail; rejection of HTTP 200 instead of the required 204. The Python suite now has 73 passing tests. The tunnel algorithm and authorization policy are unchanged by this patch.
+
+The actual installed Linux Automatic updates checkbox upgraded 2.7.4 to 2.7.5. The downloaded ZIP matched the checksum-verified CI archive byte for byte; installed CLI, runner and admin helper matched source. Manager idle measurement on this host: 0% CPU across 10 seconds, about 192.5 MiB proportional memory (three frontend processes; RSS sums shared pages and was about 386 MiB). This is a local idle measurement, not a guarantee for active traffic or other machines.
+
 ## 2.7.5 reliability regression checks on 2026-10-29
 
 - `make test`: 71 Python cases, 5 C service cases, TypeScript/Vite and Rust checks passed. All three new C lifecycle regressions fail against the previous service and pass with this fix. Runner regressions cover replacement PID files and serialization of shared routing cleanup.

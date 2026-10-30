@@ -49,7 +49,7 @@ jobs:
           Pop-Location
           cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml
       - name: Shared parser, routing and update tests
-        run: python -m unittest tests/test_routing.py tests/test_runtime.py tests/test_updates.py tests/test_release.py -v
+        run: python -m unittest tests/test_routing.py tests/test_runtime.py tests/test_updates.py tests/test_release.py tests/test_connect.py -v
       - name: Parse PowerShell frontends
         shell: powershell
         run: |

@@ -191,8 +191,16 @@ try {
     }
     throw 'GUI-triggered Setup did not finish registering the target version; see upgrade-processes.jsonl'
   `;
-  const waitSetup = spawnSync("powershell.exe", ["-NoProfile", "-Command", watchSetup],
-    { env: environment, encoding: "utf8", windowsHide: true, timeout: 260000 });
+  const waitSetup = await new Promise(resolve => {
+    // Keep CDP request observations flowing while Setup closes and replaces the old app.
+    const watcher = spawn("powershell.exe", ["-NoProfile", "-Command", watchSetup],
+      { env: environment, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    const timer = setTimeout(() => { stderr += "Setup watcher timed out"; watcher.kill(); }, 260000);
+    watcher.stderr.on("data", chunk => { stderr += chunk.toString(); });
+    watcher.on("error", error => { clearTimeout(timer); resolve({ status: null, stderr: error.message }); });
+    watcher.on("close", status => { clearTimeout(timer); resolve({ status, stderr }); });
+  });
   assert.equal(waitSetup.status, 0, waitSetup.stderr || waitSetup.error?.message || "Automatic Setup did not finish");
   installedVersion = ctl(["--version"]);
   assert.equal(installedVersion, `WProxy ${targetVersion}`, "The GUI-triggered Setup did not replace the original installed command engine");

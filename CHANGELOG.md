@@ -1,3 +1,10 @@
+# 2.7.7
+
+- Switch servers from Manager with one click and one authorization request. Check the replacement after stopping the old tunnel, and restore the previous saved connection if the replacement fails.
+- Sync only the selected Linux profile during Connect, using two NetworkManager commands instead of scanning and rewriting every saved profile. Explicit full synchronization and the existing tunnel/routing lifecycle remain available unchanged.
+- Show Connecting/Switching feedback and use the existing WProxy SVG logo in the sidebar and About card.
+- Add shared connection/rollback regressions and a native Windows UI test that switches between two servers without clicking Disconnect.
+
 # 2.7.6
 
 - Allow a bounded DNS readiness interval after NetworkManager activation instead of immediately tearing down an otherwise healthy tunnel. Require an actual HTTPS 204 response, retain failure rollback and report the final curl reason.

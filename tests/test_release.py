@@ -28,7 +28,7 @@ class ReleaseTests(unittest.TestCase):
         helper = read_utf8("scripts/wproxy-admin")
         policy = read_utf8("data/io.github.aliazadi1776.wproxy.policy")
         installer = read_utf8("scripts/install.sh")
-        for operation in ("authorize)", "revoke)", "sync)", "up|up-remember)", "down)", "update)"):
+        for operation in ("authorize)", "revoke)", "sync)", "up|up-remember|connect|connect-remember)", "down)", "update)"):
             self.assertIn(operation, helper)
         self.assertIn("subject.active && subject.local", helper)
         self.assertIn("auth_admin_keep", policy)

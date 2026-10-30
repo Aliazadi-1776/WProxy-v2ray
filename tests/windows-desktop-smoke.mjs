@@ -33,6 +33,12 @@ const fixtureName = "CI Windows · Berlin";
 const tunnelUri = process.env.WPROXY_TEST_URI;
 if (tunnelUri) assert.equal(process.env.GITHUB_ACTIONS, "true", "UI route changes require a disposable Actions runner");
 ctl(["node", "add", tunnelUri || "trojan://synthetic@example.invalid:443?security=tls#CI", "--name", fixtureName]);
+let switchNode;
+if (tunnelUri) {
+  ctl(["node", "add", `${tunnelUri.split("#")[0]}#CI-switch`, "--name", "CI switch target"]);
+  switchNode = JSON.parse(ctl(["node", "list", "--json"])).find(node => node.name === "CI switch target");
+  assert(switchNode, "A separate switch fixture is required");
+}
 const app = spawn(path.join(installation, "WProxy.exe"), [], { env: environment, cwd: installation, stdio: "ignore" });
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 let socket;
@@ -108,6 +114,7 @@ try {
   const bridge = await evaluate("window.__TAURI_INTERNALS__.invoke('run_ctl', {args:['node','list','--json']})");
   assert.equal(JSON.parse(bridge.stdout)[0].name, fixtureName);
   assert(await evaluate(`document.querySelector('.server-row').textContent.includes(${JSON.stringify(fixtureName)})`));
+  assert(await evaluate("(() => { const logo=document.querySelector('.brand-mark'); return logo.tagName === 'IMG' && logo.complete && logo.naturalWidth > 0 && logo.src.includes('svg'); })()"), "The canonical SVG logo did not render");
   const defaultWidth = await assertLayout();
   await screenshot("windows-servers-default.png");
 
@@ -129,11 +136,21 @@ try {
     assert(connected.active && connected.verified, JSON.stringify(connected));
     assert(await evaluate("document.querySelector('.connection-hero.is-online') !== null"));
     await screenshot("windows-connected-through-ui.png");
+    const switchStarted = Date.now();
+    await evaluate(`document.querySelector('[data-action=connect][data-node="${switchNode.id}"]').click()`);
+    await waitFor(`document.querySelector('.server-row.is-connected[data-select-node="${switchNode.id}"]') !== null`, "one-click replacement without pressing Disconnect", 360);
+    const switchElapsedMs = Date.now() - switchStarted;
+    const switched = JSON.parse(ctl(["windows", "status", "--json"]));
+    assert(switched.active && switched.verified && switched.node_id === switchNode.id, JSON.stringify(switched));
+    await screenshot("windows-switched-through-ui.png");
     await evaluate("document.querySelector('[data-action=disconnect]').click()");
     await waitFor("document.querySelector('.server-row.is-connected') === null", "Disconnect through the real Rust elevation bridge", 120);
     assert.equal(JSON.parse(ctl(["windows", "status", "--json"])).active, false);
     await writeFile(cancel, "disconnected");
-    uiTunnel = { connected: true, verified: true, disconnected: true, rustElevationBridge: true };
+    uiTunnel = { connected: true, verified: true, switchedWithoutManualDisconnect: true, switchElapsedMs, disconnected: true, rustElevationBridge: true };
+    ctl(["node", "remove", switchNode.id]);
+    await evaluate("document.querySelector('[data-action=refresh]').click()");
+    await waitFor("document.querySelectorAll('.server-row').length === 1", "removing the temporary switch fixture");
   }
 
   await evaluate("document.querySelector('[data-page=add]').click()");

@@ -154,17 +154,48 @@ try {
   })()`);
   await waitFor("document.querySelector('[data-setting=auto-update]').checked");
   await screenshot("automatic-updates-enabled.png");
-  const deadline = Date.now() + 240000;
-  while (Date.now() < deadline) {
-    installedVersion = ctl(["--version"], false);
-    if (installedVersion === `WProxy ${targetVersion}`) break;
-    await delay(500);
-  }
-  assert.equal(installedVersion, `WProxy ${targetVersion}`, "The GUI-triggered Setup did not replace the installed command engine");
-  const waitSetup = spawnSync("powershell.exe", ["-NoProfile", "-Command",
-    `$p = Get-Process -Name 'WProxy-${targetVersion}-Setup','WProxy-${targetVersion}-Setup.tmp' -ErrorAction SilentlyContinue; if ($p) { Wait-Process -Id $p.Id -Timeout 120 -ErrorAction Stop }`,
-  ], { encoding: "utf8", windowsHide: true, timeout: 130000 });
-  assert.equal(waitSetup.status, 0, waitSetup.stderr || "Automatic Setup did not finish");
+  // Starting the installed PyInstaller executable during replacement can lock it against Setup.
+  // Observe Setup and its uninstall registration; execute the updated CLI only after Setup exits.
+  const quoted = value => `'${value.replaceAll("'", "''")}'`;
+  const watchSetup = `
+    $ErrorActionPreference = 'Stop'
+    $trace = ${quoted(path.join(output, "upgrade-processes.jsonl"))}
+    $uninstall = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{B63C9FCB-D1C6-49A0-9C08-463E53762BD0}_is1'
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 240) {
+      $processes = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'WProxy*' -or $_.Name -like 'wproxyctl*' } |
+        Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine)
+      $registrations = @(foreach ($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryHive]::LocalMachine)) {
+        foreach ($view in @([Microsoft.Win32.RegistryView]::Registry64, [Microsoft.Win32.RegistryView]::Registry32)) {
+          $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
+          $key = $base.OpenSubKey($uninstall)
+          if ($key) {
+            [PSCustomObject]@{Hive=$hive.ToString(); View=$view.ToString(); Version=$key.GetValue('DisplayVersion');
+              Location=$key.GetValue('InstallLocation'); Uninstall=$key.GetValue('UninstallString')}
+            $key.Close()
+          }
+          $base.Close()
+        }
+      })
+      $locations = @(${quoted(installation)}, (Join-Path ${quoted(environment.LOCALAPPDATA)} 'Programs\\WProxy'),
+        (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\\WProxy')) + @($registrations.Location)
+      $files = @(foreach ($location in ($locations | Where-Object { $_ } | Sort-Object -Unique)) {
+        Get-Item (Join-Path $location 'wproxyctl.exe') -ErrorAction SilentlyContinue | Select-Object FullName,Length,LastWriteTimeUtc
+      })
+      [PSCustomObject]@{Elapsed=$timer.Elapsed.TotalSeconds; Processes=$processes; Registrations=$registrations; CandidateFiles=$files} |
+        ConvertTo-Json -Depth 6 -Compress | Add-Content -Path $trace -Encoding UTF8
+      $setups = @($processes | Where-Object { $_.Name -like 'WProxy-${targetVersion}-Setup*' })
+      $updated = @($registrations | Where-Object { $_.Version -eq '${targetVersion}' })
+      if ($updated.Count -gt 0 -and $setups.Count -eq 0) { exit 0 }
+      Start-Sleep -Seconds 1
+    }
+    throw 'GUI-triggered Setup did not finish registering the target version; see upgrade-processes.jsonl'
+  `;
+  const waitSetup = spawnSync("powershell.exe", ["-NoProfile", "-Command", watchSetup],
+    { env: environment, encoding: "utf8", windowsHide: true, timeout: 260000 });
+  assert.equal(waitSetup.status, 0, waitSetup.stderr || waitSetup.error?.message || "Automatic Setup did not finish");
+  installedVersion = ctl(["--version"]);
+  assert.equal(installedVersion, `WProxy ${targetVersion}`, "The GUI-triggered Setup did not replace the original installed command engine");
   assert.equal(ipc.filter(event => event.method === "run_ctl").length, 1, "Expected exactly one real automatic download request");
   assert.equal(ipc.filter(event => event.method === "install_update").length, 1, "Expected the real native install_update bridge");
   const downloaded = path.join(environment.APPDATA, "WProxy", "updates", targetVersion, targetAsset);

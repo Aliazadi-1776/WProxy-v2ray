@@ -46,13 +46,18 @@ case "${1:-}" in
         require_ctl
         exec env SUDO_USER="$CALLER_USER" "$CTL" nm sync
         ;;
-    up|up-remember)
+    up|up-remember|connect|connect-remember)
         require_ctl
         [ "$#" -eq 2 ] || { echo 'A single node id is required.' >&2; exit 2; }
         case "${2:-}" in ''|*[!0-9a-f]*) echo 'Invalid node id.' >&2; exit 2 ;; esac
         [ "${#2}" -eq 16 ] || { echo 'Invalid node id.' >&2; exit 2; }
-        if [ "$1" = up-remember ]; then remember_authorization; fi
-        env SUDO_USER="$CALLER_USER" "$CTL" nm sync >/dev/null
+        case "$1" in up-remember|connect-remember) remember_authorization ;; esac
+        case "$1" in
+            connect|connect-remember)
+                exec env SUDO_USER="$CALLER_USER" "$CTL" nm connect "$2"
+                ;;
+        esac
+        env SUDO_USER="$CALLER_USER" "$CTL" nm sync --id "$2" >/dev/null
         exec env SUDO_USER="$CALLER_USER" "$CTL" nm up "$2" --verify
         ;;
     down)
@@ -71,7 +76,7 @@ case "${1:-}" in
         exec env SUDO_USER="$CALLER_USER" "$CTL" update install "$archive"
         ;;
     *)
-        echo 'Usage: wproxy-admin {authorize|revoke|sync|up NODE_ID|up-remember NODE_ID|down|update ARCHIVE}' >&2
+        echo 'Usage: wproxy-admin {authorize|revoke|sync|up NODE_ID|up-remember NODE_ID|connect NODE_ID|connect-remember NODE_ID|down|update ARCHIVE}' >&2
         exit 2
         ;;
 esac

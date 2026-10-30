@@ -1070,6 +1070,32 @@ def loaded_owned_wproxy_uuids():
     return owned
 
 
+def nm_sync_node(store, node_id):
+    require_root()
+    if not re.fullmatch(r"[0-9a-f]{16}", node_id):
+        raise ValueError("Invalid node id")
+    node = next((node for node in store["nodes"] if node["id"] == node_id), None)
+    if not node:
+        raise ValueError("Unknown node id")
+    conn_dir = Path("/etc/NetworkManager/system-connections")
+    conn_dir.mkdir(parents=True, exist_ok=True)
+    path = conn_dir / f"wproxy-{original_user().pw_uid}-{node_id}.nmconnection"
+    path.write_text(nm_keyfile(node, store.get("routing")), encoding="utf-8")
+    os.chmod(path, 0o600)
+    loaded = run(["nmcli", "connection", "load", str(path)], capture=True)
+    if loaded.returncode != 0:
+        raise RuntimeError(loaded.stderr.strip() or "Could not load the selected WProxy profile")
+    # Apply routing through NM too: reloading a keyfile can retain its old VPN dictionary.
+    updated = run([
+        "nmcli", "connection", "modify", "uuid", deterministic_uuid(node_id),
+        "+vpn.data", f"routing64={encode_routing_policy(store.get('routing'))}",
+        "connection.permissions", "",
+    ], capture=True)
+    if updated.returncode != 0:
+        raise RuntimeError(updated.stderr.strip() or "Could not update the selected WProxy profile")
+    print(f"Synced {node['name']}")
+
+
 def nm_sync(store):
     require_root()
     conn_dir = Path("/etc/NetworkManager/system-connections")
@@ -1340,6 +1366,49 @@ def verify_node_https(node, timeout=5.0):
                     process.wait()
     except (OSError, ValueError, RuntimeError, http.client.HTTPException):
         return None
+
+
+def connect_node(store, node_id, platform=None):
+    if not re.fullmatch(r"[0-9a-f]{16}", node_id):
+        raise ValueError("Invalid node id")
+    node = next((node for node in store["nodes"] if node["id"] == node_id), None)
+    if not node:
+        raise ValueError("Unknown node id")
+    platform = platform or ("windows" if os.name == "nt" else "linux")
+    if platform not in ("linux", "windows"):
+        raise ValueError("Unknown connection platform")
+    if platform == "windows":
+        require_windows_admin()
+        previous = windows_state()
+    else:
+        previous = status_json(store)
+        nm_sync_node(store, node_id)
+    previous_id = previous.get("node_id") if previous.get("active") else None
+    previous_saved = any(node["id"] == previous_id for node in store["nodes"])
+    if previous.get("active"):
+        if platform == "windows":
+            windows_down()
+        elif not nm_down():
+            raise RuntimeError("The previous WProxy tunnel has not finished shutting down. Wait a moment and try again.")
+    try:
+        # Probe after teardown so the old VPN cannot carry or block the new server's traffic.
+        if verify_node_https(node) is None:
+            raise RuntimeError("This server failed the HTTPS connection test.")
+        if platform == "windows":
+            windows_up(store, node_id)
+        else:
+            nm_up(store, node_id, verify=True)
+    except (OSError, ValueError, RuntimeError) as error:
+        if previous_saved:
+            try:
+                if platform == "windows":
+                    windows_up(store, previous_id)
+                else:
+                    nm_up(store, previous_id, verify=True)
+            except (OSError, ValueError, RuntimeError) as restore_error:
+                raise RuntimeError(f"{error} The previous connection could not be restored: {restore_error}") from error
+            raise RuntimeError(f"{error} The previous connection was restored.") from error
+        raise RuntimeError(str(error)) from error
 
 
 def fastest_verified_node(nodes, rows, timeout=5.0):
@@ -1804,13 +1873,15 @@ def build_parser():
 
     pm = sp.add_parser("nm")
     ms = pm.add_subparsers(dest="action", required=True)
-    ms.add_parser("sync")
+    a = ms.add_parser("sync"); a.add_argument("--id")
+    a = ms.add_parser("connect"); a.add_argument("id")
     a = ms.add_parser("up"); a.add_argument("id"); a.add_argument("--verify", action="store_true")
     ms.add_parser("down")
 
     pw = sp.add_parser("windows")
     ws = pw.add_subparsers(dest="action", required=True)
     a = ws.add_parser("up"); a.add_argument("id")
+    a = ws.add_parser("connect"); a.add_argument("id")
     ws.add_parser("down")
     a = ws.add_parser("status"); a.add_argument("--json", action="store_true")
 
@@ -1839,11 +1910,15 @@ def main():
         elif args.cmd == "update":
             cmd_update(args)
         elif args.cmd == "nm":
-            if args.action == "sync": nm_sync(store)
+            if args.action == "sync":
+                if args.id is not None: nm_sync_node(store, args.id)
+                else: nm_sync(store)
+            elif args.action == "connect": connect_node(store, args.id, platform="linux")
             elif args.action == "up": nm_up(store, args.id, verify=args.verify)
             elif args.action == "down": sys.exit(0 if nm_down() else 1)
         elif args.cmd == "windows":
             if args.action == "up": windows_up(store, args.id)
+            elif args.action == "connect": connect_node(store, args.id, platform="windows")
             elif args.action == "down": windows_down()
             elif args.action == "status":
                 data = windows_state()

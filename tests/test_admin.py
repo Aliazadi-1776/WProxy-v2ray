@@ -47,7 +47,7 @@ class AdminTests(unittest.TestCase):
         self.assertIn('action.id == "io.github.aliazadi1776.wproxy.admin"', rule)
         self.assertIn('subject.active && subject.local && subject.user == "desktop"', rule)
         self.assertEqual(self.log.read_text().splitlines(), [
-            "desktop:nm sync", "desktop:nm up 0123456789abcdef --verify",
+            "desktop:nm sync --id 0123456789abcdef", "desktop:nm up 0123456789abcdef --verify",
         ])
         self.assertEqual(self.run_helper("revoke").returncode, 0)
         self.assertFalse((self.rules / "49-wproxy-1000.rules").exists())
@@ -57,15 +57,30 @@ class AdminTests(unittest.TestCase):
         self.assertFalse(self.rules.exists())
 
     def test_invalid_input_cannot_create_rule_or_start_command(self):
-        for args in (("up-remember", "bad"), ("up-remember", "0123456789abcdef", "extra")):
-            self.assertNotEqual(self.run_helper(*args).returncode, 0)
+        for operation in ("up-remember", "connect", "connect-remember"):
+            for args in ((operation, "bad"), (operation, "0123456789abcdef", "extra")):
+                self.assertNotEqual(self.run_helper(*args).returncode, 0)
         self.assertFalse(self.rules.exists())
         self.assertFalse(self.log.exists())
 
     def test_failed_sync_never_activates_stale_profile(self):
         result = self.run_helper("up", "0123456789abcdef", ADMIN_TEST_FAIL_SYNC="1")
         self.assertEqual(result.returncode, 8)
-        self.assertEqual(self.log.read_text().splitlines(), ["desktop:nm sync"])
+        self.assertEqual(self.log.read_text().splitlines(), ["desktop:nm sync --id 0123456789abcdef"])
+
+    def test_manager_connect_uses_one_command_without_creating_approval(self):
+        result = self.run_helper("connect", "0123456789abcdef")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.log.read_text().splitlines(), ["desktop:nm connect 0123456789abcdef"])
+        self.assertFalse(self.rules.exists())
+
+    def test_manager_connect_can_remember_scoped_approval(self):
+        result = self.run_helper("connect-remember", "0123456789abcdef")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.log.read_text().splitlines(), ["desktop:nm connect 0123456789abcdef"])
+        rule = (self.rules / "49-wproxy-1000.rules").read_text()
+        self.assertIn('action.id == "io.github.aliazadi1776.wproxy.admin"', rule)
+        self.assertIn('subject.active && subject.local && subject.user == "desktop"', rule)
 
 
 if __name__ == "__main__":

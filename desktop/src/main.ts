@@ -440,7 +440,7 @@ async function action(label: string, callback: () => Promise<void>): Promise<voi
   toast(failure || label, failure ? "error" : "success");
 }
 
-async function connect(nodeId: string): Promise<void> {
+async function connect(nodeId: string, verified = false): Promise<void> {
   if (state.routing.mode === "only" && !state.routing.domains.length && !state.routing.apps.length) {
     throw new Error("Only selected has no sites or applications. Choose All traffic or add an item in Split routing.");
   }
@@ -453,6 +453,10 @@ async function connect(nodeId: string): Promise<void> {
   state.connectionProgress = { switching: state.status.active, nodeId };
   render();
   try {
+    if (state.platform === "linux") {
+      if (state.status.active) await invoke<CliOutput>("tunnel", { action: "down", nodeId: null });
+      if (!verified) await ctl<PingResult>(["node", "verify", nodeId, "--json"]);
+    }
     await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
   } finally {
     state.connectionProgress = null;
@@ -467,7 +471,7 @@ async function quickConnect(): Promise<void> {
   if (!isTauri) return connect(state.nodes[0]?.id ?? "");
   const best = await ctl<PingResult>(["node", "best", "--verify", "--json", "--timeout", "2"]);
   state.pings.set(best.id, best.latency_ms);
-  await connect(best.id);
+  await connect(best.id, true);
 }
 
 async function disconnect(): Promise<void> {

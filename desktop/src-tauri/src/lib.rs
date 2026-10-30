@@ -284,7 +284,7 @@ fn linux_admin(action: &str, argument: Option<&str>) -> Result<CliOutput, String
         command.arg(helper).arg(action);
     } else {
         let ctl = resolve_ctl()?;
-        command.arg(ctl).arg("nm").arg(if action == "connect-remember" { "connect" } else { action });
+        command.arg(ctl).arg("nm").arg(action);
     }
     if let Some(value) = argument {
         command.arg(value);
@@ -321,9 +321,7 @@ fn tunnel_command(action: String, node_id: Option<String>, remember: Option<bool
     }
     #[cfg(not(windows))]
     {
-        let operation = if action == "up" {
-            if remember.unwrap_or(false) { "connect-remember" } else { "connect" }
-        } else { &action };
+        let operation = if action == "up" && remember.unwrap_or(false) { "up-remember" } else { &action };
         linux_admin(operation, node_id.as_deref())
     }
 }

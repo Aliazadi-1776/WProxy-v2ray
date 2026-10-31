@@ -138,7 +138,7 @@ fn valid_ctl_args(args: &[String]) -> bool {
         "status" => args.len() == 2 && is_json_tail(args),
         "node" if args.len() >= 2 => match args[1].as_str() {
             "list" => args.len() == 3 && is_json_tail(args),
-            "add" => {
+            "add" | "import" => {
                 matches!(args.len(), 3 | 5)
                     && (args.len() == 3 || args.get(3).map(String::as_str) == Some("--name"))
             }
@@ -151,7 +151,7 @@ fn valid_ctl_args(args: &[String]) -> bool {
                             || matches!(value.as_str(), "--all" | "--json" | "--timeout")
                     })
             }
-            "best" | "verify" => {
+            "best" | "verify" | "validate" => {
                 args.len() >= 3
                     && args.iter().all(|value| {
                         !value.starts_with('-') || matches!(value.as_str(), "--json" | "--timeout" | "--verify")
@@ -212,6 +212,45 @@ async fn run_ctl(args: Vec<String>) -> Result<CliOutput, String> {
     tauri::async_runtime::spawn_blocking(move || execute(ctl_command()?, &args))
         .await
         .map_err(|error| format!("Could not complete the WProxy command: {error}"))?
+}
+
+#[tauri::command]
+async fn import_config(text: String, name: Option<String>) -> Result<CliOutput, String> {
+    if text.len() > 8 * 1024 * 1024 {
+        return Err("Configuration is larger than 8 MiB".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Write;
+        #[cfg(unix)]
+        use std::os::unix::fs::OpenOptionsExt;
+        static NEXT_IMPORT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let sequence = NEXT_IMPORT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let instant = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|error| format!("Could not prepare configuration import: {error}"))?
+            .as_nanos();
+        let path = env::temp_dir().join(format!("wproxy-import-{}-{instant}-{sequence}.txt", std::process::id()));
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let mut file = options.open(&path)
+            .map_err(|error| format!("Could not prepare configuration import: {error}"))?;
+        let result = (|| {
+            file.write_all(text.as_bytes())
+                .map_err(|error| format!("Could not write configuration import: {error}"))?;
+            drop(file);
+            let mut args = vec!["node".into(), "import".into(), path.to_string_lossy().into_owned()];
+            if let Some(value) = name.filter(|value| !value.trim().is_empty()) {
+                args.extend(["--name".into(), value]);
+            }
+            execute(ctl_command()?, &args)
+        })();
+        let _ = std::fs::remove_file(&path);
+        result
+    })
+        .await
+        .map_err(|error| format!("Could not complete configuration import: {error}"))?
 }
 
 #[tauri::command]
@@ -385,6 +424,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             platform,
             run_ctl,
+            import_config,
             tunnel_status,
             tunnel,
             sync_linux,

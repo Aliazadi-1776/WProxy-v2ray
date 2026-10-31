@@ -18,6 +18,7 @@ interface NodeRecord {
   name: string;
   source: string | null;
   source_name: string;
+  engine?: string;
 }
 
 interface Subscription {
@@ -215,7 +216,7 @@ function renderShell(content: string): void {
         <button class="nav-item${state.page === "settings" ? " is-active" : ""}" data-page="settings">
           <span class="nav-icon">${icon("settings", 17)}</span><span>Settings</span>
         </button>
-        <div class="version-row"><span>WProxy 2.7.8</span><span>${state.platform === "windows" ? "Windows" : "Linux"}</span></div>
+        <div class="version-row"><span>WProxy 2.8.0</span><span>${state.platform === "windows" ? "Windows" : "Linux"}</span></div>
       </div>
     </aside>
     <section class="workspace">
@@ -294,7 +295,7 @@ function serverRow(node: NodeRecord, index: number): string {
   const avatar = node.name.match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() || String(index + 1);
   return `<article class="server-row${active ? " is-connected" : ""}${selected ? " is-selected" : ""}" data-select-node="${node.id}" tabindex="0">
     <div class="server-avatar">${escapeHtml(avatar)}</div>
-    <div class="server-identity"><strong>${escapeHtml(node.name)}</strong><span>${escapeHtml(node.source_name || "Manual")}</span></div>
+    <div class="server-identity"><strong>${escapeHtml(node.name)}</strong><span>${escapeHtml(node.source_name || "Manual")}${node.engine ? ` · ${escapeHtml(node.engine === "xray" ? "Xray" : node.engine === "mihomo" ? "Mihomo" : node.engine)}` : ""}</span></div>
     <div class="latency ${quality}"><span class="latency-dot"></span>${latencyFor(node)}</div>
     <div class="row-actions">
       ${active ? '<span class="active-label">Active</span>' : `<button class="button small secondary" data-action="connect" data-node="${node.id}" ${state.busy ? "disabled" : ""}>${state.connectionProgress?.nodeId === node.id ? connectionProgressLabel() : state.status.active ? "Switch" : "Connect"}</button>`}
@@ -350,11 +351,11 @@ function subscriptionsPage(): string {
 function addPage(): string {
   return `<section class="add-layout">
     <form class="form-card prominent" id="node-form">
-      <div class="form-heading"><span class="form-icon">${icon("link", 22)}</span><div><h2>Add a server</h2><p>Supports VLESS, VMess, Trojan and Shadowsocks links.</p></div></div>
+      <div class="form-heading"><span class="form-icon">${icon("link", 22)}</span><div><h2>Add a server</h2><p>Paste a proxy link or a sing-box, Xray or Clash configuration.</p></div></div>
       <label><span>Display name <em>optional</em></span><input name="name" autocomplete="off" placeholder="Berlin · Work" /></label>
-      <label><span>Connection link</span><textarea name="uri" required spellcheck="false" rows="5" placeholder="vless://, vmess://, trojan:// or ss://"></textarea></label>
-      <div class="privacy-note">${icon("shield", 17)} The link is stored locally and is never sent to WProxy.</div>
-      <div class="form-actions"><button class="button secondary" type="reset">Clear</button><button class="button primary" type="submit">Save server</button></div>
+      <label><span>Connection link or configuration</span><textarea name="uri" required spellcheck="false" rows="5" placeholder="vless://, hy2://, tuic://, or a JSON/YAML profile"></textarea></label>
+      <div class="privacy-note">${icon("shield", 17)} Your original configuration is kept locally. WProxy selects a compatible engine.</div>
+      <div class="form-actions"><button class="button secondary" type="button" data-action="import-config">Import file…</button><button class="button secondary" type="reset">Clear</button><button class="button primary" type="submit">Save server</button></div>
     </form>
     <aside class="help-card"><span class="eyebrow">QUICK START</span><h3>Have a subscription instead?</h3><p>Importing a subscription keeps every server grouped and lets you refresh them together.</p><button class="text-button" data-page="subscriptions">Open subscriptions ${icon("chevron", 15)}</button></aside>
   </section>`;
@@ -388,7 +389,7 @@ function routingPage(): string {
         <div class="inline-form"><button class="button primary grow" data-action="choose-app">${icon("app", 16)} Choose application</button><button class="icon-button subtle" data-action="remove-app" aria-label="Remove selected application" ${state.selectedApp ? "" : "disabled"}>${icon("trash", 17)}</button></div>
       </section>
     </div>
-    <p class="routing-footnote">${state.platform === "linux" ? "Changes are synced with NetworkManager. Reconnect if the current tunnel was already active." : "Executable paths are matched by Xray on the next connection."}</p>
+    <p class="routing-footnote">${state.platform === "linux" ? "Changes are synced with NetworkManager. Reconnect if the current tunnel was already active." : "Executable paths are matched by the selected engine on the next connection."}</p>
   </section>`;
 }
 
@@ -396,10 +397,10 @@ function settingsPage(): string {
   return `<section class="settings-layout constrained">
     <div class="settings-card">
       <div class="setting-row"><div class="setting-icon">${icon("update", 20)}</div><div class="setting-copy"><strong>Automatic updates</strong><span>Check verified GitHub releases and install them automatically.</span></div><label class="switch"><input type="checkbox" aria-label="Automatic updates" data-setting="auto-update" ${state.preferences.auto_update ? "checked" : ""} ${updateInProgress ? "disabled" : ""}/><span></span></label></div>
-      <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.7.8</span></div><button class="button secondary" data-action="check-update" ${updateInProgress ? "disabled" : ""}>Check now</button></div>
+      <div class="setting-row"><div class="setting-icon">${icon("refresh", 20)}</div><div class="setting-copy"><strong>Check for updates</strong><span>Installed version: 2.8.0</span></div><button class="button secondary" data-action="check-update" ${updateInProgress ? "disabled" : ""}>Check now</button></div>
       ${state.platform === "linux" ? `<div class="setting-row"><div class="setting-icon">${icon("shield", 20)}</div><div class="setting-copy"><strong>Ask for permission only once</strong><span>Your first connection remembers approval for WProxy. Turn off to revoke it.</span></div><label class="switch"><input type="checkbox" aria-label="Remember WProxy administrator approval" data-setting="remember-authorization" ${state.preferences.remember_authorization ? "checked" : ""}/><span></span></label></div>` : ""}
     </div>
-    <div class="about-card"><img class="brand-mark large" src="${logoUrl}" alt="" aria-hidden="true"/><div><h2>WProxy 2.7.8</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
+    <div class="about-card"><img class="brand-mark large" src="${logoUrl}" alt="" aria-hidden="true"/><div><h2>WProxy 2.8.0</h2><p>${state.platform === "windows" ? "Tauri desktop · Windows TUN" : "Tauri desktop · NetworkManager"}</p></div><span class="status-chip">${escapeHtml(state.updateLabel)}</span></div>
   </section>`;
 }
 
@@ -440,7 +441,7 @@ async function action(label: string, callback: () => Promise<void>): Promise<voi
   toast(failure || label, failure ? "error" : "success");
 }
 
-async function connect(nodeId: string, verified = false): Promise<void> {
+async function connect(nodeId: string): Promise<void> {
   if (state.routing.mode === "only" && !state.routing.domains.length && !state.routing.apps.length) {
     throw new Error("Only selected has no sites or applications. Choose All traffic or add an item in Split routing.");
   }
@@ -454,8 +455,8 @@ async function connect(nodeId: string, verified = false): Promise<void> {
   render();
   try {
     if (state.platform === "linux") {
+      await ctl(["node", "validate", nodeId, "--json"]);
       if (state.status.active) await invoke<CliOutput>("tunnel", { action: "down", nodeId: null });
-      if (!verified) await ctl<PingResult>(["node", "verify", nodeId, "--json"]);
     }
     await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
   } finally {
@@ -471,7 +472,7 @@ async function quickConnect(): Promise<void> {
   if (!isTauri) return connect(state.nodes[0]?.id ?? "");
   const best = await ctl<PingResult>(["node", "best", "--verify", "--json", "--timeout", "2"]);
   state.pings.set(best.id, best.latency_ms);
-  await connect(best.id, true);
+  await connect(best.id);
 }
 
 async function disconnect(): Promise<void> {
@@ -540,6 +541,7 @@ app.addEventListener("click", async (event) => {
     state.selectedDomain = null;
     await routeChanged();
   });
+  if (command === "import-config") return void importConfiguration();
   if (command === "choose-app") return void chooseApplication();
   if (command === "remove-app" && state.selectedApp) return void action("Application removed", async () => {
     const value = state.selectedApp!;
@@ -550,6 +552,28 @@ app.addEventListener("click", async (event) => {
   });
   if (command === "check-update") return void checkUpdate();
 });
+
+async function importConfiguration(): Promise<void> {
+  try {
+    if (!isTauri) return;
+    const path = await open({
+      multiple: false,
+      directory: false,
+      title: "Import a configuration",
+      filters: [{ name: "Proxy configuration", extensions: ["json", "yaml", "yml", "txt", "conf"] }],
+    });
+    if (typeof path !== "string") return;
+    const name = (app.querySelector<HTMLInputElement>('#node-form input[name="name"]')?.value || "").trim();
+    await action("Configuration imported", async () => {
+      const args = ["node", "import", path];
+      if (name) args.push("--name", name);
+      await invoke<CliOutput>("run_ctl", { args });
+      state.page = "servers";
+    });
+  } catch (error) {
+    toast(errorMessage(error), "error");
+  }
+}
 
 async function chooseApplication(): Promise<void> {
   try {
@@ -634,14 +658,12 @@ app.addEventListener("submit", async (event) => {
   const form = event.target as HTMLFormElement;
   const data = new FormData(form);
   if (form.id === "node-form") {
-    const uri = String(data.get("uri") || "").trim();
+    const uri = String(data.get("uri") || "");
     const name = String(data.get("name") || "").trim();
-    if (!uri) return;
+    if (!uri.trim()) return;
     await action("Server saved", async () => {
       if (isTauri) {
-        const args = ["node", "add", uri];
-        if (name) args.push("--name", name);
-        await invoke<CliOutput>("run_ctl", { args });
+        await invoke<CliOutput>("import_config", { text: uri, name: name || null });
       } else {
         state.nodes.push({ id: crypto.randomUUID().replaceAll("-", "").slice(0, 16), name: name || "New server", source: null, source_name: "Manual" });
       }

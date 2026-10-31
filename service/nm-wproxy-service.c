@@ -29,6 +29,7 @@ typedef struct {
     GDBusConnection *bus;
     gchar *uri;
     gchar *routing64;
+    gchar *input_path;
     GPid child;
     guint state;
     guint ready_source;
@@ -228,7 +229,17 @@ static gboolean is_supported_uri(const gchar *value) {
         g_str_has_prefix(value, "vless://") ||
         g_str_has_prefix(value, "vmess://") ||
         g_str_has_prefix(value, "trojan://") ||
-        g_str_has_prefix(value, "ss://"));
+        g_str_has_prefix(value, "ss://") ||
+        g_str_has_prefix(value, "hy2://") ||
+        g_str_has_prefix(value, "hysteria2://") ||
+        g_str_has_prefix(value, "tuic://") ||
+        g_str_has_prefix(value, "wireguard://") ||
+        g_str_has_prefix(value, "wg://") ||
+        g_str_has_prefix(value, "socks://") ||
+        g_str_has_prefix(value, "socks5://") ||
+        g_str_has_prefix(value, "http://") ||
+        g_str_has_prefix(value, "https://") ||
+        g_str_has_prefix(value, "wproxy-config://"));
 }
 
 static gboolean is_supported_routing(const gchar *value) {
@@ -393,6 +404,11 @@ static void child_watch(GPid pid, gint status, gpointer user_data) {
     if (app->child == pid)
         app->child = 0;
 
+    if (app->input_path) {
+        g_unlink(app->input_path);
+        g_clear_pointer(&app->input_path, g_free);
+    }
+
     g_spawn_close_pid(pid);
 
     if (app->ready_source) {
@@ -468,17 +484,44 @@ static gboolean start_runner_async(App *app, gchar **message) {
 
     gchar *argv[] = { WPROXY_RUNNER_PATH, "start", NULL };
     gchar **envp = g_get_environ();
-    envp = g_environ_setenv(envp, "WPROXY_URI", app->uri, TRUE);
+    GError *error = NULL;
+    if (g_str_has_prefix(app->uri, "wproxy-config://")) {
+        // Native subscriptions can exceed the per-argument environment limit.
+        gint fd = g_file_open_tmp("wproxy-input-XXXXXX", &app->input_path, &error);
+        if (fd < 0) {
+            if (message) *message = g_strdup("Could not create private configuration input.");
+            g_clear_error(&error);
+            g_strfreev(envp);
+            return FALSE;
+        }
+        g_close(fd, NULL);
+        if (!g_file_set_contents_full(app->input_path, app->uri, -1,
+                G_FILE_SET_CONTENTS_CONSISTENT, 0600, &error)) {
+            if (message) *message = g_strdup("Could not write private configuration input.");
+            g_unlink(app->input_path);
+            g_clear_pointer(&app->input_path, g_free);
+            g_clear_error(&error);
+            g_strfreev(envp);
+            return FALSE;
+        }
+        envp = g_environ_unsetenv(envp, "WPROXY_URI");
+        envp = g_environ_setenv(envp, "WPROXY_INPUT_FILE", app->input_path, TRUE);
+    } else {
+        envp = g_environ_unsetenv(envp, "WPROXY_INPUT_FILE");
+        envp = g_environ_setenv(envp, "WPROXY_URI", app->uri, TRUE);
+    }
     if (app->routing64)
         envp = g_environ_setenv(envp, "WPROXY_ROUTING64", app->routing64, TRUE);
-    GError *error = NULL;
-
     gboolean spawned = g_spawn_async(
         NULL, argv, envp, G_SPAWN_DO_NOT_REAP_CHILD,
         NULL, NULL, &app->child, &error);
     g_strfreev(envp);
 
     if (!spawned) {
+        if (app->input_path) {
+            g_unlink(app->input_path);
+            g_clear_pointer(&app->input_path, g_free);
+        }
         if (message)
             *message = g_strdup(error ? error->message : "Could not start WProxy runtime.");
         g_clear_error(&error);
@@ -726,7 +769,7 @@ int main(int argc, char **argv) {
 
     for (int i = 1; i < argc; ++i) {
         if (g_str_equal(argv[i], "--version")) {
-            g_print("WProxy service 2.7.8\n");
+            g_print("WProxy service 2.8.0\n");
             g_free(service_name);
             return 0;
         }
@@ -763,6 +806,10 @@ int main(int argc, char **argv) {
     if (app.ready_source)
         g_source_remove(app.ready_source);
     g_clear_object(&app.bus);
+    if (app.input_path) {
+        g_unlink(app.input_path);
+        g_free(app.input_path);
+    }
     g_free(app.uri);
     g_free(app.routing64);
     g_free(service_name);

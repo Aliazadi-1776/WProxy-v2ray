@@ -5,7 +5,7 @@
 
 #define WPROXY_SERVICE "org.freedesktop.NetworkManager.wproxy"
 #define WPROXY_NAME "WProxy"
-#define WPROXY_VERSION "2.7.8"
+#define WPROXY_VERSION "2.8.0"
 
 typedef struct {
     GObject parent;
@@ -123,7 +123,17 @@ static gboolean valid_uri(const char *uri)
     return g_str_has_prefix(uri, "vless://") ||
            g_str_has_prefix(uri, "vmess://") ||
            g_str_has_prefix(uri, "trojan://") ||
-           g_str_has_prefix(uri, "ss://");
+           g_str_has_prefix(uri, "ss://") ||
+           g_str_has_prefix(uri, "hy2://") ||
+           g_str_has_prefix(uri, "hysteria2://") ||
+           g_str_has_prefix(uri, "tuic://") ||
+           g_str_has_prefix(uri, "wireguard://") ||
+           g_str_has_prefix(uri, "wg://") ||
+           g_str_has_prefix(uri, "socks://") ||
+           g_str_has_prefix(uri, "socks5://") ||
+           g_str_has_prefix(uri, "http://") ||
+           g_str_has_prefix(uri, "https://") ||
+           g_str_has_prefix(uri, "wproxy-config://");
 }
 
 static gboolean editor_update_connection(NMVpnEditor *editor,

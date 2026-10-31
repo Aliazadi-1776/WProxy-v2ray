@@ -6,6 +6,10 @@ RUNNER_PID="$RUNTIME/runner.pid"
 XRAY_PID="$RUNTIME/xray.pid"
 READY="$RUNTIME/ready"
 CONFIG="$RUNTIME/xray.json"
+PLAN="$RUNTIME/engine-plan"
+ENGINE=xray
+INPUT_FILE=${WPROXY_INPUT_FILE:-}
+unset WPROXY_INPUT_FILE 2>/dev/null || true
 ROUTING_FILE="$RUNTIME/routing64"
 GATEWAY="$RUNTIME/gateway"
 LOG="$RUNTIME/xray.log"
@@ -45,30 +49,7 @@ need_root() {
     }
 }
 
-find_xray() {
-    if [ -n "${XRAY_BIN:-}" ] && [ -x "$XRAY_BIN" ]; then
-        return 0
-    fi
-    for candidate in /usr/local/bin/xray /usr/bin/xray /opt/xray/xray; do
-        if [ -x "$candidate" ]; then
-            XRAY_BIN="$candidate"
-            export XRAY_BIN
-            return 0
-        fi
-    done
-    if command -v xray >/dev/null 2>&1; then
-        XRAY_BIN=$(command -v xray)
-        export XRAY_BIN
-        return 0
-    fi
-    return 1
-}
-
 need_runtime() {
-    find_xray || {
-        echo "xray is not installed. Re-run the WProxy installer so it can install the official Xray core." >&2
-        exit 127
-    }
     find_ctl || {
         echo "wproxyctl is not installed. Re-run the WProxy installer or runtime repair." >&2
         exit 127
@@ -130,20 +111,24 @@ render_and_test() {
     URI=$1
     umask 077
     detect_outbound_iface
-    if [ -s "$ROUTING_FILE" ]; then
-        "$CTL" render "$URI" -o "$CONFIG" --gateway-output "$GATEWAY" --routing-file "$ROUTING_FILE"
+    if [ -n "$INPUT_FILE" ]; then
+        set -- render --input-file "$INPUT_FILE"
     else
-        "$CTL" render "$URI" -o "$CONFIG" --gateway-output "$GATEWAY"
+        set -- render "$URI"
     fi
-    if ! "$XRAY_BIN" run -test -c "$CONFIG" >"$RUNTIME/test.log" 2>&1; then
-        cat "$RUNTIME/test.log" >&2 || true
-        echo "Xray rejected the generated configuration." >&2
-        exit 78
+    set -- "$@" -o "$CONFIG" --gateway-output "$GATEWAY" --runtime-plan "$PLAN"
+    if [ -s "$ROUTING_FILE" ]; then
+        set -- "$@" --routing-file "$ROUTING_FILE"
     fi
+    "$CTL" "$@"
+    ENGINE=$(sed -n '1p' "$PLAN")
+    XRAY_BIN=$(sed -n '2p' "$PLAN")
+    case "$ENGINE" in xray|sing-box|mihomo) ;; *) echo 'Invalid engine plan.' >&2; exit 78 ;; esac
+    [ -x "$XRAY_BIN" ] || { echo 'The selected core binary is missing.' >&2; exit 127; }
 }
 
 needs_process_visibility() {
-    grep -q '"process"[[:space:]]*:' "$CONFIG"
+    grep -Eq '"process(_path)?"[[:space:]]*:|PROCESS-PATH,' "$CONFIG"
 }
 
 wait_for_tun_removal() {
@@ -164,6 +149,11 @@ remove_stale_tun() {
 
 start_xray() {
     : > "$LOG"
+    case "$ENGINE" in
+        xray) set -- "$XRAY_BIN" run -c "$CONFIG" ;;
+        sing-box) set -- "$XRAY_BIN" run -c "$CONFIG" ;;
+        mihomo) set -- "$XRAY_BIN" -d "$RUNTIME" -f "$CONFIG" ;;
+    esac
     if needs_process_visibility; then
         if ! command -v systemd-run >/dev/null 2>&1 ||
             ! command -v systemctl >/dev/null 2>&1; then
@@ -183,7 +173,7 @@ start_xray() {
             --property='UMask=0077' \
             --property="StandardOutput=append:$LOG" \
             --property="StandardError=append:$LOG" \
-            "$XRAY_BIN" run -c "$CONFIG" &
+            "$@" &
         SYSTEMD_RUN_PID=$!
         XRAY_MANAGED_BY_SYSTEMD=1
 
@@ -203,7 +193,7 @@ start_xray() {
             exit 78
         fi
     else
-        "$XRAY_BIN" run -c "$CONFIG" >>"$LOG" 2>&1 &
+        "$@" >>"$LOG" 2>&1 &
         XPID=$!
     fi
     echo "$XPID" > "$XRAY_PID"
@@ -245,7 +235,7 @@ cleanup() {
         kill -9 "$XPID" 2>/dev/null || true
     fi
     remove_stale_tun
-    rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$ROUTING_FILE" "$GATEWAY"
+    rm -f "$RUNNER_PID" "$XRAY_PID" "$CONFIG" "$ROUTING_FILE" "$GATEWAY" "$PLAN"
 }
 
 prepare_routing() {
@@ -263,19 +253,19 @@ case "${1:-}" in
   check)
     URI=${WPROXY_URI:-${2:-}}
     unset WPROXY_URI 2>/dev/null || true
-    [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
+    [ -n "$URI" ] || [ -n "$INPUT_FILE" ] || { echo "missing proxy configuration" >&2; exit 2; }
     need_root
     need_runtime
     acquire_runtime
     prepare_routing
     render_and_test "$URI"
-    rm -f "$CONFIG" "$ROUTING_FILE"
+    rm -f "$CONFIG" "$ROUTING_FILE" "$PLAN"
     ;;
 
   start)
     URI=${WPROXY_URI:-${2:-}}
     unset WPROXY_URI 2>/dev/null || true
-    [ -n "$URI" ] || { echo "missing proxy URI" >&2; exit 2; }
+    [ -n "$URI" ] || [ -n "$INPUT_FILE" ] || { echo "missing proxy configuration" >&2; exit 2; }
     need_root
     need_runtime
     # Serialize all shared files and TUN cleanup through the previous exit trap.
@@ -326,7 +316,7 @@ case "${1:-}" in
     done
 
     if [ "$READY_OK" -ne 1 ]; then
-        echo "Xray started but did not create $IFACE within 8 seconds." >&2
+        echo "The selected core started but did not create $IFACE within 8 seconds." >&2
         cat "$LOG" >&2 || true
         exit 78
     fi
@@ -336,7 +326,7 @@ case "${1:-}" in
         exit 78
     fi
     if ! xray_is_alive; then
-        echo 'Xray exited while configuring the tunnel.' >&2
+        echo 'The selected core exited while configuring the tunnel.' >&2
         exit 78
     fi
 

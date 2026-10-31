@@ -26,11 +26,19 @@ import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
+# Prefer the module beside this source/build; installed controllers fall back
+# to the root-owned shared module.
+_controller_dir = Path(__file__).resolve().parent
+_source_module_dir = _controller_dir if (_controller_dir / "wproxy_engines.py").is_file() else _controller_dir / "cli"
+sys.path.insert(0, str(_source_module_dir))
+sys.path.append("/usr/lib/wproxy")
+import wproxy_engines as engines
+
 APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
-VERSION = "2.7.8"
-USER_AGENT = f"WProxy/{VERSION} (Xray; v2rayNG-compatible subscription reader)"
+VERSION = "2.8.0"
+USER_AGENT = f"WProxy/{VERSION} (multi-engine proxy client)"
 RELEASE_API = "https://api.github.com/repos/Aliazadi-1776/WProxy-v2ray/releases/latest"
 ROUTING_MODES = ("all", "bypass", "only")
 MAX_SUBSCRIPTION_BYTES = 8 * 1024 * 1024
@@ -279,6 +287,8 @@ def b64decode_text(value):
 
 def maybe_decode_subscription(body):
     text = body.strip().lstrip("\ufeff")
+    if text.startswith(("{", "[")) or re.search(r"(?m)^[ \t]*(?:proxies|proxy-groups|proxy-providers)\s*:", text):
+        return body
     if "://" in text:
         return text
     try:
@@ -292,11 +302,21 @@ def maybe_decode_subscription(body):
 
 def extract_subscription_uris(text):
     """Return supported links from plain, JSON, or mixed subscription bodies."""
+    if len(text.encode("utf-8")) > MAX_SUBSCRIPTION_BYTES:
+        raise ValueError("Configuration is larger than 8 MiB")
     candidates = []
     try:
         payload = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         payload = None
+
+    # Native core documents remain one profile, including their groups/providers.
+    if isinstance(payload, dict) and any(key in payload for key in (
+        "outbounds", "endpoints", "proxies", "proxy-groups", "proxy-providers"
+    )):
+        return [engines.pack_native(text)]
+    if payload is None and re.search(r"(?m)^[ \t]*(?:proxies|proxy-groups|proxy-providers)\s*:", text):
+        return [engines.pack_native(text)]
 
     def collect(value):
         if isinstance(value, str):
@@ -314,8 +334,13 @@ def extract_subscription_uris(text):
 
     uris = []
     seen = set()
-    pattern = re.compile(r"(?:vless|vmess|trojan|ss)://[^\s\"'<>]+", re.I)
+    pattern = re.compile(r"(?:wproxy-config|vless|vmess|trojan|ss|hy2|hysteria2|tuic|wireguard|wg|socks5?|https?)://[^\s\"'<>]+", re.I)
+    supported_schemes = engines.SCHEMES | {"wproxy-config"}
     for candidate in candidates:
+        unsupported = [scheme.lower() for scheme in re.findall(r"\b([a-zA-Z][a-zA-Z0-9+.-]*)://", candidate)
+                       if scheme.lower() not in supported_schemes]
+        if unsupported:
+            raise ValueError(f"Unsupported connection protocol: {unsupported[0]}")
         for match in pattern.finditer(candidate.strip()):
             uri = match.group(0).rstrip(",;])}")
             if uri not in seen:
@@ -383,6 +408,10 @@ def ss_parts(uri):
 
 def endpoint_from_uri(uri):
     try:
+        if uri.startswith("wproxy-config://") or urllib.parse.urlsplit(uri).scheme.lower() in (
+            "hy2", "hysteria2", "tuic", "wireguard", "wg", "socks", "socks5", "http", "https"
+        ):
+            return engines.endpoint(uri, endpoint_from_uri)
         if uri.startswith("vmess://"):
             o = vmess_payload(uri)
             return str(o.get("add", "")), int(o.get("port", 0))
@@ -397,6 +426,9 @@ def endpoint_from_uri(uri):
 
 def node_name(uri, index=0):
     try:
+        if uri.startswith("wproxy-config://"):
+            info = engines.analyze(uri)
+            return {"sing-box": "sing-box profile", "xray": "Xray profile", "mihomo": "Clash profile"}[info["engine"]]
         if uri.startswith("vmess://"):
             o = vmess_payload(uri)
             return clean_name(o.get("ps"), f"Proxy {index + 1}")
@@ -475,32 +507,62 @@ def fetch_subscription(sub):
     text = maybe_decode_subscription(body)
     uris = extract_subscription_uris(text)
     if not uris:
-        raise ValueError("Subscription did not contain supported vless/vmess/trojan/ss links")
+        raise ValueError("Subscription did not contain supported proxy links or a native JSON/YAML profile")
     return uris, parse_sub_userinfo(userinfo), profile_title
 
 
 def add_or_replace_nodes(store, uris, source=None):
-    if source:
-        store["nodes"] = [n for n in store["nodes"] if n.get("source") != source]
-    existing_names = {n.get("name", "") for n in store["nodes"]}
-    known_ids = {n.get("id") for n in store["nodes"]}
+    # Prepare the complete replacement before removing the saved subscription.
+    nodes = [n for n in store["nodes"] if not source or n.get("source") != source]
+    existing_names = {n.get("name", "") for n in nodes}
+    known_ids = {n.get("id") for n in nodes}
     added = 0
     for i, uri in enumerate(uris):
         uri = uri.strip()
         if source and is_subscription_notice(uri):
             continue
-        # A node belongs to a subscription, not merely to its URI. Two
-        # subscriptions may legitimately publish the same URI; source-scoped
-        # IDs keep both lists complete and make later updates/removal isolated.
+        engines.analyze(uri)
         nid = stable_id(f"{source}\0{uri}") if source else stable_id(uri)
         if nid in known_ids:
             continue
         name = make_unique_name(node_name(uri, i), existing_names)
-        store["nodes"].append({"id": nid, "name": name, "uri": uri, "source": source})
+        nodes.append({"id": nid, "name": name, "uri": uri, "source": source})
         known_ids.add(nid)
         existing_names.add(name)
         added += 1
+    if source and not added:
+        raise ValueError("Subscription has no connectable profiles; saved servers were kept")
+    store["nodes"] = nodes
     return added
+
+
+def read_config_file(filename):
+    path = Path(filename)
+    if not path.is_file():
+        raise ValueError("The selected configuration file was not found")
+    if path.stat().st_size > MAX_SUBSCRIPTION_BYTES:
+        raise ValueError("Configuration is larger than 8 MiB")
+    if path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp"):
+        decoder = shutil.which("zbarimg")
+        if not decoder:
+            raise RuntimeError("QR image decoding is unavailable. Copy the QR connection link, or install zbarimg on Linux.")
+        try:
+            result = subprocess.run([decoder, "--quiet", "--raw", str(path.resolve())],
+                                    capture_output=True, timeout=15, check=False)
+        except subprocess.TimeoutExpired as error:
+            raise ValueError("QR image decoding timed out") from error
+        if result.returncode != 0 or not result.stdout:
+            raise ValueError("No readable QR connection was found in this image")
+        data = result.stdout
+    else:
+        with path.open("rb") as stream:
+            data = stream.read(MAX_SUBSCRIPTION_BYTES + 1)
+    if len(data) > MAX_SUBSCRIPTION_BYTES:
+        raise ValueError("Configuration is larger than 8 MiB")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError("Choose a UTF-8 JSON, YAML or connection-link file") from error
 
 
 def parse_query(u):
@@ -763,6 +825,18 @@ def xray_config(uri, server_ip=None, routing=None, platform=None):
 def write_gateway_metadata(uri, destination):
     # Resolve before starting TUN, using the same parser as ping/config import.
     host, port = endpoint_from_uri(uri)
+    if not host and uri.startswith("wproxy-config://"):
+        # Provider-only native profiles use the physical gateway; outbound
+        # interface binding keeps every provider endpoint outside the TUN.
+        route = run(["ip", "-j", "-4", "route", "get", "1.1.1.1"], capture=True)
+        try:
+            gateway = json.loads(route.stdout)[0]["gateway"]
+            ipaddress.IPv4Address(gateway)
+        except (ValueError, KeyError, IndexError, TypeError) as error:
+            raise RuntimeError("Native provider profiles need a physical IPv4 gateway") from error
+        Path(destination).write_text(gateway + "\n", encoding="ascii")
+        os.chmod(destination, 0o600)
+        return None
     if not host or not port:
         raise ValueError('The selected server has no valid endpoint')
     try:
@@ -802,6 +876,26 @@ def require_root():
 
 def run(cmd, check=False, capture=False):
     return subprocess.run(cmd, check=check, text=True, capture_output=capture)
+
+
+def engine_plan(uri, routing=None, platform=None, server_ip=None, probe_port=None):
+    legacy = SimpleNamespace(
+        xray_config=xray_config, outbound_from_uri=outbound_from_uri,
+        vmess_payload=vmess_payload, ss_parts=ss_parts,
+        normalize_routing_policy=normalize_routing_policy,
+        endpoint_from_uri=endpoint_from_uri, routing_rules=routing_rules,
+        PRIVATE_NETWORKS=PRIVATE_NETWORKS,
+    )
+    return engines.prepare(uri, routing or default_routing_policy(),
+                           platform or ("windows" if os.name == "nt" else "linux"),
+                           legacy, server_ip=server_ip, probe_port=probe_port)
+
+
+def validate_node(node, routing=None):
+    with tempfile.TemporaryDirectory(prefix="wproxy-validate-") as directory:
+        plan = engine_plan(node["uri"], routing)
+        engines.validate(plan, Path(directory) / "config.json")
+        return {"engine": plan.engine, "version": plan.version}
 
 
 def windows_runtime_home():
@@ -866,7 +960,14 @@ def resolve_server_ip(uri):
     return answers[0][4][0]
 
 
-def windows_process_is_xray(pid):
+def engine_server_ip(uri):
+    host, port = endpoint_from_uri(uri)
+    if not host and uri.startswith("wproxy-config://"):
+        return None  # Native provider/group profiles may contain no static server.
+    return resolve_server_ip(uri)
+
+
+def windows_process_is_core(pid, engine="xray"):
     if os.name != "nt" or not isinstance(pid, int) or pid <= 0:
         return False
     result = run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture=True)
@@ -876,7 +977,11 @@ def windows_process_is_xray(pid):
         row = next(csv.reader([result.stdout.splitlines()[0]]))
     except (csv.Error, StopIteration):
         return False
-    return bool(row and row[0].lower() == "xray.exe")
+    return bool(row and engine in ("xray", "sing-box", "mihomo") and row[0].lower() == engine + ".exe")
+
+
+def windows_process_is_xray(pid):
+    return windows_process_is_core(pid, "xray")
 
 
 def windows_state():
@@ -887,18 +992,19 @@ def windows_state():
         pid = int(pid_file.read_text(encoding="ascii").strip())
     except (OSError, ValueError):
         return {"active": False, "verified": False, "node_id": None, "name": None}
-    if not windows_process_is_xray(pid):
-        return {"active": False, "verified": False, "node_id": None, "name": None}
     try:
         state = json.loads(state_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         state = {}
+    if not windows_process_is_core(pid, state.get("engine", "xray")):
+        return {"active": False, "verified": False, "node_id": None, "name": None}
     return {
         "active": True,
         "verified": bool(state.get("verified")),
         "node_id": state.get("node_id"),
         "name": state.get("name"),
         "checked_at": state.get("checked_at"),
+        "engine": state.get("engine", "xray"),
     }
 
 
@@ -913,7 +1019,8 @@ def windows_tunnel_status():
         "$ErrorActionPreference='Stop';"
         "$a=Get-NetAdapter | Where-Object { $_.Name -eq 'wproxy' -or $_.InterfaceDescription -eq 'WProxy' } | Select-Object -First 1;"
         "if(-not $a){throw 'WProxy Wintun adapter was not created'};"
-        "$r=Get-NetRoute -InterfaceIndex $a.ifIndex -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Select-Object -First 1;"
+        "$routes=@(Get-NetRoute -InterfaceIndex $a.ifIndex -ErrorAction SilentlyContinue | Select-Object -ExpandProperty DestinationPrefix);"
+        "$r=($routes -contains '0.0.0.0/0') -or (($routes -contains '0.0.0.0/1') -and ($routes -contains '128.0.0.0/1'));"
         "[ordered]@{up=($a.Status -eq 'Up');route=[bool]$r;name=$a.Name}|ConvertTo-Json -Compress"
     )
     result = run([powershell, "-NoProfile", "-NonInteractive", "-Command", script], capture=True)
@@ -935,7 +1042,7 @@ def wait_for_windows_tunnel(process, timeout=20.0):
     detail = "WProxy adapter did not become ready"
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            return False, "Xray exited while starting the Windows tunnel"
+            return False, "The selected core exited while starting the Windows tunnel"
         ready, detail = windows_tunnel_status()
         if ready:
             return True, detail
@@ -971,10 +1078,14 @@ def windows_down():
         pid = int(pid_file.read_text(encoding="ascii").strip())
     except (OSError, ValueError):
         pid = None
-    if pid and windows_process_is_xray(pid):
+    try:
+        state = json.loads((runtime / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        state = {}
+    if pid and windows_process_is_core(pid, state.get("engine", "xray")):
         result = run(["taskkill", "/PID", str(pid), "/T", "/F"], capture=True)
         if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Could not stop Xray")
+            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Could not stop the selected core")
     for name in ("xray.pid", "state.json", "xray.json", "last-error.txt"):
         try:
             (runtime / name).unlink()
@@ -982,35 +1093,33 @@ def windows_down():
             pass
 
 
-def windows_up(store, node_id):
+def windows_up(store, node_id, plan=None):
     require_windows_admin()
     node = next((item for item in store["nodes"] if item["id"] == node_id), None)
     if not node:
         raise ValueError("Unknown node id")
-    windows_down()
     runtime = windows_runtime_home()
     runtime.mkdir(parents=True, exist_ok=True)
-    config_path = runtime / "xray.json"
+    config_path = runtime / "xray.json"  # Keep the previous release's cleanup paths.
     log_path = runtime / "xray.log"
-    config = xray_config(
-        node["uri"], resolve_server_ip(node["uri"]), store.get("routing"), platform="windows"
-    )
-    config_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    xray = find_windows_xray()
-    ensure_windows_xray(xray)
-    check = run([xray, "run", "-test", "-c", str(config_path)], capture=True)
-    if check.returncode != 0:
-        raise RuntimeError(check.stderr.strip() or check.stdout.strip() or "Xray rejected the generated Windows configuration")
+    if plan is None:
+        plan = engine_plan(node["uri"], store.get("routing"), "windows", engine_server_ip(node["uri"]))
+    if plan.engine == "xray":
+        ensure_windows_xray(plan.binary)
+    engines.validate(plan, config_path)
+    windows_down()
+    # windows_down removes the old config after its process has stopped.
+    config_path.write_text(json.dumps(plan.config, ensure_ascii=False), encoding="utf-8")
     flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
-            [xray, "run", "-c", str(config_path)],
+            engines.command(plan.engine, plan.binary, config_path),
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
             creationflags=flags, close_fds=True,
         )
     (runtime / "xray.pid").write_text(str(process.pid) + "\n", encoding="ascii")
     (runtime / "state.json").write_text(json.dumps({
-        "node_id": node["id"], "name": node["name"], "verified": False
+        "node_id": node["id"], "name": node["name"], "verified": False, "engine": plan.engine
     }, ensure_ascii=False), encoding="utf-8")
     ready, detail = wait_for_windows_tunnel(process)
     if ready:
@@ -1031,7 +1140,7 @@ def windows_up(store, node_id):
         )
     (runtime / "state.json").write_text(json.dumps({
         "node_id": node["id"], "name": node["name"], "verified": True,
-        "checked_at": int(time.time()), "https_probe": detail,
+        "checked_at": int(time.time()), "https_probe": detail, "engine": plan.engine,
     }, ensure_ascii=False), encoding="utf-8")
     try:
         (runtime / "last-error.txt").unlink()
@@ -1249,6 +1358,9 @@ def status_json(store):
 
 
 def ping_node(node, timeout):
+    info = engines.analyze(node["uri"])
+    if info["protocol"] in ("hysteria2", "tuic", "wireguard", "native"):
+        return verify_node_https(node, timeout)
     host, port = endpoint_from_uri(node["uri"])
     if not host or not port:
         return None
@@ -1290,24 +1402,20 @@ def fastest_ping(rows):
 
 def verify_node_https(node, timeout=5.0):
     """Check the real proxy before changing system routes; never use a direct fallback."""
-    xray = find_windows_xray() if os.name == "nt" else shutil.which("xray")
-    if not xray:
-        raise RuntimeError("Xray is missing. Reinstall WProxy before connecting.")
     timeout = min(15.0, max(1.0, timeout))
     try:
         with tempfile.TemporaryDirectory(prefix="wproxy-probe-") as directory:
-            endpoint = write_gateway_metadata(node["uri"], Path(directory) / "gateway")
-            config = xray_config(node["uri"], endpoint, platform="windows")
             with socket.socket() as listener:
                 listener.bind(("127.0.0.1", 0))
                 port = listener.getsockname()[1]
-            config["inbounds"] = [{"listen": "127.0.0.1", "port": port, "protocol": "http"}]
+            plan = engine_plan(node["uri"], platform="windows" if os.name == "nt" else "linux",
+                               server_ip=engine_server_ip(node["uri"]), probe_port=port)
             path = Path(directory) / "config.json"
-            path.write_text(json.dumps(config), encoding="utf-8")
+            engines.validate(plan, path)
             os.chmod(path, 0o600)
             options = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
             process = subprocess.Popen(
-                [xray, "run", "-c", str(path)], stdin=subprocess.DEVNULL,
+                engines.command(plan.engine, plan.binary, path), stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **options,
             )
             try:
@@ -1348,6 +1456,7 @@ def windows_connect(store, node_id):
     node = next((node for node in store["nodes"] if node["id"] == node_id), None)
     if not node:
         raise ValueError("Unknown node id")
+    target_plan = engine_plan(node["uri"], store.get("routing"), "windows", engine_server_ip(node["uri"]))
     require_windows_admin()
     previous = windows_state()
     previous_id = previous.get("node_id") if previous.get("active") else None
@@ -1355,10 +1464,9 @@ def windows_connect(store, node_id):
     if previous.get("active"):
         windows_down()
     try:
-        # Probe after teardown so the old VPN cannot carry or block the new server's traffic.
-        if verify_node_https(node) is None:
-            raise RuntimeError("This server failed the HTTPS connection test.")
-        windows_up(store, node_id)
+        # The plan was validated before teardown. Start the replacement directly;
+        # windows_up performs the adapter/route/HTTPS check and rollback handles failure.
+        windows_up(store, node_id, target_plan)
     except (OSError, ValueError, RuntimeError) as error:
         if previous_saved:
             try:
@@ -1627,6 +1735,7 @@ def cmd_sub(args, store):
         for sub in targets:
             try:
                 uris, usage, title = fetch_subscription(sub)
+                added = add_or_replace_nodes(store, uris, sub["id"])
                 if title:
                     raw_title = title[7:] if title.lower().startswith("base64:") else title
                     try:
@@ -1636,7 +1745,6 @@ def cmd_sub(args, store):
                     sub["name"] = clean_name(title, sub.get("name", "Subscription"))
                 sub["usage"] = usage
                 sub["updated_at"] = int(time.time())
-                added = add_or_replace_nodes(store, uris, sub["id"])
                 print(f"Updated {sub['name']}: {added} nodes")
             except Exception as e:
                 failures += 1
@@ -1646,19 +1754,33 @@ def cmd_sub(args, store):
             sys.exit(2)
 
 
+def node_engine_info(uri):
+    try:
+        return engines.analyze(uri)["engine"]
+    except (ValueError, RuntimeError):
+        return "unsupported"
+
+
 def cmd_node(args, store):
-    if args.action == "add":
-        # Validate early by rendering the outbound.
-        outbound_from_uri(args.uri)
-        nid = stable_id(args.uri)
-        if any(n["id"] == nid for n in store["nodes"]):
-            print(nid)
-            return
-        existing = {n.get("name", "") for n in store["nodes"]}
-        name = make_unique_name(args.name or node_name(args.uri, len(store["nodes"])), existing)
-        store["nodes"].append({"id": nid, "name": clean_name(name, "Proxy"), "uri": args.uri, "source": None})
+    if args.action in ("add", "import"):
+        text = read_config_file(args.path) if args.action == "import" else args.uri
+        uris = extract_subscription_uris(maybe_decode_subscription(text))
+        if not uris:
+            raise ValueError("No supported connection links or native JSON/YAML profile found")
+        # Analyze the whole import before changing anything in the saved store.
+        for uri in uris:
+            engines.analyze(uri)
+        existing_ids = {n["id"] for n in store["nodes"]}
+        add_or_replace_nodes(store, uris)
+        imported_ids = [stable_id(uri) for uri in uris]
+        if args.name:
+            existing_names = {n.get("name", "") for n in store["nodes"] if n["id"] not in imported_ids}
+            for index, node in enumerate(n for n in store["nodes"] if n["id"] in imported_ids and n["id"] not in existing_ids):
+                base = args.name if len(imported_ids) == 1 else f"{args.name} {index + 1}"
+                node["name"] = make_unique_name(clean_name(base, "Proxy"), existing_names)
+                existing_names.add(node["name"])
         save_store(store)
-        print(nid)
+        print("\n".join(imported_ids))
     elif args.action == "list":
         if args.json:
             source_names = {sub["id"]: sub.get("name", "Subscription") for sub in store["subs"]}
@@ -1666,6 +1788,7 @@ def cmd_node(args, store):
                 {
                     "id": n["id"], "name": n["name"], "source": n.get("source"),
                     "source_name": source_names.get(n.get("source"), "Manual"),
+                    "engine": node_engine_info(n["uri"]),
                 }
                 for n in store["nodes"]
             ]
@@ -1683,6 +1806,11 @@ def cmd_node(args, store):
             raise ValueError("Unknown node id")
         node["name"] = clean_name(args.name, node["name"])
         save_store(store)
+    elif args.action == "validate":
+        node = next((node for node in store["nodes"] if node["id"] == args.id), None)
+        if not node:
+            raise ValueError("Unknown node id")
+        print(json.dumps({"id": node["id"], **validate_node(node, store.get("routing"))}))
     elif args.action == "verify":
         node = next((node for node in store["nodes"] if node["id"] == args.id), None)
         if not node:
@@ -1786,7 +1914,7 @@ def cmd_routing(args, store):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="wproxyctl", description="WProxy configuration and Xray/NetworkManager controller")
+    p = argparse.ArgumentParser(prog="wproxyctl", description="WProxy multi-engine configuration and tunnel controller")
     p.add_argument("--version", action="version", version=f"WProxy {VERSION}")
     sp = p.add_subparsers(dest="cmd", required=True)
 
@@ -1800,12 +1928,14 @@ def build_parser():
     pn = sp.add_parser("node")
     ns = pn.add_subparsers(dest="action", required=True)
     a = ns.add_parser("add"); a.add_argument("uri"); a.add_argument("--name")
+    a = ns.add_parser("import"); a.add_argument("path"); a.add_argument("--name")
     a = ns.add_parser("list"); a.add_argument("--json", action="store_true")
     a = ns.add_parser("remove"); a.add_argument("id")
     a = ns.add_parser("rename"); a.add_argument("id"); a.add_argument("name")
     a = ns.add_parser("ping"); a.add_argument("id", nargs="?"); a.add_argument("--all", action="store_true"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0)
     a = ns.add_parser("best"); a.add_argument("id", nargs="?"); a.set_defaults(all=True); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=2.0); a.add_argument("--verify", action="store_true")
     a = ns.add_parser("verify"); a.add_argument("id"); a.add_argument("--json", action="store_true"); a.add_argument("--timeout", type=float, default=5.0)
+    a = ns.add_parser("validate"); a.add_argument("id"); a.add_argument("--json", action="store_true")
 
     pp = sp.add_parser("settings")
     ps = pp.add_subparsers(dest="action", required=True)
@@ -1843,7 +1973,13 @@ def build_parser():
     a = ws.add_parser("status"); a.add_argument("--json", action="store_true")
 
     a = sp.add_parser("status"); a.add_argument("--json", action="store_true")
-    a = sp.add_parser("render"); a.add_argument("uri"); a.add_argument("--output", "-o")
+    pc = sp.add_parser("core")
+    cs = pc.add_subparsers(dest="action", required=True)
+    a = cs.add_parser("list"); a.add_argument("--json", action="store_true")
+    a = sp.add_parser("render"); a.add_argument("uri", nargs="?"); a.add_argument("--output", "-o")
+    a.add_argument('--input-file')
+    a.add_argument('--runtime-plan')
+    a.add_argument('--auto-engine', action='store_true')
     a.add_argument('--gateway-output')
     a.add_argument('--routing-file')
     a.add_argument('--platform', choices=("linux", "windows"))
@@ -1884,13 +2020,31 @@ def main():
             data = status_json(store)
             if args.json: print(json.dumps(data, ensure_ascii=False))
             else: print("connected" if data["active"] else "disconnected", data.get("name") or "")
+        elif args.cmd == "core":
+            print(json.dumps(engines.inventory(), ensure_ascii=False))
         elif args.cmd == "render":
+            if args.input_file:
+                path = Path(args.input_file)
+                if path.stat().st_size > 16 * 1024 * 1024:
+                    raise ValueError("Native configuration input is too large")
+                args.uri = path.read_text(encoding="utf-8")
+            if not args.uri:
+                raise ValueError("A configuration is required")
             server_ip = None
             if args.gateway_output:
                 server_ip = write_gateway_metadata(args.uri, args.gateway_output)
             routing = default_routing_policy()
             if args.routing_file:
                 routing = decode_routing_policy(Path(args.routing_file).read_text(encoding="ascii"))
+            if args.auto_engine or args.runtime_plan:
+                plan = engine_plan(args.uri, routing, args.platform, server_ip)
+                if not args.output:
+                    raise ValueError("Automatic engine rendering requires --output")
+                engines.validate(plan, Path(args.output))
+                if args.runtime_plan:
+                    Path(args.runtime_plan).write_text(plan.engine + "\n" + plan.binary + "\n", encoding="utf-8")
+                    os.chmod(args.runtime_plan, 0o600)
+                return
             cfg = json.dumps(xray_config(args.uri, server_ip, routing, args.platform), indent=2, ensure_ascii=False) + "\n"
             if args.output:
                 Path(args.output).write_text(cfg, encoding="utf-8")

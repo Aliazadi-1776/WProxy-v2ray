@@ -34,7 +34,7 @@ libnm-vpn-plugin-wproxy-editor.so: plugin/nm-wproxy-editor.c
 libnm-gtk4-vpn-plugin-wproxy-editor.so: plugin/nm-wproxy-editor.c
 	$(CC) $(GTK4_CFLAGS) -shared -o $@ $< $(GTK4_LIBS)
 
-wproxyctl: cli/wproxyctl.py
+wproxyctl: cli/wproxyctl.py cli/wproxy_engines.py
 	cp $< $@
 	chmod 755 $@
 
@@ -62,7 +62,7 @@ check-deps:
 		echo "Missing build dependencies. Need libnm + GTK3 + GTK4 development files." >&2; exit 2; }
 
 check-python:
-	python3 -m py_compile cli/wproxyctl.py manager/wproxy-manager.py scripts/live-routing-smoke.py
+	python3 -m py_compile cli/wproxyctl.py cli/wproxy_engines.py manager/wproxy-manager.py scripts/live-routing-smoke.py scripts/install-cores.py
 	sh -n service/wproxy-xray-runner scripts/install.sh scripts/uninstall.sh scripts/diagnose.sh scripts/recover-vpn-settings.sh scripts/repair-gnome-vpn-editor.sh scripts/repair-runtime.sh
 
 test-service-profile-lookup: tests/test-service-profile-lookup.c service/nm-wproxy-service.c

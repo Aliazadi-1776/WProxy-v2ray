@@ -51,6 +51,7 @@ $SUDO rm -f \
     /usr/share/icons/hicolor/scalable/apps/wproxy.svg
 $SUDO find /etc/polkit-1/rules.d -maxdepth 1 -type f -name '49-wproxy-*.rules' -delete 2>/dev/null || true
 $SUDO rm -rf /usr/share/gnome-shell/extensions/wproxy@wrench.local
+$SUDO rm -rf /usr/lib/wproxy /usr/share/licenses/wproxy-cores
 
 # Remove known user-local overrides too, but leave the user's settings/store.
 if [ "$TARGET_USER" != root ]; then

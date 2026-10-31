@@ -1,5 +1,32 @@
 # Third-party notices
 
+## Independently executed VPN cores
+
+WProxy runs the following unmodified official executables as separate processes;
+their licenses do not replace the WProxy source license. Core archives are pinned
+by release, platform and SHA-256 in `scripts/core-versions.json`.
+
+- sing-box 1.14.4, copyright SagerNet / nekohasekai, GPL-3.0-or-later.
+  [Corresponding upstream source and build definitions](https://github.com/SagerNet/sing-box/tree/v1.14.4),
+  [source archive](https://github.com/SagerNet/sing-box/archive/refs/tags/v1.14.4.tar.gz).
+  Its original additional naming/association notice is retained in
+  `scripts/core-licenses/sing-box-LICENSE`.
+- Mihomo 1.19.33, copyright MetaCubeX contributors, GNU GPL version 3.
+  [Corresponding upstream source and build definitions](https://github.com/MetaCubeX/mihomo/tree/v1.19.33),
+  [source archive](https://github.com/MetaCubeX/mihomo/archive/refs/tags/v1.19.33.tar.gz).
+  The complete GNU GPL v3 text is retained in `scripts/core-licenses/mihomo-LICENSE`
+  and applies to both GPL-covered executables.
+
+Original core notices and version/source references are copied into the Windows
+installer's `licenses` directory and `/usr/share/licenses/wproxy-cores` on Linux.
+Redistributors must preserve these notices and provide the corresponding source
+alongside their executable downloads as required by the applicable GPL terms.
+
+Clash YAML is parsed with [PyYAML 6.0.3](https://github.com/yaml/pyyaml/tree/6.0.3)
+(MIT); it is a system Python package on Linux and included by PyInstaller on
+Windows. Xray-core and Wintun remain distributed with their original notices in
+the existing Windows package.
+
 ## KDE plasma-nm interface headers
 
 The optional native Plasma VPN plugin dynamically links the distribution's

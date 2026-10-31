@@ -166,6 +166,27 @@ install_xray_if_needed() {
 install_deps_if_needed
 install_xray_if_needed
 
+if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo 'Dry-run failed: PyYAML is required for Clash YAML imports.' >&2
+        exit 2
+    elif command -v apt-get >/dev/null 2>&1; then
+        $SUDO apt-get install -y python3-yaml
+    elif command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y python3-pyyaml
+    elif command -v pacman >/dev/null 2>&1; then
+        $SUDO pacman -S --needed --noconfirm python-yaml
+    else
+        echo 'Install the Python 3 PyYAML package, then re-run the installer.' >&2
+        exit 2
+    fi
+fi
+
+# Fetch before stopping the current VPN; only official pinned archives are accepted.
+if [ "$DRY_RUN" -eq 0 ]; then
+    python3 scripts/install-cores.py --destination build/cores
+fi
+
 install_kde_deps_if_needed() {
     [ "$INSTALL_KDE" -eq 1 ] || return 0
     if command -v cmake >/dev/null 2>&1 &&
@@ -248,7 +269,7 @@ POLKIT_POLICY="/usr/share/polkit-1/actions/io.github.aliazadi1776.wproxy.policy"
 PLASMA_PLUGIN_FILE=
 
 printf '%s\n' \
-    "WProxy 2.7.8 installer" \
+    "WProxy 2.8.0 installer" \
     "  libdir:       $LIBDIR" \
     "  libexec:      $LIBEXEC" \
     "  VPN metadata: $NM_VPN_DIR" \
@@ -321,6 +342,7 @@ for f in "$NAME_FILE" "$PLUGIN_FILE" "$GTK3_EDITOR_FILE" "$GTK4_EDITOR_FILE" \
          "$ADMIN_HELPER" "$POLKIT_POLICY" \
          "$PLASMA_PLUGIN_FILE" \
          /usr/bin/wproxyctl /usr/bin/wproxy-manager \
+         /usr/lib/wproxy /usr/share/licenses/wproxy-cores \
          /usr/share/applications/wproxy-manager.desktop \
          /usr/share/icons/hicolor/scalable/apps/wproxy.svg "$EXT_DIR"; do
     backup_file "$f"
@@ -361,6 +383,12 @@ $SUDO install -Dm755 libnm-vpn-plugin-wproxy.so "$PLUGIN_FILE"
 $SUDO install -Dm755 libnm-vpn-plugin-wproxy-editor.so "$GTK3_EDITOR_FILE"
 $SUDO install -Dm755 libnm-gtk4-vpn-plugin-wproxy-editor.so "$GTK4_EDITOR_FILE"
 $SUDO install -Dm755 wproxyctl /usr/bin/wproxyctl
+$SUDO install -Dm644 cli/wproxy_engines.py /usr/lib/wproxy/wproxy_engines.py
+$SUDO install -Dm755 build/cores/sing-box /usr/lib/wproxy/cores/sing-box
+$SUDO install -Dm755 build/cores/mihomo /usr/lib/wproxy/cores/mihomo
+$SUDO mkdir -p /usr/share/licenses/wproxy-cores
+$SUDO cp build/cores/licenses/* /usr/share/licenses/wproxy-cores/
+$SUDO install -Dm644 build/cores/installed.json /usr/lib/wproxy/cores/installed.json
 if [ -f "$TARGET_HOME/.local/bin/wproxyctl" ]; then
     $SUDO install -m755 -o "$TARGET_UID" -g "$TARGET_GID" wproxyctl "$TARGET_HOME/.local/bin/wproxyctl"
 fi
@@ -436,7 +464,7 @@ echo
 [ -x /usr/bin/wproxyctl ] || { echo "Installation failed: /usr/bin/wproxyctl was not installed." >&2; exit 5; }
 /usr/bin/wproxyctl --version
 
-echo "Installed WProxy 2.7.8."
+echo "Installed WProxy 2.8.0."
 XRAY_PATH=$(find_xray 2>/dev/null || true)
 [ -n "$XRAY_PATH" ] && "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 if [ "$INSTALL_GNOME" -eq 1 ]; then

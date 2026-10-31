@@ -22,6 +22,11 @@ if (-not (Test-Path $bundledXray) -and -not $pathXray) {
 
 New-Item -ItemType Directory -Force -Path (Join-Path $target 'cli'), (Join-Path $target 'icons') | Out-Null
 Copy-Item (Join-Path $sourceRoot 'cli\wproxyctl.py') (Join-Path $target 'cli\wproxyctl.py') -Force
+Copy-Item (Join-Path $sourceRoot 'cli\wproxy_engines.py') (Join-Path $target 'cli\wproxy_engines.py') -Force
+& $python.Source -m pip install 'PyYAML==6.0.3'
+if ($LASTEXITCODE -ne 0) { throw 'Could not install PyYAML for native Clash imports.' }
+& $python.Source (Join-Path $sourceRoot 'scripts\install-cores.py') --platform windows --arch amd64 --destination (Join-Path $target 'bin')
+if ($LASTEXITCODE -ne 0) { throw 'Could not install the verified official sing-box and Mihomo runtimes.' }
 Copy-Item $desktop (Join-Path $target 'WProxy.exe') -Force
 Copy-Item (Join-Path $sourceRoot 'icons\wproxy.ico') (Join-Path $target 'icons\wproxy.ico') -Force
 if (Test-Path (Join-Path $PSScriptRoot 'bin')) {
@@ -38,6 +43,6 @@ $shortcut.IconLocation = (Join-Path $target 'icons\wproxy.ico')
 $shortcut.Save()
 
 & $python.Source (Join-Path $target 'cli\wproxyctl.py') --version
-Write-Host "Installed WProxy 2.7.8 for the current Windows user: $target"
+Write-Host "Installed WProxy 2.8.0 for the current Windows user: $target"
 Write-Host 'Open WProxy from the Start menu. Windows will request administrator permission only when connecting or disconnecting the TUN.'
 if ($Start) { Start-Process $shortcutPath }

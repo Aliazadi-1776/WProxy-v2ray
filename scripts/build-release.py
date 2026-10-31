@@ -5,9 +5,10 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.7.8"
+VERSION = "2.8.0"
 SOURCE_ENTRIES = [
-    "README.md", "README.fa.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",
+    "README.md", "README.fa.md", "WPROXY_ENGINE_ARCHITECTURE.md",
+    "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "Makefile", ".gitignore", ".gitattributes", ".github", "docs", "cli", "data", "desktop",
     "examples", "gnome-extension", "kde-plasmoid", "icons", "manager", "plugin", "plasma-nm",

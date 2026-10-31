@@ -2,7 +2,7 @@
 #define MyAppPublisher "WProxy contributors"
 #define MyAppURL "https://github.com/Aliazadi-1776/WProxy-v2ray"
 #ifndef MyVersion
-  #define MyVersion "2.7.8"
+  #define MyVersion "2.8.0"
 #endif
 #ifndef MyBuildDir
   #define MyBuildDir "..\build\windows"
@@ -44,6 +44,10 @@ Source: "{#MyBuildDir}\xray\geoip.dat"; DestDir: "{app}\bin"; Flags: ignoreversi
 Source: "{#MyBuildDir}\xray\geosite.dat"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyBuildDir}\xray\LICENSE"; DestDir: "{app}\licenses"; DestName: "Xray-LICENSE"; Flags: ignoreversion
 Source: "{#MyBuildDir}\xray\LICENSE-Wintun"; DestDir: "{app}\licenses"; Flags: ignoreversion
+Source: "{#MyBuildDir}\cores\sing-box.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#MyBuildDir}\cores\mihomo.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#MyBuildDir}\cores\installed.json"; DestDir: "{app}\bin"; DestName: "core-versions.json"; Flags: ignoreversion
+Source: "{#MyBuildDir}\cores\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "..\icons\wproxy.ico"; DestDir: "{app}\icons"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE-WProxy"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion

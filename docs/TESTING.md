@@ -159,5 +159,6 @@ Verification was intentionally limited to the new behavior:
 - 17 focused selection/import/switch regressions passed.
 - Python/shell/native service, TypeScript/Vite and Rust/Tauri build checks passed.
 - One real local process exercise passed a request while switching in order: sing-box 1.14.4 → Xray 26.9.30 → Mihomo 1.19.33.
+- The tagged v2.8.0 Windows run passed the installed Tauri UI/elevation bridge, one-click server replacement, Wintun/default-route/DNS/HTTPS path, synthetic-proxy access and failed-server rollback.
 
-The smoke uses loopback proxies and does not modify system routes. Linux privileged TUN and native Windows TUN execution for the new engines remain separate release/runtime checks; schema validation alone is not reported as a live Windows connection.
+The local multi-core smoke uses loopback proxies and does not modify system routes. The tagged Windows run is the native Windows TUN check and retains downloadable evidence in GitHub Actions. Linux privileged TUN remains a separate on-machine runtime check; schema validation alone is never reported as a live connection.

@@ -1,6 +1,6 @@
 # Windows 10/11 x64
 
-WProxy 2.7.8 ships as a per-user `Setup.exe`. It includes the lightweight Tauri 2 desktop, a standalone WProxy command engine, and the official Xray **26.9.30** Windows x64 runtime with Wintun. End users do not install Python or download Xray separately. Windows 10/11 supplies the WebView2 runtime used by the Tauri window.
+WProxy 2.8.0 ships as a per-user `Setup.exe`. It includes the lightweight Tauri 2 desktop, a standalone WProxy controller, sing-box **1.14.4**, Xray **26.9.30**, Mihomo **1.19.33** and Wintun. End users do not install Python or download cores separately. Windows 10/11 supplies the WebView2 runtime used by Tauri.
 
 The manager uses one compact graphite-and-blue, DPI-aware shell on both Linux and Windows. It has a fixed navigation rail, persistent connection status and dedicated pages for servers, subscriptions, importing, split routing and settings. Server names containing emoji or non-Latin text are carried over UTF-8, and command failures are reported inside the app. There is no background status polling loop, so an idle window does not repeatedly start the command engine.
 
@@ -12,18 +12,18 @@ References: [Microsoft answer about the missing Quick Settings extension API](ht
 
 ## Install
 
-1. Open the [WProxy v2.7.8 release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.8).
-2. Download `WProxy-2.7.8-Setup.exe` and `WProxy-2.7.8-Setup.exe.sha256`.
+1. Open the [WProxy v2.8.0 release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.0).
+2. Download `WProxy-2.8.0-Setup.exe` and `WProxy-2.8.0-Setup.exe.sha256`.
 3. In PowerShell, verify the download:
 
 ```powershell
-Get-FileHash .\WProxy-2.7.8-Setup.exe -Algorithm SHA256
-Get-Content .\WProxy-2.7.8-Setup.exe.sha256
+Get-FileHash .\WProxy-2.8.0-Setup.exe -Algorithm SHA256
+Get-Content .\WProxy-2.8.0-Setup.exe.sha256
 ```
 
 The two hexadecimal hashes must match. Run Setup, optionally enable **Start WProxy when I sign in**, then leave **Launch WProxy** checked. Program files are installed under `%LOCALAPPDATA%\Programs\WProxy`; saved servers stay under `%APPDATA%\WProxy`. The current installer is not Authenticode-signed, so Windows SmartScreen may show an unknown-publisher warning; verify the release checksum before continuing.
 
-The build workflow downloads `Xray-windows-64.zip` from the official XTLS v26.9.30 release, checks the pinned SHA-256 before extraction, and packages `xray.exe`, `wintun.dll`, geodata and their upstream licenses. Administrator approval is requested only for connect/disconnect because system TUN routes require elevation.
+The build workflow downloads the three official pinned core archives, verifies each SHA-256 before extraction, and packages their executables and upstream licenses. Xray's archive also supplies Wintun and geodata. Administrator approval is requested only for connect/disconnect because system TUN routes require elevation.
 
 ## Subscriptions and servers
 
@@ -35,15 +35,15 @@ The build workflow downloads `Xray-windows-64.zip` from the official XTLS v26.9.
 
 ## Connect and connection verification
 
-Select a node and choose **Connect**. WProxy will not report `Connected` merely because `xray.exe` is running. It now requires all of the following:
+Select a node and choose **Connect**. WProxy will not report `Connected` merely because a core process is running. It requires all of the following:
 
-1. bundled Xray 26.9.30 or newer and `wintun.dll` beside it;
-2. Xray configuration validation;
+1. a compatible bundled core (and `wintun.dll` for Xray);
+2. validation with the selected core;
 3. a running WProxy Wintun adapter;
 4. an IPv4 default route owned by that adapter;
 5. a successful HTTPS request with explicit HTTP proxies disabled.
 
-If any check fails, WProxy stops the partial tunnel and shows the reason. Runtime details are under `%LOCALAPPDATA%\WProxy\run`; `xray.json` contains proxy credentials and must not be shared. The TUN configuration uses a 1400 MTU, automatic IPv4/IPv6 routes, automatic outbound-interface selection, DNS servers and Xray's Windows Filtering Platform leak controls. See the [official Xray TUN reference](https://xtls.github.io/en/config/inbounds/tun.html).
+If any check fails, WProxy stops the partial tunnel and shows the reason. Runtime details are under `%LOCALAPPDATA%\WProxy\run`; generated config files contain proxy credentials and must not be shared. The selected adapter configures a 1400 MTU, routes, DNS and outbound-interface selection.
 
 ## Application and site routing
 
@@ -67,10 +67,10 @@ Use **Settings → Apps → Installed apps → WProxy → Uninstall**. The unins
 
 ## Verification status
 
-GitHub Actions runs the shared parser/routing/subscription/updater/release tests on Windows, builds and launches the real Tauri/WebView2 executable, verifies the pinned official Xray archive, compiles the Inno Setup installer, runs `wproxyctl.exe --version`, and publishes both the installer checksum and release-wide `SHA256SUMS`. Linux tests additionally build the Tauri/WebKitGTK release executable and validate generated Xray rules, the scoped admin helper, installer dry-run and release contents.
+GitHub Actions builds and launches the Windows Tauri/WebView2 executable, validates core schemas, verifies pinned official archives, compiles Inno Setup and publishes installer/release checksums. The current limit is native Windows TUN execution for sing-box and Mihomo; schema validation is not the same as a physical Windows connection.
 
 A CI runner cannot prove behavior on every physical network. A final Windows 10 and Windows 11 test should still cover UAC, Wintun creation, DNS/IPv6, sleep/resume, network changes and YouTube playback with the user's own server. The runtime checks prevent a false `Connected` state when the adapter, route or HTTPS path is missing; they are not an anonymity or leak-proof guarantee.
 
 ## خلاصهٔ فارسی
 
-برای ویندوز فقط `WProxy-2.7.8-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Xray جدا لازم نیست. رابط مشترک و سبک Tauri دکمهٔ **Quick connect**، آپدیت خودکار اختیاری و چیدمان responsive دارد و در حالت بیکار polling دائمی انجام نمی‌دهد. نام‌های فارسی و ایموجی با UTF-8 خوانده می‌شوند و خطای یک دستور دیگر کل برنامه را نمی‌بندد. در **Split routing → Choose application** فایل EXE را انتخاب کن. اتصال فقط وقتی Connected می‌شود که آداپتور، Route و HTTPS واقعاً تأیید شده باشند. به‌دلیل محدودیت ویندوز، رابط داخل Win+A نیست و در پنجرهٔ مستقل اجرا می‌شود.
+برای ویندوز فقط `WProxy-2.8.0-Setup.exe` را از Release بگیر و هش آن را با فایل `.sha256` مقایسه کن؛ Python یا Core جدا لازم نیست. WProxy موتور سازگار را انتخاب می‌کند و فقط وقتی Connected نشان می‌دهد که آداپتور، Route و HTTPS تأیید شده باشند. رابط داخل Win+A نیست و در پنجرهٔ مستقل اجرا می‌شود.

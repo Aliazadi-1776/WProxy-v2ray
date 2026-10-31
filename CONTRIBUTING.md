@@ -11,7 +11,7 @@ bash scripts/test-kde.sh          # with the Plasma/Qt test dependencies
 bash tests/headless-smoke.sh     # with GNOME Shell 51
 ```
 
-Use synthetic server names and credentials in tests. Never commit real subscription URLs, share links, generated Xray configs, connection profiles, diagnostic logs or personal connection reports. Include only screenshots you are authorized to publish and inspect them for sensitive information.
+Use synthetic server names and credentials in tests. Never commit real subscription URLs, share links, generated core configs, connection profiles, diagnostic logs or personal connection reports. Include only screenshots you are authorized to publish and inspect them for sensitive information.
 
 Desktop tests and shared backend tests are separate. Do not describe a passing Qt fixture as a verified connection in a complete KDE session, or a TCP ping as a full VPN health check.
 
@@ -21,4 +21,4 @@ Desktop tests and shared backend tests are separate. Do not describe a passing Q
 python3 scripts/build-release.py
 ```
 
-This creates `dist/WProxy-2.7.8-GitHub.zip` and `dist/WProxy-2.7.8-Plasma6.plasmoid` from a source allowlist. GitHub Actions also builds the SHA-256-verified Windows installer artifact from the tagged source and pinned official Xray archive. Generated binaries, caches, profiles and logs are excluded. Release artifacts can be attached to a GitHub Release instead of committed into the source repository.
+This creates `dist/WProxy-2.8.0-GitHub.zip` and `dist/WProxy-2.8.0-Plasma6.plasmoid` from a source allowlist. GitHub Actions also builds the SHA-256-verified Windows installer from the tagged source and pinned official core archives. Generated binaries, caches, profiles and logs are excluded. Release artifacts can be attached to a GitHub Release instead of committed into the source repository.

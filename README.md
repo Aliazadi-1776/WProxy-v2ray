@@ -5,7 +5,7 @@
 <h1 align="center">WProxy</h1>
 
 <p align="center">
-  A desktop-first Xray/V2Ray client for Linux and Windows.<br>
+  A desktop-first multi-engine proxy client for Linux and Windows.<br>
   GNOME Quick Settings · KDE Plasma 6 · Tauri desktop · split routing · CLI
 </p>
 
@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.8"><strong>Download v2.7.8</strong></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.0"><strong>Download v2.8.0</strong></a>
   · <a href="README.fa.md">راهنمای فارسی</a>
   · <a href="docs/ROUTING.md">Routing</a>
   · <a href="docs/WINDOWS.md">Windows</a>
@@ -26,15 +26,15 @@
   · <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-WProxy imports VLESS, VMess, Trojan and Shadowsocks share links and HTTP(S) subscriptions, runs Xray through a system TUN interface, and exposes connection controls through your desktop. Version **2.7.8** replaces the legacy Windows/GTK manager with one lightweight Tauri 2 shell, adds one-click fastest-server selection, verified automatic updates and narrowly scoped reusable Linux authorization, while keeping GNOME Quick Settings and the Linux tunnel algorithm unchanged.
+WProxy imports proxy links, native core profiles and subscriptions, selects a compatible sing-box, Xray or Mihomo runtime, and exposes one system TUN through your desktop. Version **2.8.0** adds the multi-engine connection path while preserving the existing Tauri manager, Linux NetworkManager integration, Windows Wintun lifecycle, updates and scoped Linux authorization.
 
 ## Get WProxy
 
 | Windows 10/11 x64 | GNOME 45–51 | KDE Plasma 6 |
 | --- | --- | --- |
-| Download **`WProxy-2.7.8-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
+| Download **`WProxy-2.8.0-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
 
-The Windows installer includes WProxy, Xray and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [compatibility matrix](#compatibility) before installing on a new platform.
+The Windows installer includes WProxy, sing-box, Xray, Mihomo and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [engine architecture](WPROXY_ENGINE_ARCHITECTURE.md) and [compatibility matrix](#compatibility) before installing on a new platform.
 
 To validate Linux dependencies, compile every native component and print the exact installation targets without changing the system, run `bash scripts/install.sh --desktop auto --dry-run`.
 
@@ -59,30 +59,32 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 
 ## Features
 
-- Import VLESS, VMess, Trojan and Shadowsocks links; add and update subscriptions.
-- Connect/disconnect through NetworkManager with the installed Xray core.
+- Import VLESS, VMess, Trojan, Shadowsocks, Hysteria 2, TUIC, WireGuard, SOCKS and HTTP links; add and update subscriptions.
+- Import native sing-box/Xray JSON and Clash YAML/JSON without flattening proxy groups, providers or engine-specific options.
+- Select sing-box, Xray or Mihomo from the profile's actual features and bundled core versions; validate with that core before switching.
+- Connect/disconnect through NetworkManager on Linux or Wintun on Windows with only one core active.
 - GNOME: a V2Ray tile beside Wi-Fi, with WProxy duplicates hidden from GNOME's native VPN dropdown.
 - KDE Plasma 6: a WProxy panel/System Tray widget with server selection, per-server and batch ping, subscription input, update, and manager access.
 - Three-row scrolling lists keep controls visible as the server count grows.
 - Display remaining subscription traffic when the provider supplies usage information.
 - One shared Tauri 2 desktop manager for Linux and Windows, plus the CLI and GTK3/GTK4 NetworkManager editors.
 - Three routing modes: all traffic through VPN, bypass listed sites/apps, or only listed sites/apps through VPN.
-- Desktop Connect and Quick connect test real HTTPS through Xray before changing system routes; an open port alone cannot qualify a server.
+- Desktop Connect and Quick connect test real HTTPS through the selected core before changing system routes; an open port alone cannot qualify a server.
 - Opt-in verified automatic updates on Linux and Windows, using the release `SHA256SUMS` manifest before installation.
 - Linux remembers limited WProxy approval after the first desktop connection; disable "Ask for permission only once" in Settings to revoke it. Passwords are never saved.
-- Windows 10/11 x64 Setup.exe with no separate Python install, a UTF-8-safe Tauri/WebView2 manager, subscription counts/source labels, native application picker, zero periodic idle polling, verified connect/disconnect and Xray native TUN control.
+- Windows 10/11 x64 Setup.exe with no separate Python or core install, a UTF-8-safe Tauri/WebView2 manager, subscription counts/source labels, native application picker, zero periodic idle polling and verified TUN control.
 
 **Ping measures TCP connection latency to a server endpoint, not end-to-end VPN health.** A successful HTTPS-through-TUN test is stronger evidence than a ping result.
 
 ## Compatibility
 
-The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.7.8 also provides a Windows x64 installer using Xray's native Windows TUN support. The two runtimes share the store format and routing rules but use different operating-system integration.
+The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.8.0 also provides a Windows x64 installer using the selected core's native TUN support. The two platforms share profile selection and routing rules but use different operating-system integration.
 
 | Component / platform | Support and verification |
 | --- | --- |
 | GNOME Quick Settings | Metadata declares GNOME **45–51**; runtime/layout tested on **51.beta** only |
 | KDE widget | Targets **Plasma 6**; Qt/Plasma component tests and isolated KPackage installation passed; a full KDE login/connection test is still pending |
-| Backend | Linux + NetworkManager + Xray with native TUN + Python 3 + iproute2 |
+| Backend | Linux + NetworkManager + sing-box/Xray/Mihomo with native TUN + Python 3 + PyYAML + iproute2 |
 | Desktop manager and editors | Tauri 2/WebView manager, GTK3/GTK4 NetworkManager editors; WebKitGTK and GTK dependencies are needed even on KDE or with `--desktop none` |
 | Ubuntu / Debian family | APT dependency fallback in the installer; live backend/GNOME verification was on Ubuntu **26.10 development**, x86_64, not every release |
 | Arch / EndeavourOS / Manjaro | Manual dependency recipe below; installation and real connection not verified on these distributions |
@@ -90,10 +92,10 @@ The mature backend is Linux-specific: it needs a normal writable installation, s
 | openSUSE Tumbleweed | Manual dependency recipe below; installation, security-policy integration and real connection not verified |
 | Cinnamon / Xfce / MATE / COSMIC / other desktops | No dedicated panel integration; `--desktop none` installs the backend + Tauri manager; desktop-specific testing pending |
 | Plasma 5 / GNOME outside 45–51 | No supported panel frontend in this release |
-| Windows 10/11 x64 | CI-built per-user Setup.exe bundles the Tauri 2 shell, standalone WProxy engine and verified official Xray 26.9.30 runtime; UAC is requested only for TUN connect/disconnect. Automated tests build the real Windows executable and cover the engine, UI bridge, update logic and Xray schema, but a physical Windows 10/11 TUN test with a real server is still required before calling it production-stable. No custom Win+A tile |
+| Windows 10/11 x64 | CI-built per-user Setup.exe bundles Tauri, sing-box 1.14.4, Xray 26.9.30, Mihomo 1.19.33 and Wintun; UAC is requested only for TUN connect/disconnect. Core schemas and the Windows executable are checked in CI, but physical Windows TUN execution for sing-box/Mihomo remains unverified. No custom Win+A tile |
 | macOS / BSD | Not supported by WProxy frontends; no installer or desktop integration is supplied |
 | NixOS / Alpine / immutable systems | These installation scripts are not supported; no Nix module, OpenRC, rpm-ostree or transactional installation is supplied |
-| ARM / other CPU architectures | Source builds may be possible with a suitable Xray binary, but are untested; do not treat this as a universal binary release |
+| ARM / other CPU architectures | The Linux installer pins amd64 and arm64 sing-box/Mihomo packages; desktop and live TUN verification is still x86_64 only |
 
 The separate KDE widget can sit beside Networks. The KDE installer also builds a native Plasma VPN plugin so Networks recognizes WProxy connections. Its editor preserves the saved configuration and opens Manager for changes; proxy credentials stay hidden. Qt/KF build dependencies are required only with KDE integration. The plugin factory/editor test passed against Plasma NM 6.7.5 on Fedora 44 and 6.8.2 on Arch; a complete KDE login/connection test is still pending.
 
@@ -106,7 +108,7 @@ Windows does not expose a public API for arbitrary third-party controls inside W
 Extract the ZIP, then open a terminal in the directory containing `Makefile` and `scripts/`. For this release archive:
 
 ```bash
-cd WProxy-2.7.8
+cd WProxy-2.8.0
 ```
 
 A GitHub “Download ZIP” may use a different folder name; enter that extracted folder instead. Run as your **normal desktop account**, not a root login, and leave Python virtual environments/Conda first. You need working Internet and permission to use `sudo`.
@@ -257,7 +259,7 @@ bash scripts/install.sh --desktop none
 
 Or, inside a supported GNOME/Plasma session, `bash scripts/install.sh` detects the desktop automatically. The explicit forms above avoid ambiguity on derivatives.
 
-The installer compiles the service/editors and uses sudo for system files. **Automatic missing-dependency installation is APT-only**; Arch/Fedora/openSUSE must complete step 2 first. If Xray is absent or older than **26.9.30**, the script downloads and runs the [official XTLS installer](https://github.com/XTLS/Xray-install) as root; review that trust decision before continuing. The installed core is version-checked before WProxy is copied. Linux application routing additionally requires `systemd-run` so Xray can inspect the originating process outside NetworkManager's restricted service sandbox.
+The installer compiles the service/editors and uses sudo for system files. **Automatic missing-dependency installation is APT-only**; Arch/Fedora/openSUSE must complete step 2 first. If Xray is absent or older than **26.9.30**, the script downloads and runs the [official XTLS installer](https://github.com/XTLS/Xray-install) as root; review that trust decision before continuing. Every installed core is version-checked before WProxy is copied. Linux application routing additionally requires `systemd-run` so the selected core can inspect the originating process outside NetworkManager's restricted service sandbox.
 
 Replaced WProxy files are backed up under `/var/backups/`. An upgrade stops WProxy temporarily but does not restart all of NetworkManager. This is a source installer, not a distro-managed DEB/RPM/Flatpak.
 
@@ -271,9 +273,9 @@ Check installation with `wproxyctl --version`, then open `wproxy-manager`, add y
 
 ### Windows 10/11 installation
 
-Download `WProxy-2.7.8-Setup.exe` and its `.sha256` file from the [v2.7.8 GitHub Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.7.8), verify the checksum, and run Setup. Python and a separate Xray download are not required. The per-user installer launches WProxy after installation; Windows requests Administrator approval only when connecting or disconnecting the TUN.
+Download `WProxy-2.8.0-Setup.exe` and its `.sha256` file from the [v2.8.0 GitHub Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.0), verify the checksum, and run Setup. Python and separate core downloads are not required. The per-user installer launches WProxy after installation; Windows requests Administrator approval only when connecting or disconnecting the TUN.
 
-The installer contains the official Xray **26.9.30** Windows x64 runtime and Wintun file whose upstream archive is pinned and SHA-256-verified in GitHub Actions. Read [the Windows guide](docs/WINDOWS.md) for use, routing and current verification limits.
+The installer contains pinned official sing-box **1.14.4**, Xray **26.9.30**, Mihomo **1.19.33** and Wintun files. Every downloaded archive has a fixed SHA-256. Read [the Windows guide](docs/WINDOWS.md) for use, routing and current verification limits.
 
 ### Upgrade an existing GNOME WProxy installation
 
@@ -347,12 +349,12 @@ bash scripts/uninstall-kde-widget.sh
 bash scripts/uninstall.sh
 ```
 
-The main uninstaller keeps the saved store in `~/.config/wproxy/` and the separately installed Xray core. Remove the KDE widget separately if installed. On GNOME, log out/in after extension changes.
+The main uninstaller keeps the saved store in `~/.config/wproxy/` and the separately installed Xray core; bundled sing-box/Mihomo files are removed. Remove the KDE widget separately if installed. On GNOME, log out/in after extension changes.
 
 ## Privacy and security
 
-The local store contains subscription URLs and proxy credentials. Do not publish `~/.config/wproxy/`, `%APPDATA%\WProxy`, NetworkManager profiles, generated Xray configs, or unredacted logs. Bypass/only rules can intentionally send selected traffic outside the VPN; the default remains all traffic through VPN. This repository includes source, synthetic test fixtures and the supplied screenshots—not a user's configuration store. See [security notes](SECURITY.md).
+The local store contains subscription URLs and proxy credentials. Do not publish `~/.config/wproxy/`, `%APPDATA%\WProxy`, NetworkManager profiles, generated core configs, or unredacted logs. Bypass/only rules can intentionally send selected traffic outside the VPN; the default remains all traffic through VPN. This repository includes source, synthetic test fixtures and the supplied screenshots—not a user's configuration store. See [security notes](SECURITY.md).
 
 ## License
 
-WProxy source is licensed under the [MIT License](LICENSE). Xray, Wintun, NetworkManager, GNOME, KDE and Qt remain separate projects under their own licenses. The source archive does not commit generated binaries; the Windows release installer bundles the verified official Xray/Wintun files and their license notices.
+WProxy source is licensed under the [MIT License](LICENSE). sing-box, Xray, Mihomo, Wintun and desktop/system projects remain separate works under their own licenses. Release installers bundle verified official cores and their notices; see [third-party notices](THIRD_PARTY_NOTICES.md).

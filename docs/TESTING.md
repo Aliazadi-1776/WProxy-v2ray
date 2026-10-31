@@ -152,3 +152,12 @@ python3 scripts/live-routing-smoke.py --confirm --timeout 20
 ```
 
 The script temporarily changes the current routing policy, tests real HTTPS paths with two different processes and hostnames, and restores the original policy and NetworkManager profiles in a `finally` block.
+# 2.8.0 focused multi-engine verification
+
+Verification was intentionally limited to the new behavior:
+
+- 17 focused selection/import/switch regressions passed.
+- Python/shell/native service, TypeScript/Vite and Rust/Tauri build checks passed.
+- One real local process exercise passed a request while switching in order: sing-box 1.14.4 → Xray 26.9.30 → Mihomo 1.19.33.
+
+The smoke uses loopback proxies and does not modify system routes. Linux privileged TUN and native Windows TUN execution for the new engines remain separate release/runtime checks; schema validation alone is not reported as a live Windows connection.

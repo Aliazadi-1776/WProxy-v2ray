@@ -1,3 +1,10 @@
+# 2.8.0
+
+- Add automatic per-profile selection between pinned sing-box 1.14.4, Xray-core 26.9.30 and Mihomo 1.19.33 runtimes. Validate with the selected core before replacing an active connection and keep only one TUN engine running.
+- Import Hysteria 2, TUIC, WireGuard, SOCKS and HTTP links plus native sing-box/Xray JSON and Clash YAML/JSON. Preserve native profiles, proxy groups, providers and engine-specific options instead of converting them into a lossy common format.
+- Keep Linux NetworkManager routing and the Windows Wintun lifecycle, rollback and scoped authorization behavior. Add secure file import and private runtime handoff for large native profiles.
+- Pin and checksum the two new official core packages for Linux amd64/arm64 and Windows x64. Include their licenses, version inventory and a focused three-engine process-switch smoke check.
+
 # 2.7.8
 
 - Remove the 2.7.7 targeted Linux profile modification that triggered a NetworkManager 1.58.1 assertion and briefly interrupted Wi-Fi. Restore the proven Linux sync/helper/activation implementation.

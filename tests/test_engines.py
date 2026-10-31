@@ -18,6 +18,8 @@ class EnginesTests(unittest.TestCase):
     def test_selection_respects_features_and_native_format(self):
         base = "vless://11111111-1111-4111-8111-111111111111@example.com:443"
         self.assertEqual(engines.analyze(base)["engine"], "sing-box")
+        self.assertEqual(engines.candidate_engines(base, "linux")[0], "sing-box")
+        self.assertEqual(engines.candidate_engines(base, "windows")[0], "xray")
         for suffix in ("?security=reality", "?flow=xtls-rprx-vision", "?type=xhttp"):
             self.assertEqual(engines.analyze(base + suffix)["candidates"], ["xray"])
         self.assertEqual(engines.analyze("hy2://secret@example.com:443")["candidates"], ["sing-box"])

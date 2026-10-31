@@ -43,7 +43,7 @@ def watchdog(cli, runtime, cancel, seconds):
                 ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
                 text=True, capture_output=True, timeout=10,
             ).stdout.lower()
-            if image.startswith('"xray.exe"'):
+            if image.startswith(('"xray.exe"', '"sing-box.exe"', '"mihomo.exe"')):
                 subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=10)
         except (OSError, ValueError, subprocess.TimeoutExpired):
             pass

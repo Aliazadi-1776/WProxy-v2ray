@@ -169,6 +169,17 @@ def analyze(uri):
     return {"format": "uri", "engine": candidates[0], "candidates": candidates, "protocol": {"hy2": "hysteria2", "wg": "wireguard", "socks5": "socks"}.get(scheme, scheme)}
 
 
+def candidate_engines(uri, platform=None):
+    candidates = list(analyze(uri)["candidates"])
+    platform = platform or ("windows" if os.name == "nt" else "linux")
+    # Keep the established Xray/Wintun path for classic links on Windows.
+    # sing-box remains the fallback and is still primary on Linux and for the
+    # modern protocols that Xray does not implement.
+    if platform == "windows" and candidates[:2] == ["sing-box", "xray"]:
+        candidates[:2] = ["xray", "sing-box"]
+    return candidates
+
+
 def endpoint(uri, legacy_endpoint):
     if not uri.startswith(NATIVE_PREFIX):
         parsed, _ = _uri_parts(uri)
@@ -616,7 +627,7 @@ def prepare(uri, routing, platform, legacy, server_ip=None, probe_port=None):
         policy = {"mode": "all", "domains": [], "apps": []}
     native_value = _document(unpack_native(uri)["text"])[1] if info["format"] != "uri" else None
     missing = []
-    for engine in info["candidates"]:
+    for engine in candidate_engines(uri, platform):
         try:
             binary = find_binary(engine, platform)
             version = _version(engine, binary)

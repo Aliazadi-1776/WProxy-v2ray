@@ -1756,7 +1756,7 @@ def cmd_sub(args, store):
 
 def node_engine_info(uri):
     try:
-        return engines.analyze(uri)["engine"]
+        return engines.candidate_engines(uri)[0]
     except (ValueError, RuntimeError):
         return "unsupported"
 

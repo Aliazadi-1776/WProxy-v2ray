@@ -1,6 +1,6 @@
 # WProxy multi-engine architecture
 
-Status: implementation plan, 2026-10-31. Existing connections and desktop integrations remain compatible.
+Status: implemented v1 baseline, 2026-10-31. Existing connections and desktop integrations remain compatible.
 
 ## Boundaries
 
@@ -14,7 +14,7 @@ Keep the exact original URI, JSON or YAML in the store. Native documents use a v
 
 URI adapters generate a runtime document. Native adapters deep-copy the supplied document and replace only WProxy-owned ingress, local control listeners, TUN and platform routing. Keep outbounds, proxy groups, providers and protocol-specific options. Unsupported combinations fail explicitly, never downgrade security or silently bypass routing.
 
-Candidates: ordinary supported URIs prefer sing-box, with Xray for REALITY/Vision/XHTTP and Xray-specific settings. Native sing-box JSON stays sing-box; native Xray JSON stays Xray; Clash YAML/JSON stays Mihomo. Installed binary version and the core's own validator determine actual compatibility, not just a protocol table. Missing/incompatible cores produce an actionable error before starting a tunnel. No automatic fallback that discards options.
+Candidates are platform-aware: ordinary supported URIs prefer sing-box on Linux; Windows keeps the proven Xray/Wintun path for classic VLESS/VMess/Trojan/Shadowsocks links and retains sing-box as fallback. REALITY/Vision/XHTTP and Xray-specific settings require Xray. Native sing-box JSON stays sing-box; native Xray JSON stays Xray; Clash YAML/JSON stays Mihomo. Installed binary version and the core's own validator determine actual compatibility, not just a protocol table. Missing/incompatible cores produce an actionable error before starting a tunnel. No automatic fallback that discards options.
 
 Import accepts links, native JSON/YAML and subscription bodies through the same detector. File import uses a native file chooser. QR images decode into this same import path; image decoding must be available before advertising it.
 

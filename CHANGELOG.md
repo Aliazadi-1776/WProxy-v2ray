@@ -1,3 +1,9 @@
+# 2.8.1
+
+- Fix Fedora SELinux enforcing mode rejecting engine-selection temporary files by keeping all NetworkManager runtime data in WProxy's private `/run/wproxy` directory.
+- Prevent `ip` from inheriting WProxy's runtime lock across Fedora's `ifconfig_t` domain transition, while preserving the same serialized tunnel lifecycle on other Linux distributions.
+- Keep the Windows connection path and all multi-engine selection behavior unchanged.
+
 # 2.8.0
 
 - Add automatic per-profile selection between pinned sing-box 1.14.4, Xray-core 26.9.30 and Mihomo 1.19.33 runtimes. Validate with the selected core before replacing an active connection and keep only one TUN engine running.

@@ -1,5 +1,11 @@
 # Test coverage
 
+## 2.8.1 Fedora SELinux hotfix
+
+Fedora enforcing-mode diagnostics showed two concrete AVC denials before Xray could start: Python engine selection could not create `wproxy-select-*` below generic `/tmp`, and `ip` inherited the private runtime lock while transitioning from `NetworkManager_t` to `ifconfig_t`. The runner now keeps temporary files in its existing private `/run/wproxy` directory and closes only the lock descriptor in every `ip` child. The parent retains the lock, so serialized teardown/reconnect behavior is unchanged.
+
+Focused runtime and engine tests cover the closed child descriptor, private temporary directory, tunnel address setup and all three engine adapters. The change is Linux-only; Windows code is unchanged. A final enforcing-mode connection must still be observed on the affected Fedora host after installing the release.
+
 ## 2.7.8 Linux recovery checks on 2026-10-30
 
 The targeted profile load/combined modification added in 2.7.7 crashed the installed NetworkManager 1.58.1 with an assertion in `nm-settings-utils.c:103`, before VPN activation. Its service restart interrupted Wi-Fi. That Linux path and its new helper/CLI actions have been removed. The Linux helper and 85 shared functions, including sync, activation, disconnect, routing/config generation and HTTPS verification, match 2.7.6. Manager now handles Linux switching with an explicit active-connection condition: disconnect, verify the selected server, then invoke the existing connection helper. The SVG logo and progress feedback remain.

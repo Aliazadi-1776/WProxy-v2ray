@@ -297,26 +297,35 @@ prepare_routing
         # Execute the production shell function with only the OS ip command
         # mocked. Simulate the exact failure: Xray's link exists without an IP.
         runner = (ROOT / "service/wproxy-xray-runner").read_text()
-        function = re.search(r"^configure_tun\(\) \{.*?^\}", runner, re.M | re.S).group()
+        functions = self.function("run_ip") + "\n" + self.function("configure_tun")
         script = r'''
 IFACE=wproxy0
-HAS_ADDRESS=0
+TEST_RUNTIME=$1
+exec 9>"$1/runtime.lock"
 ip() {
+    [ ! -e "/proc/self/fd/9" ] || return 98
     printf '%s\n' "$*" >&2
     case "$*" in
         'link set dev wproxy0 mtu 1500 up') [ "$FAILURE" != link ] ;;
         '-4 addr replace 172.19.0.1/30 dev wproxy0')
             [ "$FAILURE" != address ] || return 1
-            HAS_ADDRESS=1 ;;
+            : > "$TEST_RUNTIME/has-address" ;;
         '-6 addr replace fdfe:dcba:9876::1/126 dev wproxy0 nodad') return 0 ;;
         '-4 -o addr show dev wproxy0')
-            [ "$HAS_ADDRESS" = 1 ] && printf '5: wproxy0 inet 172.19.0.1/30 scope global wproxy0\n' ;;
+            [ -f "$TEST_RUNTIME/has-address" ] && printf '5: wproxy0 inet 172.19.0.1/30 scope global wproxy0\n' ;;
         *) return 99 ;;
     esac
 }
 '''
-        return subprocess.run(["sh", "-c", script + function + "\nconfigure_tun\n"],
-                              env={**os.environ, "FAILURE": failure}, text=True, capture_output=True)
+        with tempfile.TemporaryDirectory() as directory:
+            return subprocess.run(
+                ["sh", "-c", script + functions + "\nconfigure_tun\n", "test", directory],
+                env={**os.environ, "FAILURE": failure}, text=True, capture_output=True,
+            )
+
+    def test_runtime_temp_files_stay_in_selinux_labeled_private_directory(self):
+        source = (ROOT / "service/wproxy-xray-runner").read_text()
+        self.assertRegex(source, r"TMPDIR=\$RUNTIME\nexport TMPDIR")
 
     def test_existing_link_without_ip_gets_configured(self):
         result = self.configure()

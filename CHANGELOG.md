@@ -1,3 +1,9 @@
+# 2.8.2
+
+- Move Linux runtime state below NetworkManager's own `/run/NetworkManager` tree so Fedora assigns the existing `NetworkManager_var_run_t` SELinux label without a custom policy module.
+- Remove the obsolete `/run/wproxy` runtime during a verified upgrade after the previous tunnel and service stop, preventing stale sensitive runtime files from surviving the migration.
+- Keep Arch/Ubuntu lifecycle behavior, engine selection and the Windows connection implementation unchanged.
+
 # 2.8.1
 
 - Fix Fedora SELinux enforcing mode rejecting engine-selection temporary files by keeping all NetworkManager runtime data in WProxy's private `/run/wproxy` directory.

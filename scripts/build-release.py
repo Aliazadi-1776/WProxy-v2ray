@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.8.1"
+VERSION = "2.8.2"
 SOURCE_ENTRIES = [
     "README.md", "README.fa.md", "WPROXY_ENGINE_ARCHITECTURE.md",
     "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "LICENSE",

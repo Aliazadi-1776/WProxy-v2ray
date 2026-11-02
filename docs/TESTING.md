@@ -1,5 +1,11 @@
 # Test coverage
 
+## 2.8.2 NetworkManager SELinux runtime migration
+
+The affected Fedora host confirmed that 2.8.1 removed the original `/tmp` and inherited-lock denials, then exposed a remaining denial when `NetworkManager_t` tried to change attributes on the generic `var_run_t` `/run/wproxy` directory. WProxy now keeps runtime state below `/run/NetworkManager/wproxy`, matching NetworkManager's existing Fedora runtime label instead of installing or generating a broad local policy.
+
+Focused runner, engine and native C lifecycle tests cover the synchronized runner/service paths, closed child lock descriptor and tunnel lifecycle. The updater removes both old and new ephemeral runtime directories only after stopping the old tunnel and service. A live enforcing-mode connection on the affected Fedora host remains the final release check.
+
 ## 2.8.1 Fedora SELinux hotfix
 
 Fedora enforcing-mode diagnostics showed two concrete AVC denials before Xray could start: Python engine selection could not create `wproxy-select-*` below generic `/tmp`, and `ip` inherited the private runtime lock while transitioning from `NetworkManager_t` to `ifconfig_t`. The runner now keeps temporary files in its existing private `/run/wproxy` directory and closes only the lock descriptor in every `ip` child. The parent retains the lock, so serialized teardown/reconnect behavior is unchanged.

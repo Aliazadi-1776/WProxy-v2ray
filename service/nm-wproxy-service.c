@@ -12,8 +12,8 @@
 #define WPROXY_PATH "/org/freedesktop/NetworkManager/VPN/Plugin"
 #define WPROXY_IFACE "org.freedesktop.NetworkManager.VPN.Plugin"
 #define WPROXY_SERVICE_NAME "org.freedesktop.NetworkManager.wproxy"
-#define WPROXY_READY_PATH "/run/wproxy/ready"
-#define WPROXY_GATEWAY_PATH "/run/wproxy/gateway"
+#define WPROXY_READY_PATH "/run/NetworkManager/wproxy/ready"
+#define WPROXY_GATEWAY_PATH "/run/NetworkManager/wproxy/gateway"
 #ifndef WPROXY_SYSTEM_CONNECTIONS_DIR
 #define WPROXY_SYSTEM_CONNECTIONS_DIR "/etc/NetworkManager/system-connections"
 #endif

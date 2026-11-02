@@ -64,7 +64,7 @@ if [ "$TARGET_USER" != root ]; then
 fi
 
 $SUDO find /etc/NetworkManager/system-connections -maxdepth 1 -type f -name 'wproxy-*.nmconnection' -delete 2>/dev/null || true
-$SUDO rm -rf /run/wproxy
+$SUDO rm -rf /run/wproxy /run/NetworkManager/wproxy
 
 $SUDO nmcli general reload >/dev/null 2>&1 || true
 $SUDO nmcli connection reload >/dev/null 2>&1 || true

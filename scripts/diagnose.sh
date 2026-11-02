@@ -69,13 +69,13 @@ echo "[Service runtime]"
 test -x "$LIBEXEC/wproxy-service" && echo "OK: $LIBEXEC/wproxy-service" || echo "MISSING: $LIBEXEC/wproxy-service"
 test -x "$LIBEXEC/wproxy-xray-runner" && echo "OK: $LIBEXEC/wproxy-xray-runner" || echo "MISSING: $LIBEXEC/wproxy-xray-runner"
 ip link show wproxy0 2>/dev/null || echo "wproxy0 is not active"
-if [ -f /run/wproxy/xray.log ]; then
-    echo "--- /run/wproxy/xray.log ---"
-    tail -n 50 /run/wproxy/xray.log 2>/dev/null || true
+if [ -f /run/NetworkManager/wproxy/xray.log ]; then
+    echo "--- /run/NetworkManager/wproxy/xray.log ---"
+    tail -n 50 /run/NetworkManager/wproxy/xray.log 2>/dev/null || true
 fi
-if [ -f /run/wproxy/test.log ]; then
-    echo "--- /run/wproxy/test.log ---"
-    tail -n 50 /run/wproxy/test.log 2>/dev/null || true
+if [ -f /run/NetworkManager/wproxy/test.log ]; then
+    echo "--- /run/NetworkManager/wproxy/test.log ---"
+    tail -n 50 /run/NetworkManager/wproxy/test.log 2>/dev/null || true
 fi
 echo
 
@@ -123,8 +123,8 @@ echo "--- routes ---"
 ip route show 2>&1 | head -n 80 || true
 ip rule show 2>&1 | head -n 80 || true
 echo "--- Xray test log ---"
-sudo cat /run/wproxy/test.log 2>/dev/null || true
+sudo cat /run/NetworkManager/wproxy/test.log 2>/dev/null || true
 echo "--- Xray runtime log ---"
-sudo tail -n 120 /run/wproxy/xray.log 2>/dev/null || true
+sudo tail -n 120 /run/NetworkManager/wproxy/xray.log 2>/dev/null || true
 echo "--- NetworkManager WProxy journal ---"
 sudo journalctl -u NetworkManager -n 180 --no-pager 2>/dev/null | grep -iE 'wproxy|vpn|xray|tun' | tail -n 120 || true

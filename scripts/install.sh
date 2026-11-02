@@ -369,6 +369,7 @@ if pgrep -x wproxy-service >/dev/null 2>&1; then
     echo 'Old WProxy service did not stop. No program files replaced.' >&2
     exit 3
 fi
+$SUDO rm -rf /run/wproxy /run/NetworkManager/wproxy
 
 # The 2.0 build put a GTK3-linked library directly in the generic plugin slot.
 # Replace it atomically with the GTK-neutral loader and separate GTK3/GTK4 editors.

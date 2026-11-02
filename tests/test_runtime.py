@@ -323,9 +323,13 @@ ip() {
                 env={**os.environ, "FAILURE": failure}, text=True, capture_output=True,
             )
 
-    def test_runtime_temp_files_stay_in_selinux_labeled_private_directory(self):
+    def test_runtime_uses_networkmanager_selinux_directory(self):
         source = (ROOT / "service/wproxy-xray-runner").read_text()
+        service = (ROOT / "service/nm-wproxy-service.c").read_text()
+        self.assertIn("RUNTIME=/run/NetworkManager/wproxy", source)
         self.assertRegex(source, r"TMPDIR=\$RUNTIME\nexport TMPDIR")
+        self.assertIn('"/run/NetworkManager/wproxy/ready"', service)
+        self.assertIn('"/run/NetworkManager/wproxy/gateway"', service)
 
     def test_existing_link_without_ip_gets_configured(self):
         result = self.configure()

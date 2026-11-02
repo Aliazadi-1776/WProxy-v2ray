@@ -339,7 +339,7 @@ The GitHub Actions workflow builds the backend/editors and runs unit, syntax, sh
 
 ```bash
 bash scripts/diagnose.sh
-sudo tail -n 60 /run/wproxy/xray.log
+sudo tail -n 60 /run/NetworkManager/wproxy/xray.log
 journalctl -u NetworkManager -b
 
 # Remove only the Plasma widget (no sudo)

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-RUNTIME=/run/wproxy
+RUNTIME=/run/NetworkManager/wproxy
 RUNNER_PID="$RUNTIME/runner.pid"
 XRAY_PID="$RUNTIME/xray.pid"
 READY="$RUNTIME/ready"

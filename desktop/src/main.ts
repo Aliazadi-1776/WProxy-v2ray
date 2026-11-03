@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { animate } from "motion/mini";
 import logoUrl from "../../icons/wproxy.svg?url";
 import "./styles.css";
 
-type Page = "servers" | "subscriptions" | "add" | "routing" | "settings";
+type Page = "dashboard" | "servers" | "subscriptions" | "add" | "routing" | "settings";
 type Platform = "windows" | "linux";
 type RoutingMode = "all" | "bypass" | "only";
 
@@ -19,6 +20,7 @@ interface NodeRecord {
   source: string | null;
   source_name: string;
   engine?: string;
+  protocol?: string;
 }
 
 interface Subscription {
@@ -60,15 +62,22 @@ interface UpdateStatus {
   update_available: boolean;
 }
 
+interface ApplicationEntry {
+  name: string;
+  path: string;
+  running: boolean;
+}
+
 const isTauri = "__TAURI_INTERNALS__" in window;
 const applicationRoot = document.querySelector<HTMLDivElement>("#app");
 if (!applicationRoot) throw new Error("WProxy application root is missing");
 const app: HTMLDivElement = applicationRoot;
 let automaticUpdateStarted = false;
 let updateInProgress = false;
+let previousPage: Page = "dashboard";
 
 const state = {
-  page: "servers" as Page,
+  page: "dashboard" as Page,
   platform: "linux" as Platform,
   nodes: [] as NodeRecord[],
   subscriptions: [] as Subscription[],
@@ -85,9 +94,14 @@ const state = {
   loading: true,
   error: "",
   updateLabel: "Ready",
+  applications: [] as ApplicationEntry[],
+  applicationPickerOpen: false,
+  applicationPickerLoading: false,
+  applicationSearch: "",
 };
 
 const icons = {
+  dashboard: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="4" rx="2"/><rect x="14" y="11" width="7" height="10" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/>',
   servers: '<path d="M4 5.5h16v5H4zM4 13.5h16v5H4z"/><path d="M7 8h.01M7 16h.01"/>',
   subscriptions: '<path d="M5 6h14M5 12h14M5 18h9"/>',
   add: '<path d="M12 5v14M5 12h14"/>',
@@ -103,6 +117,7 @@ const icons = {
   app: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/>',
   update: '<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8"/><path d="M20 3v5h-5"/>',
   x: '<path d="m6 6 12 12M18 6 6 18"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
 } as const;
 
 function icon(name: keyof typeof icons, size = 18): string {
@@ -131,9 +146,9 @@ async function ctl<T>(args: string[]): Promise<T> {
 function demoSnapshot(): void {
   state.platform = "windows";
   state.nodes = [
-    { id: "19a2c0d1a7bb31f0", name: "🇩🇪 Berlin · Low latency", source: null, source_name: "Manual" },
-    { id: "a4b8fd9ae231c201", name: "🇫🇮 Helsinki · Work", source: "sub-1", source_name: "Cloud subscription" },
-    { id: "bd70f2051d103c62", name: "🇯🇵 Tokyo · Media", source: "sub-1", source_name: "Cloud subscription" },
+    { id: "19a2c0d1a7bb31f0", name: "🇩🇪 Berlin · Low latency", source: null, source_name: "Manual", engine: "xray", protocol: "vless" },
+    { id: "a4b8fd9ae231c201", name: "🇫🇮 Helsinki · Work", source: "sub-1", source_name: "Cloud subscription", engine: "sing-box", protocol: "hysteria2" },
+    { id: "bd70f2051d103c62", name: "🇯🇵 Tokyo · Media", source: "sub-1", source_name: "Cloud subscription", engine: "mihomo", protocol: "clash" },
   ];
   state.subscriptions = [
     { id: "sub-1", name: "Cloud subscription", remaining_human: "82.4 GiB", updated_at: Date.now() / 1000, node_count: 2 },
@@ -207,6 +222,8 @@ function renderShell(content: string): void {
         <div><strong>WProxy</strong><span>Private routing</span></div>
       </div>
       <nav class="navigation" aria-label="Main navigation">
+        <span class="nav-marker${state.page === "settings" ? " is-hidden" : ""}" aria-hidden="true"></span>
+        ${navItem("dashboard", "Dashboard", "dashboard")}
         ${navItem("servers", "Servers", "servers")}
         ${navItem("subscriptions", "Subscriptions", "subscriptions")}
         ${navItem("add", "Add connection", "add")}
@@ -230,21 +247,99 @@ function renderShell(content: string): void {
       <main class="content" id="content">${content}</main>
       <div class="toast-region" aria-live="polite" aria-atomic="true"></div>
     </section>
-  </div>`;
+  </div>${applicationPicker()}`;
+  window.queueMicrotask(runInterfaceMotion);
+}
+
+function motionEnabled(): boolean {
+  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function runInterfaceMotion(): void {
+  if (!motionEnabled()) {
+    previousPage = state.page;
+    return;
+  }
+  const pageOrder: Page[] = ["dashboard", "servers", "subscriptions", "add", "routing", "settings"];
+  const previousIndex = pageOrder.indexOf(previousPage);
+  const currentIndex = pageOrder.indexOf(state.page);
+  const direction = currentIndex === previousIndex ? 0 : currentIndex > previousIndex ? 1 : -1;
+  const surfaces = app.querySelectorAll<HTMLElement>(
+    ".dashboard-grid > *, .connection-hero, .server-row, .subscription-card, .mode-card, .route-card, .form-card, .settings-card, .about-card",
+  );
+  surfaces.forEach((surface, index) => {
+    animate(surface, { opacity: [0, 1], transform: [`translateX(${direction * 14}px) translateY(6px) scale(.992)`, "translateX(0) translateY(0) scale(1)"] }, {
+      duration: 0.38,
+      delay: 0.025 + index * 0.035,
+      ease: [0.22, 1, 0.36, 1],
+    });
+  });
+  const pill = app.querySelector<HTMLElement>(".connection-pill");
+  if (pill) animate(pill, { opacity: [0, 1], transform: ["translateX(8px)", "translateX(0)"] }, { duration: 0.28, ease: "easeOut" });
+  const picker = app.querySelector<HTMLElement>(".app-picker");
+  const backdrop = app.querySelector<HTMLElement>(".picker-backdrop");
+  if (backdrop) animate(backdrop, { opacity: [0, 1] }, { duration: 0.16 });
+  if (picker) animate(picker, { opacity: [0, 1], transform: ["translateY(18px) scale(.975)", "translateY(0) scale(1)"] }, { duration: 0.34, ease: [0.22, 1, 0.36, 1] });
+  const marker = app.querySelector<HTMLElement>(".nav-marker");
+  const navigationPages = pageOrder.slice(0, 5);
+  const markerFrom = Math.max(0, navigationPages.indexOf(previousPage)) * 54;
+  const markerTo = Math.max(0, navigationPages.indexOf(state.page)) * 54;
+  if (marker && state.page !== "settings") {
+    animate(marker, { opacity: [previousPage === "settings" ? 0 : 1, 1], transform: [`translateY(${markerFrom}px)`, `translateY(${markerTo}px)`] }, {
+      duration: 0.46,
+      ease: [0.16, 1, 0.3, 1],
+    });
+  }
+  app.querySelectorAll<HTMLElement>(".route-orb i").forEach((ring, index) => {
+    animate(ring, { opacity: [0.55, 0], transform: ["scale(.72) rotate(0deg)", "scale(1.22) rotate(12deg)"] }, {
+      duration: 2.4,
+      delay: index * 0.65,
+      repeat: Infinity,
+      ease: "easeOut",
+    });
+  });
+  previousPage = state.page;
 }
 
 function pageTitle(): string {
-  return ({ servers: "Servers", subscriptions: "Subscriptions", add: "Add connection", routing: "Split routing", settings: "Settings" })[state.page];
+  return ({ dashboard: "Dashboard", servers: "Servers", subscriptions: "Subscriptions", add: "Add connection", routing: "Split routing", settings: "Settings" })[state.page];
 }
 
 function pageSubtitle(): string {
   return ({
+    dashboard: "Connection, routing, and server health at a glance.",
     servers: "Choose a server or let WProxy find the fastest route.",
     subscriptions: "Keep remote server lists current in one place.",
     add: "Paste a V2Ray-compatible link. It stays on this device.",
     routing: state.platform === "linux" ? "Keep Linux app and site routing under control." : "Route Windows applications and sites exactly where you want.",
     settings: "Updates, permissions, and platform details.",
   })[state.page];
+}
+
+function applicationPicker(): string {
+  if (!state.applicationPickerOpen) return "";
+  const query = state.applicationSearch.trim().toLocaleLowerCase();
+  const rows = state.applications
+    .filter((entry) => !query || `${entry.name} ${entry.path}`.toLocaleLowerCase().includes(query))
+    .slice(0, 100);
+  return `<div class="picker-backdrop" role="presentation">
+    <section class="app-picker" role="dialog" aria-modal="true" aria-labelledby="app-picker-title">
+      <div class="picker-head">
+        <div><span class="eyebrow">SPLIT ROUTING</span><h2 id="app-picker-title">Choose an application</h2><p>Running apps are listed first so WProxy can match the real executable.</p></div>
+        <button class="icon-button subtle" data-action="close-app-picker" aria-label="Close">${icon("x", 18)}</button>
+      </div>
+      <label class="picker-search"><span>${icon("search", 17)}</span><input id="application-search" autocomplete="off" placeholder="Search applications" value="${escapeHtml(state.applicationSearch)}" /></label>
+      <div class="picker-list">
+        ${state.applicationPickerLoading ? '<div class="picker-empty">Scanning applications…</div>' : rows.map((entry) => `<button class="picker-row" data-action="select-discovered-app" data-app-path="${escapeHtml(entry.path)}">
+          <span class="picker-app-icon">${icon("app", 18)}</span>
+          <span class="picker-app-copy"><strong>${escapeHtml(entry.name)}</strong><small><bdi>${escapeHtml(entry.path)}</bdi></small></span>
+          ${entry.running ? '<span class="running-badge">Running</span>' : '<span class="installed-badge">Installed</span>'}
+        </button>`).join("") || '<div class="picker-empty">No applications found.</div>'}
+        ${!state.applicationPickerLoading && state.applications.length ? '<div class="picker-empty picker-filter-empty" hidden>No matching applications found.</div>' : ""}
+      </div>
+      <div class="picker-actions"><span>Selecting a running app gives the most reliable match.</span><button class="button secondary" data-action="browse-app">Browse executable</button></div>
+    </section>
+  </div>`;
 }
 
 function loadingView(): string {
@@ -287,6 +382,63 @@ function latencyFor(node: NodeRecord): string {
   return latency === null ? "Timed out" : `${latency} ms`;
 }
 
+function routingModeLabel(): string {
+  return state.routing.mode === "all" ? "All traffic" : state.routing.mode === "bypass" ? "Bypass selected" : "Only selected";
+}
+
+function dashboardPage(): string {
+  const connected = state.status.active;
+  const tested = [...state.pings.values()].filter((value) => value !== null).length;
+  const fastest = [...state.pings.entries()]
+    .filter((entry): entry is [string, number] => entry[1] !== null)
+    .sort((left, right) => left[1] - right[1])[0];
+  const fastestNode = fastest ? state.nodes.find((node) => node.id === fastest[0]) : undefined;
+  const engines = new Set(state.nodes.map((node) => node.engine).filter(Boolean)).size;
+  const suggested = fastestNode ?? state.nodes.find((node) => node.id !== state.status.node_id) ?? state.nodes[0];
+  return `<section class="dashboard-grid">
+    <article class="dashboard-connect ${connected ? "is-online" : ""}">
+      <div class="route-orb" aria-hidden="true"><span class="orb-core">${icon(connected ? "shield" : "bolt", 30)}</span><i></i><i></i><i></i></div>
+      <div class="dashboard-connect-copy">
+        <span class="eyebrow">${connected ? "PRIVATE TUNNEL ACTIVE" : "READY WHEN YOU ARE"}</span>
+        <h2>${connected ? escapeHtml(state.status.name || "Connected") : "A cleaner path to the internet"}</h2>
+        <p>${connected ? `${routingModeLabel()} is active. WProxy will restore this connection if a server switch fails.` : "Quick Connect checks real HTTPS access before moving your system traffic."}</p>
+      </div>
+      <button class="button ${connected ? "danger-quiet" : "accent"} dashboard-main-action" data-action="${connected ? "disconnect" : "quick-connect"}" ${state.busy || (!connected && !state.nodes.length) ? "disabled" : ""}>
+        ${state.connectionProgress ? connectionProgressLabel() : connected ? "Disconnect" : `${icon("bolt", 17)} Quick Connect`}
+      </button>
+    </article>
+
+    <article class="dashboard-card routing-summary">
+      <div class="dashboard-card-head"><span class="tile-icon">${icon("routing", 18)}</span><button class="text-button" data-page="routing">Manage</button></div>
+      <span class="tile-label">Routing mode</span><strong>${routingModeLabel()}</strong>
+      <p>${state.routing.apps.length} apps · ${state.routing.domains.length} sites</p>
+    </article>
+
+    <article class="dashboard-card health-summary">
+      <div class="dashboard-card-head"><span class="tile-icon">${icon("gauge", 18)}</span><button class="text-button" data-action="ping" ${state.busy || !state.nodes.length ? "disabled" : ""}>Test now</button></div>
+      <span class="tile-label">Fastest response</span><strong>${fastest ? `${fastest[1]} ms` : "Not tested"}</strong>
+      <p>${fastestNode ? escapeHtml(fastestNode.name) : `${tested} of ${state.nodes.length} tested`}</p>
+    </article>
+
+    <article class="dashboard-card fleet-summary">
+      <div class="dashboard-card-head"><span class="tile-icon">${icon("servers", 18)}</span><button class="text-button" data-page="servers">View all</button></div>
+      <span class="tile-label">Server library</span><strong>${state.nodes.length} routes</strong>
+      <p>${engines || 0} compatible ${engines === 1 ? "engine" : "engines"}</p>
+    </article>
+
+    <article class="dashboard-recommendation">
+      <div class="recommendation-copy"><span class="eyebrow">NEXT BEST ROUTE</span><h3>${suggested ? escapeHtml(suggested.name) : "Add your first server"}</h3><p>${suggested ? `${escapeHtml(suggested.source_name || "Manual")} · ${suggested.engine ? escapeHtml(suggested.engine) : "Auto engine"}` : "Import a link or subscription to get started."}</p></div>
+      ${suggested ? `<div class="recommendation-latency"><span class="latency-dot"></span>${latencyFor(suggested)}</div><button class="button secondary" data-action="connect" data-node="${suggested.id}" ${state.busy || suggested.id === state.status.node_id ? "disabled" : ""}>${connected ? "Switch" : "Connect"}</button>` : '<button class="button accent" data-page="add">Add server</button>'}
+    </article>
+
+    <article class="dashboard-card privacy-summary">
+      <div class="dashboard-card-head"><span class="tile-icon">${icon("shield", 18)}</span><span class="live-dot ${connected ? "online" : ""}"></span></div>
+      <span class="tile-label">System status</span><strong>${connected ? "Protected" : "Direct"}</strong>
+      <p>${state.platform === "windows" ? "Windows TUN" : "NetworkManager"}</p>
+    </article>
+  </section>`;
+}
+
 function serverRow(node: NodeRecord, index: number): string {
   const active = state.status.active && state.status.node_id === node.id;
   const selected = state.selectedNode === node.id;
@@ -295,7 +447,7 @@ function serverRow(node: NodeRecord, index: number): string {
   const avatar = node.name.match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() || String(index + 1);
   return `<article class="server-row${active ? " is-connected" : ""}${selected ? " is-selected" : ""}" data-select-node="${node.id}" tabindex="0">
     <div class="server-avatar">${escapeHtml(avatar)}</div>
-    <div class="server-identity"><strong>${escapeHtml(node.name)}</strong><span>${escapeHtml(node.source_name || "Manual")}${node.engine ? ` · ${escapeHtml(node.engine === "xray" ? "Xray" : node.engine === "mihomo" ? "Mihomo" : node.engine)}` : ""}</span></div>
+    <div class="server-identity"><strong>${escapeHtml(node.name)}</strong><span>${escapeHtml(node.source_name || "Manual")}${node.protocol ? ` · ${escapeHtml(node.protocol.toUpperCase())}` : ""}${node.engine ? ` · ${escapeHtml(node.engine === "xray" ? "Xray" : node.engine === "mihomo" ? "Mihomo" : node.engine)}` : ""}</span></div>
     <div class="latency ${quality}"><span class="latency-dot"></span>${latencyFor(node)}</div>
     <div class="row-actions">
       ${active ? '<span class="active-label">Active</span>' : `<button class="button small secondary" data-action="connect" data-node="${node.id}" ${state.busy ? "disabled" : ""}>${state.connectionProgress?.nodeId === node.id ? connectionProgressLabel() : state.status.active ? "Switch" : "Connect"}</button>`}
@@ -384,12 +536,12 @@ function routingPage(): string {
         <form class="inline-form" id="domain-form"><input name="domain" required autocomplete="off" placeholder="example.com" /><button class="button primary" type="submit">Add site</button><button class="icon-button subtle" type="button" data-action="remove-domain" aria-label="Remove selected site" ${state.selectedDomain ? "" : "disabled"}>${icon("trash", 17)}</button></form>
       </section>
       <section class="route-card">
-        <div class="route-card-head"><div><h2>Applications</h2><p>Exact executable paths</p></div><span class="count-badge">${state.routing.apps.length}</span></div>
+        <div class="route-card-head"><div><h2>Applications</h2><p>Choose from running or installed apps</p></div><span class="count-badge">${state.routing.apps.length}</span></div>
         <div class="route-list">${apps || '<div class="empty-list">No applications added</div>'}</div>
-        <div class="inline-form"><button class="button primary grow" data-action="choose-app">${icon("app", 16)} Choose application</button><button class="icon-button subtle" data-action="remove-app" aria-label="Remove selected application" ${state.selectedApp ? "" : "disabled"}>${icon("trash", 17)}</button></div>
+        <div class="inline-form"><button class="button accent grow" data-action="choose-app">${icon("app", 16)} Choose application</button><button class="icon-button subtle" data-action="remove-app" aria-label="Remove selected application" ${state.selectedApp ? "" : "disabled"}>${icon("trash", 17)}</button></div>
       </section>
     </div>
-    <p class="routing-footnote">${state.platform === "linux" ? "Changes are synced with NetworkManager. Reconnect if the current tunnel was already active." : "Executable paths are matched by the selected engine on the next connection."}</p>
+    <p class="routing-footnote">${state.platform === "linux" ? "Routing changes are applied to the active tunnel automatically. If applying fails, WProxy restores the previous connection." : "Executable paths are matched by the selected engine on the next connection."}</p>
   </section>`;
 }
 
@@ -407,7 +559,7 @@ function settingsPage(): string {
 function render(): void {
   if (state.loading) return renderShell(loadingView());
   if (state.error) return renderShell(errorView());
-  const content = ({ servers: serversPage, subscriptions: subscriptionsPage, add: addPage, routing: routingPage, settings: settingsPage })[state.page]();
+  const content = ({ dashboard: dashboardPage, servers: serversPage, subscriptions: subscriptionsPage, add: addPage, routing: routingPage, settings: settingsPage })[state.page]();
   renderShell(content);
 }
 
@@ -454,10 +606,6 @@ async function connect(nodeId: string): Promise<void> {
   state.connectionProgress = { switching: state.status.active, nodeId };
   render();
   try {
-    if (state.platform === "linux") {
-      await ctl(["node", "validate", nodeId, "--json"]);
-      if (state.status.active) await invoke<CliOutput>("tunnel", { action: "down", nodeId: null });
-    }
     await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
   } finally {
     state.connectionProgress = null;
@@ -490,14 +638,30 @@ async function pingAll(): Promise<void> {
 }
 
 async function routeChanged(): Promise<void> {
-  if (isTauri && state.platform === "linux" && state.status.active) await invoke<CliOutput>("sync_linux");
+  if (!isTauri || state.platform !== "linux") return;
+  if (!state.status.active || !state.status.node_id) {
+    await invoke<CliOutput>("sync_linux");
+    return;
+  }
+  const nodeId = state.status.node_id;
+  state.connectionProgress = { switching: true, nodeId };
+  render();
+  try {
+    await invoke<CliOutput>("tunnel", { action: "up", nodeId, remember: state.preferences.remember_authorization });
+  } finally {
+    state.connectionProgress = null;
+  }
 }
 
 app.addEventListener("click", async (event) => {
   const target = (event.target as HTMLElement).closest<HTMLElement>("button, [data-select-node], [data-select-domain], [data-select-app], [data-select-sub]");
   if (!target) return;
+  if (motionEnabled() && target.matches("button:not(:disabled)")) {
+    animate(target, { transform: ["scale(1)", "scale(.965)", "scale(1)"] }, { duration: 0.2, ease: "easeOut" });
+  }
   const page = target.dataset.page as Page | undefined;
   if (page) {
+    previousPage = state.page;
     state.page = page;
     render();
     return;
@@ -543,6 +707,18 @@ app.addEventListener("click", async (event) => {
   });
   if (command === "import-config") return void importConfiguration();
   if (command === "choose-app") return void chooseApplication();
+  if (command === "close-app-picker") {
+    state.applicationPickerOpen = false;
+    state.applicationSearch = "";
+    render();
+    return;
+  }
+  if (command === "browse-app") return void browseApplication();
+  if (command === "select-discovered-app" && target.dataset.appPath) {
+    const path = target.dataset.appPath;
+    state.applicationPickerOpen = false;
+    return void addRoutingApplication(path);
+  }
   if (command === "remove-app" && state.selectedApp) return void action("Application removed", async () => {
     const value = state.selectedApp!;
     if (isTauri) await invoke<CliOutput>("run_ctl", { args: ["routing", "app", "remove", value] });
@@ -577,19 +753,59 @@ async function importConfiguration(): Promise<void> {
 
 async function chooseApplication(): Promise<void> {
   try {
+    state.applicationPickerOpen = true;
+    state.applicationPickerLoading = true;
+    state.applicationSearch = "";
+    render();
+    state.applications = isTauri ? await invoke<ApplicationEntry[]>("list_applications") : [
+      { name: "Firefox", path: state.platform === "windows" ? "C:/Program Files/Mozilla Firefox/firefox.exe" : "/usr/lib/firefox/firefox", running: true },
+      { name: "Spotify", path: state.platform === "windows" ? "C:/Users/demo/AppData/Roaming/Spotify/Spotify.exe" : "/usr/bin/spotify", running: false },
+    ];
+    state.applicationPickerLoading = false;
+    render();
+  } catch (error) {
+    state.applicationPickerOpen = false;
+    state.applicationPickerLoading = false;
+    render();
+    toast(errorMessage(error), "error");
+  }
+}
+
+async function browseApplication(): Promise<void> {
+  try {
     const path = isTauri
-      ? await open({ multiple: false, directory: false, title: "Choose an application" })
+      ? await open({ multiple: false, directory: false, title: "Choose an application executable" })
       : state.platform === "windows" ? "C:/Program Files/Spotify/Spotify.exe" : "/usr/bin/firefox";
     if (typeof path !== "string") return;
-    await action("Application added", async () => {
-      if (isTauri) await invoke<CliOutput>("run_ctl", { args: ["routing", "app", "add", path] });
-      else if (!state.routing.apps.includes(path)) state.routing.apps.push(path);
-      await routeChanged();
-    });
+    state.applicationPickerOpen = false;
+    await addRoutingApplication(path);
   } catch (error) {
     toast(errorMessage(error), "error");
   }
 }
+
+async function addRoutingApplication(path: string): Promise<void> {
+  await action("Application added and routing applied", async () => {
+    if (isTauri) await invoke<CliOutput>("run_ctl", { args: ["routing", "app", "add", path] });
+    else if (!state.routing.apps.includes(path)) state.routing.apps.push(path);
+    await routeChanged();
+  });
+}
+
+app.addEventListener("input", (event) => {
+  const target = event.target as HTMLInputElement;
+  if (target.id !== "application-search") return;
+  state.applicationSearch = target.value;
+  const query = target.value.trim().toLocaleLowerCase();
+  let visible = 0;
+  app.querySelectorAll<HTMLElement>(".picker-row").forEach((row) => {
+    const match = !query || (row.textContent || "").toLocaleLowerCase().includes(query);
+    row.hidden = !match;
+    if (match) visible += 1;
+  });
+  const empty = app.querySelector<HTMLElement>(".picker-filter-empty");
+  if (empty) empty.hidden = visible > 0;
+});
 
 async function checkUpdate(): Promise<void> {
   if (updateInProgress) return;

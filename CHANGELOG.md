@@ -1,3 +1,10 @@
+# 2.8.4
+
+- Add a lightweight animated Tauri dashboard with WProxy's existing navy and blue visual language, shared Motion navigation, real connection state and protocol/engine labels.
+- Replace manual executable-path entry with a searchable running/installed application picker on Linux and Windows. Prefer the real running executable so split routing matches packaged apps and launchers reliably.
+- Apply Linux routing changes to the active tunnel automatically. Validate a replacement before teardown, switch once, and restore the previous saved connection if activation fails.
+- Keep Quick Connect based on real HTTPS validation while reducing the per-batch probe delay for faster selection.
+
 # 2.8.3
 
 - Select a collision-free private `/30` for the Linux TUN instead of reusing `172.19.0.0/30` when Docker, Podman or the LAN already owns an overlapping route.

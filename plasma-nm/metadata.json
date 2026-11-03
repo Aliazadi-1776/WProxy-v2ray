@@ -5,7 +5,7 @@
         "Category": "VPNService",
         "EnabledByDefault": false,
         "License": "MIT",
-        "Version": "2.8.3"
+        "Version": "2.8.4"
     },
     "X-NetworkManager-Services": "org.freedesktop.NetworkManager.wproxy"
 }

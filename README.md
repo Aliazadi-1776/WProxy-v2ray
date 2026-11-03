@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.3"><strong>Download v2.8.3</strong></a>
+  <a href="https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.4"><strong>Download v2.8.4</strong></a>
   · <a href="README.fa.md">راهنمای فارسی</a>
   · <a href="docs/ROUTING.md">Routing</a>
   · <a href="docs/WINDOWS.md">Windows</a>
@@ -26,13 +26,13 @@
   · <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-WProxy imports proxy links, native core profiles and subscriptions, selects a compatible sing-box, Xray or Mihomo runtime, and exposes one system TUN through your desktop. Version **2.8.3** avoids Docker, Podman and LAN subnet collisions on Linux, and keeps Manager and GNOME Quick Settings on the same scoped authorization path.
+WProxy imports proxy links, native core profiles and subscriptions, selects a compatible sing-box, Xray or Mihomo runtime, and exposes one system TUN through your desktop. Version **2.8.4** adds an animated Tauri dashboard, a real application picker for split routing, and recoverable one-step server switching on Linux and Windows.
 
 ## Get WProxy
 
 | Windows 10/11 x64 | GNOME 45–51 | KDE Plasma 6 |
 | --- | --- | --- |
-| Download **`WProxy-2.8.3-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
+| Download **`WProxy-2.8.4-Setup.exe`** from the [latest release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/latest). | Install the distro dependencies below, then run `bash scripts/install.sh --desktop gnome`. | Install the distro and Plasma dependencies below, then run `bash scripts/install.sh --desktop kde`. |
 
 The Windows installer includes WProxy, sing-box, Xray, Mihomo and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [engine architecture](WPROXY_ENGINE_ARCHITECTURE.md) and [compatibility matrix](#compatibility) before installing on a new platform.
 
@@ -78,7 +78,7 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 
 ## Compatibility
 
-The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.8.3 also provides a Windows x64 installer using the selected core's native TUN support. The two platforms share profile selection and routing rules but use different operating-system integration.
+The mature backend is Linux-specific: it needs a normal writable installation, systemd, NetworkManager and Linux TUN. Version 2.8.4 also provides a Windows x64 installer using the selected core's native TUN support. The two platforms share profile selection and routing rules but use different operating-system integration.
 
 | Component / platform | Support and verification |
 | --- | --- |
@@ -108,7 +108,7 @@ Windows does not expose a public API for arbitrary third-party controls inside W
 Extract the ZIP, then open a terminal in the directory containing `Makefile` and `scripts/`. For this release archive:
 
 ```bash
-cd WProxy-2.8.3
+cd WProxy-2.8.4
 ```
 
 A GitHub “Download ZIP” may use a different folder name; enter that extracted folder instead. Run as your **normal desktop account**, not a root login, and leave Python virtual environments/Conda first. You need working Internet and permission to use `sudo`.
@@ -273,7 +273,7 @@ Check installation with `wproxyctl --version`, then open `wproxy-manager`, add y
 
 ### Windows 10/11 installation
 
-Download `WProxy-2.8.3-Setup.exe` and its `.sha256` file from the [v2.8.3 GitHub Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.3), verify the checksum, and run Setup. Python and separate core downloads are not required. The per-user installer launches WProxy after installation; Windows requests Administrator approval only when connecting or disconnecting the TUN.
+Download `WProxy-2.8.4-Setup.exe` and its `.sha256` file from the [v2.8.4 GitHub Release](https://github.com/Aliazadi-1776/WProxy-v2ray/releases/tag/v2.8.4), verify the checksum, and run Setup. Python and separate core downloads are not required. The per-user installer launches WProxy after installation; Windows requests Administrator approval only when connecting or disconnecting the TUN.
 
 The installer contains pinned official sing-box **1.14.4**, Xray **26.9.30**, Mihomo **1.19.33** and Wintun files. Every downloaded archive has a fixed SHA-256. Read [the Windows guide](docs/WINDOWS.md) for use, routing and current verification limits.
 

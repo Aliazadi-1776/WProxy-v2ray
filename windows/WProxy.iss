@@ -2,7 +2,7 @@
 #define MyAppPublisher "WProxy contributors"
 #define MyAppURL "https://github.com/Aliazadi-1776/WProxy-v2ray"
 #ifndef MyVersion
-  #define MyVersion "2.8.3"
+  #define MyVersion "2.8.4"
 #endif
 #ifndef MyBuildDir
   #define MyBuildDir "..\build\windows"

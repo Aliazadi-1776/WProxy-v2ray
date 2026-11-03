@@ -1,3 +1,9 @@
+# 2.8.3
+
+- Select a collision-free private `/30` for the Linux TUN instead of reusing `172.19.0.0/30` when Docker, Podman or the LAN already owns an overlapping route.
+- Pass the selected Linux address into sing-box and keep NetworkManager's observed TUN address as the source of truth for route setup.
+- Route GNOME Quick Settings connect and disconnect actions through the same narrow Polkit helper as Manager, preserving the user's remembered-authorization setting.
+
 # 2.8.2
 
 - Move Linux runtime state below NetworkManager's own `/run/NetworkManager` tree so Fedora assigns the existing `NetworkManager_var_run_t` SELinux label without a custom policy module.

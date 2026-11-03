@@ -1,5 +1,9 @@
 # Test coverage
 
+## 2.8.3 Linux route-collision acceptance
+
+The Linux runner selects a private `/30` that does not overlap existing Docker, Podman or LAN routes. The focused regression mocks a `172.19.0.0/16` Docker bridge and requires selection of `172.31.255.1/30`. Target acceptance on Ubuntu 26.10 additionally requires an active NetworkManager VPN, an address on `wproxy0` outside the Docker subnet, HTTPS 204 through the TUN, and a different egress address for a temporarily selected process.
+
 ## 2.8.2 NetworkManager SELinux runtime migration
 
 The affected Fedora host confirmed that 2.8.1 removed the original `/tmp` and inherited-lock denials, then exposed a remaining denial when `NetworkManager_t` tried to change attributes on the generic `var_run_t` `/run/wproxy` directory. WProxy now keeps runtime state below `/run/NetworkManager/wproxy`, matching NetworkManager's existing Fedora runtime label instead of installing or generating a broad local policy.

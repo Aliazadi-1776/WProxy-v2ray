@@ -1,5 +1,7 @@
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -14,6 +16,253 @@ struct CliOutput {
     stdout: String,
     stderr: String,
     code: i32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplicationEntry {
+    name: String,
+    path: String,
+    running: bool,
+}
+
+fn insert_application(
+    applications: &mut BTreeMap<String, ApplicationEntry>,
+    name: String,
+    path: PathBuf,
+    running: bool,
+) {
+    let Ok(path) = path.canonicalize() else {
+        return;
+    };
+    if !path.is_file() {
+        return;
+    }
+    let key = path.to_string_lossy().into_owned();
+    let fallback = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("Application");
+    let clean_name = name.trim();
+    applications
+        .entry(key.clone())
+        .and_modify(|entry| {
+            entry.running |= running;
+            if entry.name == fallback && !clean_name.is_empty() {
+                entry.name = clean_name.to_owned();
+            }
+        })
+        .or_insert_with(|| ApplicationEntry {
+            name: if clean_name.is_empty() {
+                fallback.to_owned()
+            } else {
+                clean_name.to_owned()
+            },
+            path: key,
+            running,
+        });
+}
+
+#[cfg(not(windows))]
+fn desktop_exec_token(value: &str) -> Option<String> {
+    let mut token = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    for character in value.trim().chars() {
+        if escaped {
+            token.push(character);
+            escaped = false;
+        } else if character == '\\' {
+            escaped = true;
+        } else if quote == Some(character) {
+            quote = None;
+        } else if quote.is_none() && matches!(character, '\'' | '"') {
+            quote = Some(character);
+        } else if quote.is_none() && character.is_whitespace() {
+            break;
+        } else {
+            token.push(character);
+        }
+    }
+    (!token.is_empty() && !token.starts_with('%')).then_some(token)
+}
+
+#[cfg(not(windows))]
+fn resolve_linux_command(command: &str) -> Option<PathBuf> {
+    let path = PathBuf::from(command);
+    if path.is_absolute() {
+        return path.is_file().then_some(path);
+    }
+    env::var_os("PATH").and_then(|paths| {
+        env::split_paths(&paths)
+            .map(|directory| directory.join(command))
+            .find(|candidate| candidate.is_file())
+    })
+}
+
+#[cfg(not(windows))]
+fn parse_desktop_entry(text: &str) -> Option<(String, PathBuf)> {
+    let mut in_entry = false;
+    let mut name = None;
+    let mut executable = None;
+    let mut application = false;
+    let mut hidden = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_entry = line == "[Desktop Entry]";
+            continue;
+        }
+        if !in_entry || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        match key {
+            "Name" => name = Some(value.trim().to_owned()),
+            "Exec" => executable = desktop_exec_token(value),
+            "Type" => application = value.trim() == "Application",
+            "Hidden" | "NoDisplay" if value.trim().eq_ignore_ascii_case("true") => hidden = true,
+            _ => {}
+        }
+    }
+    let command = executable?;
+    let launcher_name = Path::new(&command)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(&command);
+    let generic_launcher = [
+        "env",
+        "sh",
+        "bash",
+        "python",
+        "python3",
+        "flatpak",
+        "gtk-launch",
+    ];
+    if hidden || !application || generic_launcher.contains(&launcher_name) {
+        return None;
+    }
+    Some((name?, resolve_linux_command(&command)?))
+}
+
+#[cfg(not(windows))]
+fn linux_applications() -> Vec<ApplicationEntry> {
+    let mut applications = BTreeMap::new();
+    let mut desktop_directories = vec![
+        PathBuf::from("/usr/share/applications"),
+        PathBuf::from("/usr/local/share/applications"),
+    ];
+    if let Some(home) = env::var_os("HOME") {
+        desktop_directories.insert(0, PathBuf::from(home).join(".local/share/applications"));
+    }
+    for directory in desktop_directories {
+        let Ok(entries) = fs::read_dir(directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.path().extension().and_then(|value| value.to_str()) != Some("desktop") {
+                continue;
+            }
+            let Ok(text) = fs::read_to_string(entry.path()) else {
+                continue;
+            };
+            if let Some((name, path)) = parse_desktop_entry(&text) {
+                insert_application(&mut applications, name, path, false);
+            }
+        }
+    }
+
+    let Ok(processes) = fs::read_dir("/proc") else {
+        return applications.into_values().collect();
+    };
+    for process in processes.flatten() {
+        if !process
+            .file_name()
+            .to_string_lossy()
+            .bytes()
+            .all(|value| value.is_ascii_digit())
+        {
+            continue;
+        }
+        let Ok(path) = fs::read_link(process.path().join("exe")) else {
+            continue;
+        };
+        let graphical = fs::read(process.path().join("environ"))
+            .map(|environment| {
+                environment.split(|byte| *byte == 0).any(|value| {
+                    value.starts_with(b"DISPLAY=") || value.starts_with(b"WAYLAND_DISPLAY=")
+                })
+            })
+            .unwrap_or(false);
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if !graphical && !applications.contains_key(&canonical.to_string_lossy().into_owned()) {
+            continue;
+        }
+        let name = fs::read_to_string(process.path().join("comm"))
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
+        insert_application(&mut applications, name, path, true);
+    }
+    let mut rows: Vec<_> = applications.into_values().collect();
+    rows.sort_by_key(|entry| (!entry.running, entry.name.to_lowercase()));
+    rows
+}
+
+#[cfg(windows)]
+fn windows_applications() -> Result<Vec<ApplicationEntry>, String> {
+    let script = r#"
+$ErrorActionPreference='SilentlyContinue'
+$OutputEncoding=[Text.UTF8Encoding]::new()
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new()
+Get-Process | ForEach-Object { if ($_.Path) { "{0}`t{1}`t1" -f $_.ProcessName,$_.Path } }
+$shell=New-Object -ComObject WScript.Shell
+$roots=@([Environment]::GetFolderPath('StartMenu'),[Environment]::GetFolderPath('CommonStartMenu'))
+$roots | ForEach-Object { Get-ChildItem $_ -Filter *.lnk -Recurse | ForEach-Object { $s=$shell.CreateShortcut($_.FullName); if ($s.TargetPath -and $s.TargetPath.EndsWith('.exe')) { "{0}`t{1}`t0" -f $_.BaseName,$s.TargetPath } } }
+"#;
+    let mut command = Command::new("powershell.exe");
+    command.args(["-NoProfile", "-NonInteractive", "-Command", script]);
+    hide_console(&mut command);
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not list applications: {error}"))?;
+    if !output.status.success() {
+        return Err("Windows could not list installed applications.".into());
+    }
+    let mut applications = BTreeMap::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let mut fields = line.splitn(3, '\t');
+        let (Some(name), Some(path), Some(running)) = (fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        insert_application(
+            &mut applications,
+            name.to_owned(),
+            PathBuf::from(path),
+            running == "1",
+        );
+    }
+    let mut rows: Vec<_> = applications.into_values().collect();
+    rows.sort_by_key(|entry| (!entry.running, entry.name.to_lowercase()));
+    Ok(rows)
+}
+
+#[tauri::command]
+async fn list_applications() -> Result<Vec<ApplicationEntry>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        #[cfg(windows)]
+        {
+            windows_applications()
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(linux_applications())
+        }
+    })
+    .await
+    .map_err(|error| format!("Could not complete the application scan: {error}"))?
 }
 
 fn existing_file(path: impl AsRef<Path>) -> Option<PathBuf> {
@@ -154,7 +403,8 @@ fn valid_ctl_args(args: &[String]) -> bool {
             "best" | "verify" | "validate" => {
                 args.len() >= 3
                     && args.iter().all(|value| {
-                        !value.starts_with('-') || matches!(value.as_str(), "--json" | "--timeout" | "--verify")
+                        !value.starts_with('-')
+                            || matches!(value.as_str(), "--json" | "--timeout" | "--verify")
                     })
             }
             _ => false,
@@ -229,18 +479,26 @@ async fn import_config(text: String, name: Option<String>) -> Result<CliOutput, 
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|error| format!("Could not prepare configuration import: {error}"))?
             .as_nanos();
-        let path = env::temp_dir().join(format!("wproxy-import-{}-{instant}-{sequence}.txt", std::process::id()));
+        let path = env::temp_dir().join(format!(
+            "wproxy-import-{}-{instant}-{sequence}.txt",
+            std::process::id()
+        ));
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
         options.mode(0o600);
-        let mut file = options.open(&path)
+        let mut file = options
+            .open(&path)
             .map_err(|error| format!("Could not prepare configuration import: {error}"))?;
         let result = (|| {
             file.write_all(text.as_bytes())
                 .map_err(|error| format!("Could not write configuration import: {error}"))?;
             drop(file);
-            let mut args = vec!["node".into(), "import".into(), path.to_string_lossy().into_owned()];
+            let mut args = vec![
+                "node".into(),
+                "import".into(),
+                path.to_string_lossy().into_owned(),
+            ];
             if let Some(value) = name.filter(|value| !value.trim().is_empty()) {
                 args.extend(["--name".into(), value]);
             }
@@ -249,8 +507,8 @@ async fn import_config(text: String, name: Option<String>) -> Result<CliOutput, 
         let _ = std::fs::remove_file(&path);
         result
     })
-        .await
-        .map_err(|error| format!("Could not complete configuration import: {error}"))?
+    .await
+    .map_err(|error| format!("Could not complete configuration import: {error}"))?
 }
 
 #[tauri::command]
@@ -335,13 +593,21 @@ fn linux_admin(action: &str, argument: Option<&str>) -> Result<CliOutput, String
 }
 
 #[tauri::command]
-async fn tunnel(action: String, node_id: Option<String>, remember: Option<bool>) -> Result<CliOutput, String> {
+async fn tunnel(
+    action: String,
+    node_id: Option<String>,
+    remember: Option<bool>,
+) -> Result<CliOutput, String> {
     tauri::async_runtime::spawn_blocking(move || tunnel_command(action, node_id, remember))
         .await
         .map_err(|error| format!("Could not complete the tunnel command: {error}"))?
 }
 
-fn tunnel_command(action: String, node_id: Option<String>, remember: Option<bool>) -> Result<CliOutput, String> {
+fn tunnel_command(
+    action: String,
+    node_id: Option<String>,
+    remember: Option<bool>,
+) -> Result<CliOutput, String> {
     if !matches!(action.as_str(), "up" | "down") {
         return Err("Unknown tunnel action.".into());
     }
@@ -352,7 +618,14 @@ fn tunnel_command(action: String, node_id: Option<String>, remember: Option<bool
     #[cfg(windows)]
     {
         let _ = remember;
-        let mut args = vec!["windows".to_owned(), if action == "up" { "connect".to_owned() } else { action }];
+        let mut args = vec![
+            "windows".to_owned(),
+            if action == "up" {
+                "connect".to_owned()
+            } else {
+                action
+            },
+        ];
         if let Some(value) = node_id {
             args.push(value);
         }
@@ -360,7 +633,11 @@ fn tunnel_command(action: String, node_id: Option<String>, remember: Option<bool
     }
     #[cfg(not(windows))]
     {
-        let operation = if action == "up" && remember.unwrap_or(false) { "up-remember" } else { &action };
+        let operation = if action == "up" && remember.unwrap_or(false) {
+            "up-remember"
+        } else {
+            &action
+        };
         linux_admin(operation, node_id.as_deref())
     }
 }
@@ -423,6 +700,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             platform,
+            list_applications,
             run_ctl,
             import_config,
             tunnel_status,
@@ -433,4 +711,30 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running WProxy");
+}
+
+#[cfg(all(test, not(windows)))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn desktop_entry_parser_accepts_a_real_executable() {
+        let parsed =
+            parse_desktop_entry("[Desktop Entry]\nType=Application\nName=Files\nExec=/bin/ls\n")
+                .expect("desktop entry should parse");
+        assert_eq!(parsed.0, "Files");
+        assert!(parsed.1.is_file());
+    }
+
+    #[test]
+    fn desktop_entry_parser_rejects_hidden_and_generic_launchers() {
+        assert!(parse_desktop_entry(
+            "[Desktop Entry]\nType=Application\nName=Hidden\nNoDisplay=true\nExec=/bin/sh\n"
+        )
+        .is_none());
+        assert!(parse_desktop_entry(
+            "[Desktop Entry]\nType=Application\nName=Flatpak\nExec=flatpak run example.App\n"
+        )
+        .is_none());
+    }
 }

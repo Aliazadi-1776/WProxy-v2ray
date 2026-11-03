@@ -84,5 +84,43 @@ class WindowsConnectTests(unittest.TestCase):
         connect.assert_called_once_with(self.store, self.new_id)
 
 
+class LinuxConnectTests(unittest.TestCase):
+    def setUp(self):
+        self.old_id = "0123456789abcdef"
+        self.new_id = "fedcba9876543210"
+        self.store = {"nodes": [
+            {"id": self.old_id, "name": "Previous", "uri": "trojan://old@example.com:443"},
+            {"id": self.new_id, "name": "Selected", "uri": "trojan://new@example.net:443"},
+        ], "routing": {"mode": "all"}}
+
+    def test_target_is_validated_before_the_current_tunnel_is_replaced(self):
+        with patch.object(ctl, "validate_node") as validate, \
+                patch.object(ctl, "active_wproxy_node_id", return_value=self.old_id), \
+                patch.object(ctl, "nm_up") as up:
+            ctl.nm_connect(self.store, self.new_id, verify=True)
+        validate.assert_called_once_with(self.store["nodes"][1], self.store["routing"])
+        up.assert_called_once_with(self.store, self.new_id, verify=True)
+
+    def test_failed_linux_switch_restores_the_previous_saved_connection(self):
+        with patch.object(ctl, "validate_node"), \
+                patch.object(ctl, "active_wproxy_node_id", return_value=self.old_id), \
+                patch.object(ctl, "nm_up", side_effect=[RuntimeError("selected failed"), None]) as up, \
+                self.assertRaisesRegex(RuntimeError, "selected failed.*previous connection was restored"):
+            ctl.nm_connect(self.store, self.new_id, verify=True)
+        self.assertEqual(up.call_args_list, [
+            call(self.store, self.new_id, verify=True),
+            call(self.store, self.old_id, verify=False),
+        ])
+
+    def test_invalid_linux_target_never_touches_the_active_connection(self):
+        with patch.object(ctl, "validate_node") as validate, \
+                patch.object(ctl, "active_wproxy_node_id") as active, \
+                patch.object(ctl, "nm_up") as up, self.assertRaises(ValueError):
+            ctl.nm_connect(self.store, "bad", verify=True)
+        validate.assert_not_called()
+        active.assert_not_called()
+        up.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

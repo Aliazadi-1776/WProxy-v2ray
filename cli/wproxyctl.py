@@ -1335,6 +1335,49 @@ def nm_up(store, node_id, verify=False):
         print(p.stdout, end='')
 
 
+def active_wproxy_node_id(store):
+    """Map the active NetworkManager profile back to a saved node."""
+    active = active_wproxy_connections()
+    if not active:
+        return None
+    active_uuid = active[0]["uuid"]
+    return next((
+        node["id"] for node in store["nodes"]
+        if deterministic_uuid(node["id"]) == active_uuid
+    ), None)
+
+
+def nm_connect(store, node_id, verify=False):
+    """Replace the Linux tunnel as one recoverable transaction.
+
+    The target is rendered and validated before the existing tunnel is
+    touched. If NetworkManager cannot activate it, WProxy restores the last
+    saved connection instead of leaving the desktop without a working route.
+    """
+    if not re.fullmatch(r"[0-9a-f]{16}", node_id):
+        raise ValueError("Invalid node id")
+    node = next((node for node in store["nodes"] if node["id"] == node_id), None)
+    if not node:
+        raise ValueError("Unknown node id")
+    validate_node(node, store.get("routing"))
+    previous_id = active_wproxy_node_id(store)
+    previous_saved = previous_id is not None and any(
+        candidate["id"] == previous_id for candidate in store["nodes"]
+    )
+    try:
+        nm_up(store, node_id, verify=verify)
+    except (OSError, ValueError, RuntimeError) as error:
+        if previous_saved:
+            try:
+                nm_up(store, previous_id, verify=False)
+            except (OSError, ValueError, RuntimeError) as restore_error:
+                raise RuntimeError(
+                    f"{error} The previous connection could not be restored: {restore_error}"
+                ) from error
+            raise RuntimeError(f"{error} The previous connection was restored.") from error
+        raise RuntimeError(str(error)) from error
+
+
 def status_json(store):
     active = active_wproxy_connections()
     connection = active[0] if active else None
@@ -1761,6 +1804,13 @@ def node_engine_info(uri):
         return "unsupported"
 
 
+def node_protocol_info(uri):
+    try:
+        return engines.analyze(uri).get("protocol", "unknown")
+    except (ValueError, RuntimeError):
+        return "unknown"
+
+
 def cmd_node(args, store):
     if args.action in ("add", "import"):
         text = read_config_file(args.path) if args.action == "import" else args.uri
@@ -1789,6 +1839,7 @@ def cmd_node(args, store):
                     "id": n["id"], "name": n["name"], "source": n.get("source"),
                     "source_name": source_names.get(n.get("source"), "Manual"),
                     "engine": node_engine_info(n["uri"]),
+                    "protocol": node_protocol_info(n["uri"]),
                 }
                 for n in store["nodes"]
             ]
@@ -1826,7 +1877,7 @@ def cmd_node(args, store):
             raise ValueError("No matching node")
         rows = ping_nodes(targets, args.timeout)
         if args.action == "best":
-            best = fastest_verified_node(targets, rows, max(5.0, args.timeout)) if args.verify else fastest_ping(rows)
+            best = fastest_verified_node(targets, rows, max(3.0, args.timeout)) if args.verify else fastest_ping(rows)
             if not best:
                 raise RuntimeError("No server passed the HTTPS test. Your system network was left unchanged." if args.verify else "No server responded to the latency test")
             print(json.dumps(best, ensure_ascii=False) if args.json else f"{best['id']}  {best['name']}  {best['latency_ms']}ms")
@@ -1963,6 +2014,7 @@ def build_parser():
     ms = pm.add_subparsers(dest="action", required=True)
     ms.add_parser("sync")
     a = ms.add_parser("up"); a.add_argument("id"); a.add_argument("--verify", action="store_true")
+    a = ms.add_parser("connect"); a.add_argument("id"); a.add_argument("--verify", action="store_true")
     ms.add_parser("down")
 
     pw = sp.add_parser("windows")
@@ -2005,6 +2057,7 @@ def main():
         elif args.cmd == "nm":
             if args.action == "sync": nm_sync(store)
             elif args.action == "up": nm_up(store, args.id, verify=args.verify)
+            elif args.action == "connect": nm_connect(store, args.id, verify=args.verify)
             elif args.action == "down": sys.exit(0 if nm_down() else 1)
         elif args.cmd == "windows":
             if args.action == "up": windows_up(store, args.id)

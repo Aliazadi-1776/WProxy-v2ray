@@ -293,6 +293,30 @@ prepare_routing
         self.assertIn("systemd-run --quiet --wait --collect", source)
         self.assertIn("Application routing requires systemd-run", source)
 
+    def test_tun_ipv4_selection_skips_an_overlapping_docker_route(self):
+        runner = (ROOT / "service/wproxy-xray-runner").read_text()
+        match = re.search(r"^select_tun_ipv4\(\) \{.*?^\}", runner, re.M | re.S)
+        self.assertIsNotNone(match, "runner must select a collision-free TUN subnet")
+        script = r'''
+IFACE=wproxy0
+ip() {
+    case "$*" in
+        '-4 route show table all match 172.19.0.0/30')
+            printf '%s\n' '172.19.0.0/16 dev br-docker scope link' ;;
+        '-4 route show table all match 172.31.255.0/30')
+            printf '%s\n' 'default via 192.168.1.1 dev wlan0' ;;
+        *) return 99 ;;
+    esac
+}
+run_ip() { ip "$@"; }
+'''
+        result = subprocess.run(
+            ["sh", "-c", script + match.group() + "\nselect_tun_ipv4\nprintf '%s\\n' \"$TUN_IPV4\"\n"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "172.31.255.1/30")
+
     def configure(self, failure=""):
         # Execute the production shell function with only the OS ip command
         # mocked. Simulate the exact failure: Xray's link exists without an IP.

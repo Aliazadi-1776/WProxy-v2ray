@@ -218,6 +218,13 @@ pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)
         self.assertNotIn("vertical:", source)
         self.assertGreaterEqual(source.count("Clutter.Orientation.VERTICAL"), 2)
 
+    def test_gnome_connect_and_disconnect_use_the_same_admin_helper_as_manager(self):
+        source = read_utf8("gnome-extension/wproxy@wrench.local/extension.js")
+        self.assertIn("const ADMIN_HELPER = '/usr/libexec/wproxy-admin';", source)
+        self.assertIn("['pkexec', ADMIN_HELPER, operation, id]", source)
+        self.assertIn("['pkexec', ADMIN_HELPER, 'down']", source)
+        self.assertNotIn("spawn([CTL, 'nm', 'up', id]", source)
+
     @unittest.skipIf(os.name == "nt", "README Bash syntax is validated by the Linux job")
     def test_readme_shell_examples_parse_without_executing(self):
         for name in ("README.md", "README.fa.md"):

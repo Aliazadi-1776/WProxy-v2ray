@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "cli"))
@@ -15,6 +16,15 @@ spec.loader.exec_module(legacy)
 
 
 class EnginesTests(unittest.TestCase):
+    def test_sing_box_uses_the_runtime_selected_linux_tun_address(self):
+        with patch.dict("os.environ", {"WPROXY_TUN_IPV4": "172.31.255.1/30"}):
+            config = engines._sing_config(
+                {"outbounds": [{"type": "direct", "tag": "direct"}]},
+                {"mode": "all", "domains": [], "apps": []},
+                "linux",
+            )
+        self.assertEqual(config["inbounds"][0]["address"][0], "172.31.255.1/30")
+
     def test_selection_respects_features_and_native_format(self):
         base = "vless://11111111-1111-4111-8111-111111111111@example.com:443"
         self.assertEqual(engines.analyze(base)["engine"], "sing-box")

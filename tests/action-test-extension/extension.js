@@ -62,11 +62,15 @@ export default class ActionTest extends Extension {
         toggle._nodeRows.get('0123456789abcdef').item.activate(null);
         await until(() => !toggle._busy && toggle.checked, 'Row connect did not complete');
         check(toggle._activeNodeId === '0123456789abcdef', 'Connected to wrong node');
-        results.push('server row activation -> nm up -> refreshed active status');
+        check(readCommands().some(a => a[0] === 'pkexec' && a.includes('up-remember')),
+            'Server row did not use the administrator helper');
+        results.push('server row activation -> shared admin helper -> refreshed active status');
         toggle.checked = false;
         toggle._onToggleClicked();
         await until(() => !toggle._busy && !toggle.checked && toggle._activeNodeId === null, 'Disconnect did not refresh');
-        results.push('tile disconnect -> nm down -> refreshed inactive status');
+        check(readCommands().some(a => a[0] === 'pkexec' && a.includes('down')),
+            'Tile disconnect did not use the administrator helper');
+        results.push('tile disconnect -> shared admin helper -> refreshed inactive status');
         toggle._pingNode('0123456789abcdef');
         toggle._pingNode('0123456789abcdef');
         await until(() => !toggle._pingingNodes.has('0123456789abcdef'), 'Ping did not complete');

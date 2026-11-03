@@ -21,6 +21,18 @@ MAX_INPUT_BYTES = 8 * 1024 * 1024
 SCHEMES = {"vless", "vmess", "trojan", "ss", "hysteria2", "hy2", "tuic", "wireguard", "wg", "socks", "socks5", "http", "https"}
 
 
+def _tun_ipv4():
+    value = os.environ.get("WPROXY_TUN_IPV4", "172.19.0.1/30")
+    try:
+        address = ipaddress.ip_interface(value)
+    except ValueError as error:
+        raise ValueError("Invalid WProxy TUN IPv4 address") from error
+    if (address.version != 4 or address.network.prefixlen != 30 or
+            not address.ip.is_private or int(address.ip) != int(address.network.network_address) + 1):
+        raise ValueError("WProxy TUN IPv4 must be the first host of a private /30")
+    return str(address)
+
+
 def _document(text):
     if not isinstance(text, str) or len(text.encode("utf-8")) > MAX_INPUT_BYTES:
         raise ValueError("Configuration must be UTF-8 text smaller than 8 MiB")
@@ -472,7 +484,7 @@ def _sing_config(value, policy, platform, probe_port=None, native=False):
     config.pop("ntp", None)
     config["inbounds"] = [{"type": "http", "tag": inbound_tag, "listen": "127.0.0.1", "listen_port": probe_port}] if probe_port else [{
         "type": "tun", "tag": inbound_tag, "interface_name": "wproxy" if platform == "windows" else "wproxy0",
-        "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"], "mtu": 1400 if platform == "windows" else 1500,
+        "address": [_tun_ipv4(), "fdfe:dcba:9876::1/126"], "mtu": 1400 if platform == "windows" else 1500,
         "auto_route": platform == "windows", "strict_route": platform == "windows", "stack": "mixed",
     }]
     route = config.setdefault("route", {})

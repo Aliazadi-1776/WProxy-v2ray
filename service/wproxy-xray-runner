@@ -14,6 +14,7 @@ ROUTING_FILE="$RUNTIME/routing64"
 GATEWAY="$RUNTIME/gateway"
 LOG="$RUNTIME/xray.log"
 IFACE=wproxy0
+TUN_IPV4=
 SYSTEMD_UNIT="wproxy-xray-runtime-$$.service"
 XRAY_MANAGED_BY_SYSTEMD=0
 SYSTEMD_RUN_PID=
@@ -48,6 +49,33 @@ export TMPDIR
 run_ip() {
     # ip transitions to ifconfig_t on Fedora; do not pass it the runtime lock.
     ip "$@" 9>&-
+}
+
+select_tun_ipv4() {
+    # Prefer the historical address when it is free, but never overlap a
+    # Docker/Podman/LAN route. A broader route (for example 172.19.0.0/16)
+    # conflicts with the candidate /30 even when the exact prefix is absent.
+    for candidate in \
+        172.19.0.1/30=172.19.0.0/30 \
+        172.31.255.1/30=172.31.255.0/30 \
+        172.30.255.1/30=172.30.255.0/30 \
+        10.255.255.1/30=10.255.255.0/30 \
+        192.168.255.1/30=192.168.255.0/30; do
+        address=${candidate%%=*}
+        network=${candidate#*=}
+        if run_ip -4 route show table all match "$network" 2>/dev/null |
+            awk -v iface="$IFACE" '
+                $1 != "default" && $0 !~ (" dev " iface "( |$)") { conflict=1 }
+                END { exit conflict ? 0 : 1 }
+            '; then
+            continue
+        fi
+        TUN_IPV4=$address
+        export WPROXY_TUN_IPV4=$TUN_IPV4
+        return 0
+    done
+    echo 'No collision-free private /30 is available for the WProxy tunnel.' >&2
+    return 69
 }
 
 need_root() {
@@ -105,20 +133,22 @@ configure_tun() {
     # Old Xray cores silently ignore gateway/autoSystemRoutingTable settings.
     # Configure the addresses ourselves; NetworkManager installs routes + DNS
     # only after the service reports Config / Ip4Config / Ip6Config.
+    : "${TUN_IPV4:=172.19.0.1/30}"
     run_ip link set dev "$IFACE" mtu 1500 up || return 1
-    run_ip -4 addr replace 172.19.0.1/30 dev "$IFACE" || return 1
+    run_ip -4 addr replace "$TUN_IPV4" dev "$IFACE" || return 1
     if [ -r /proc/sys/net/ipv6/conf/all/disable_ipv6 ] &&
         [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6)" = 0 ]; then
         run_ip -6 addr replace fdfe:dcba:9876::1/126 dev "$IFACE" nodad || return 1
     fi
     run_ip -4 -o addr show dev "$IFACE" |
-        awk '/inet 172\.19\.0\.1\/30 / { ready=1 } END { exit !ready }'
+        grep -F "inet $TUN_IPV4 " >/dev/null
 }
 
 render_and_test() {
     URI=$1
     umask 077
     detect_outbound_iface
+    select_tun_ipv4
     if [ -n "$INPUT_FILE" ]; then
         set -- render --input-file "$INPUT_FILE"
     else

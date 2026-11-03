@@ -10,14 +10,23 @@ args = sys.argv[1:]
 with (root / 'commands.jsonl').open('a') as log:
     log.write(json.dumps(args) + '\n')
 program = args.pop(0)
+admin = False
 if program == 'pkexec':
     args.pop(0)
+    admin = True
 elif program.endswith('wproxy-manager'):
     sys.exit(0)
 statefile = root / 'fake-state.json'
 state = json.loads(statefile.read_text()) if statefile.exists() else {'active': False, 'node_id': None}
 nodes = [{'id': '0123456789abcdef', 'name': 'Fixture A'}, {'id': 'fedcba9876543210', 'name': 'Fixture B'}]
-if args == ['status', '--json']:
+if admin and args[:1] in (['up'], ['up-remember']):
+    state = {'active': True, 'node_id': args[1]}
+    statefile.write_text(json.dumps(state))
+elif admin and args == ['down']:
+    statefile.write_text(json.dumps({'active': False, 'node_id': None}))
+elif args == ['settings', 'show', '--json']:
+    print(json.dumps({'remember_authorization': True, 'auto_update': True}))
+elif args == ['status', '--json']:
     print(json.dumps({**state, 'name': 'WProxy · Fixture A' if state['active'] else None}))
 elif args == ['node', 'list', '--json']:
     print(json.dumps(nodes))

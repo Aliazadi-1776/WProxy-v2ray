@@ -14,6 +14,7 @@ const CTL = GLib.file_test(USER_CTL, GLib.FileTest.IS_EXECUTABLE)
     ? USER_CTL
     : (GLib.find_program_in_path('wproxyctl') ?? '/usr/bin/wproxyctl');
 const MANAGER = GLib.find_program_in_path('wproxy-manager') ?? '/usr/bin/wproxy-manager';
+const ADMIN_HELPER = '/usr/libexec/wproxy-admin';
 
 function spawn(args, callback = null) {
     try {
@@ -259,7 +260,7 @@ class WProxyToggle extends QuickSettings.QuickMenuToggle {
 
         if (!this.checked) {
             this._busy = true;
-            spawn([CTL, 'nm', 'down'], (_ok, _out, err) => {
+            spawn(['pkexec', ADMIN_HELPER, 'down'], (_ok, _out, err) => {
                 this._busy = false;
                 if (err.trim())
                     this._notifyError(err.trim());
@@ -279,29 +280,11 @@ class WProxyToggle extends QuickSettings.QuickMenuToggle {
         });
     }
 
-    _connectWithAutoSync(id, retried = false) {
-        spawn([CTL, 'nm', 'up', id], (ok, _out, err) => {
-            if (ok) {
-                this._finishConnect(id, true, '');
-                return;
-            }
-
-            const message = err.trim() || 'Could not connect';
-            const needsSync = !retried && /sync|profile|uuid|unknown connection|not found/i.test(message);
-            if (!needsSync) {
-                this._finishConnect(id, false, message);
-                return;
-            }
-
-            // Subscriptions can create nodes before their NetworkManager profiles exist.
-            // Ask Polkit for permission, sync once, and retry the selected server.
-            spawn(['pkexec', CTL, 'nm', 'sync'], (syncOk, _syncOut, syncErr) => {
-                if (!syncOk) {
-                    this._finishConnect(id, false,
-                        syncErr.trim() || 'NetworkManager sync was cancelled');
-                    return;
-                }
-                this._connectWithAutoSync(id, true);
+    _connectWithAdmin(id) {
+        jsonCommand([CTL, 'settings', 'show', '--json'], (settings) => {
+            const operation = settings?.remember_authorization === true ? 'up-remember' : 'up';
+            spawn(['pkexec', ADMIN_HELPER, operation, id], (ok, _out, err) => {
+                this._finishConnect(id, ok, err.trim() || (ok ? '' : 'Could not connect'));
             });
         });
     }
@@ -325,7 +308,7 @@ class WProxyToggle extends QuickSettings.QuickMenuToggle {
         this._busy = true;
         this._connectingNodeId = id;
         this._renderNodes();
-        this._connectWithAutoSync(id, false);
+        this._connectWithAdmin(id);
     }
 
     _updateSubscriptions() {

@@ -49,6 +49,15 @@ class FastestServerTests(unittest.TestCase):
         with patch.object(ctl, "verify_node_https", return_value=None):
             self.assertIsNone(ctl.fastest_verified_node(nodes, rows))
 
+    def test_https_verification_can_recover_from_blocked_tcp_probe(self):
+        nodes = [{"id": "hidden", "name": "Hidden endpoint"}]
+        rows = [{**nodes[0], "latency_ms": None}]
+        with patch.object(ctl, "verify_node_https", return_value=87):
+            best = ctl.fastest_verified_node(nodes, rows)
+        self.assertEqual(best["id"], "hidden")
+        self.assertEqual(best["latency_ms"], 87)
+        self.assertTrue(best["verified"])
+
 
 class UpdateTests(unittest.TestCase):
     def release(self, version="9.8.7"):

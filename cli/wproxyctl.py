@@ -1461,7 +1461,7 @@ def fastest_ping(rows):
 
 
 def verify_node_https(node, timeout=5.0):
-    """Check the real proxy before changing system routes; never use a direct fallback."""
+    """Check HTTPS through the real proxy without changing system routes."""
     timeout = min(15.0, max(1.0, timeout))
     try:
         with tempfile.TemporaryDirectory(prefix="wproxy-probe-") as directory:
@@ -1538,11 +1538,20 @@ def windows_connect(store, node_id):
 
 
 def fastest_verified_node(nodes, rows, timeout=5.0):
-    reachable = sorted((row for row in rows if row["latency_ms"] is not None), key=lambda row: row["latency_ms"])
     by_id = {node["id"]: node for node in nodes}
+    # A blocked TCP probe does not prove that a proxy is dead. Some providers
+    # still carry a complete HTTPS tunnel while refusing the bare endpoint
+    # check. Rank responsive endpoints first, then verify the remaining saved
+    # nodes with the real local proxy probe instead of silently discarding them.
+    reachable = sorted(
+        (row for row in rows if row["latency_ms"] is not None and row["id"] in by_id),
+        key=lambda row: row["latency_ms"],
+    )
+    unmeasured = [row for row in rows if row["latency_ms"] is None and row["id"] in by_id]
+    candidates = reachable + unmeasured
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-        for start in range(0, len(reachable), 3):
-            batch = reachable[start:start + 3]
+        for start in range(0, len(candidates), 3):
+            batch = candidates[start:start + 3]
             latencies = list(pool.map(lambda row: verify_node_https(by_id[row["id"]], timeout), batch))
             verified = [{**row, "latency_ms": latency, "verified": True}
                         for row, latency in zip(batch, latencies) if latency is not None]

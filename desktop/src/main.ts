@@ -4,7 +4,7 @@ import { animate } from "motion/mini";
 import logoUrl from "../../icons/wproxy.svg?url";
 import "./styles.css";
 
-type Page = "dashboard" | "servers" | "subscriptions" | "add" | "routing" | "settings";
+type Page = "dashboard" | "servers" | "subscriptions" | "add" | "routing" | "tools" | "settings";
 type Platform = "windows" | "linux";
 type RoutingMode = "all" | "bypass" | "only";
 
@@ -36,6 +36,12 @@ interface TunnelStatus {
   verified?: boolean;
   name: string | null;
   node_id: string | null;
+  engine?: string | null;
+  protocol?: string | null;
+  rx_bytes?: number;
+  tx_bytes?: number;
+  connected_seconds?: number;
+  core_memory_bytes?: number;
 }
 
 interface RoutingPolicy {
@@ -68,6 +74,12 @@ interface ApplicationEntry {
   running: boolean;
 }
 
+interface CoreInfo {
+  engine: string;
+  available: boolean;
+  version: string | null;
+}
+
 const isTauri = "__TAURI_INTERNALS__" in window;
 const applicationRoot = document.querySelector<HTMLDivElement>("#app");
 if (!applicationRoot) throw new Error("WProxy application root is missing");
@@ -75,6 +87,8 @@ const app: HTMLDivElement = applicationRoot;
 let automaticUpdateStarted = false;
 let updateInProgress = false;
 let previousPage: Page = "dashboard";
+let telemetrySample: { at: number; rx: number; tx: number; nodeId: string | null } | null = null;
+let telemetryInFlight = false;
 
 const state = {
   page: "dashboard" as Page,
@@ -94,7 +108,11 @@ const state = {
   loading: true,
   error: "",
   updateLabel: "Ready",
+  downloadRate: 0,
+  uploadRate: 0,
   applications: [] as ApplicationEntry[],
+  cores: [] as CoreInfo[],
+  diagnostic: "Not run" as string,
   applicationPickerOpen: false,
   applicationPickerLoading: false,
   applicationSearch: "",
@@ -118,6 +136,7 @@ const icons = {
   update: '<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8"/><path d="M20 3v5h-5"/>',
   x: '<path d="m6 6 12 12M18 6 6 18"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  tools: '<path d="m14.7 6.3 3-3a5 5 0 0 1-6.4 6.4l-6.6 6.6a2 2 0 0 0 2.8 2.8l6.6-6.6a5 5 0 0 1 6.4-6.4l-3 3z"/>',
 } as const;
 
 function icon(name: keyof typeof icons, size = 18): string {
@@ -155,6 +174,11 @@ function demoSnapshot(): void {
   ];
   state.routing = { version: 1, mode: "bypass", domains: ["internal.example.com"], apps: ["C:/Program Files/Firefox/firefox.exe"] };
   state.preferences = { auto_update: true, remember_authorization: true };
+  state.cores = [
+    { engine: "sing-box", available: true, version: "1.14.4" },
+    { engine: "xray", available: true, version: "26.9.30" },
+    { engine: "mihomo", available: true, version: "1.19.33" },
+  ];
   state.pings = new Map([["19a2c0d1a7bb31f0", 42], ["a4b8fd9ae231c201", 68], ["bd70f2051d103c62", 121]]);
 }
 
@@ -166,18 +190,20 @@ async function loadSnapshot(silent = false): Promise<void> {
       demoSnapshot();
     } else {
       state.platform = await invoke<Platform>("platform");
-      const [nodes, subscriptions, status, routing, preferences] = await Promise.all([
+      const [nodes, subscriptions, status, routing, preferences, cores] = await Promise.all([
         ctl<NodeRecord[]>(["node", "list", "--json"]),
         ctl<Subscription[]>(["sub", "list", "--json"]),
         invoke<CliOutput>("tunnel_status").then(parseJson<TunnelStatus>),
         ctl<RoutingPolicy>(["routing", "show", "--json"]),
         ctl<Preferences>(["settings", "show", "--json"]),
+        ctl<CoreInfo[]>(["core", "list", "--json"]),
       ]);
       state.nodes = nodes;
       state.subscriptions = subscriptions;
-      state.status = status;
+      applyTunnelStatus(status);
       state.routing = routing;
       state.preferences = preferences;
+      state.cores = cores;
       if (state.selectedNode && !nodes.some((node) => node.id === state.selectedNode)) state.selectedNode = null;
     }
   } catch (error) {
@@ -189,6 +215,73 @@ async function loadSnapshot(silent = false): Promise<void> {
       automaticUpdateStarted = true;
       window.setTimeout(() => void runAutomaticUpdate(), 800);
     }
+  }
+}
+
+function applyTunnelStatus(status: TunnelStatus): void {
+  const now = performance.now();
+  const rx = Math.max(0, status.rx_bytes || 0);
+  const tx = Math.max(0, status.tx_bytes || 0);
+  if (status.active && telemetrySample?.nodeId === status.node_id) {
+    const seconds = Math.max(0.25, (now - telemetrySample.at) / 1000);
+    state.downloadRate = Math.max(0, (rx - telemetrySample.rx) / seconds);
+    state.uploadRate = Math.max(0, (tx - telemetrySample.tx) / seconds);
+  } else {
+    state.downloadRate = 0;
+    state.uploadRate = 0;
+  }
+  telemetrySample = status.active ? { at: now, rx, tx, nodeId: status.node_id } : null;
+  state.status = status;
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
+  const amount = value / 1024 ** index;
+  return `${amount >= 100 || index === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[index]}`;
+}
+
+function formatRate(value: number): string {
+  return `${formatBytes(value)}/s`;
+}
+
+function formatDuration(value: number): string {
+  const seconds = Math.max(0, Math.floor(value || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m ${seconds % 60}s`;
+}
+
+function updateTelemetryDom(): void {
+  const values: Record<string, string> = {
+    "download-rate": formatRate(state.downloadRate),
+    "upload-rate": formatRate(state.uploadRate),
+    "download-total": formatBytes(state.status.rx_bytes || 0),
+    "upload-total": formatBytes(state.status.tx_bytes || 0),
+    "session-detail": state.status.active
+      ? `${state.status.engine || "Core"} · ${formatDuration(state.status.connected_seconds || 0)} · ${formatBytes(state.status.core_memory_bytes || 0)} RAM`
+      : state.platform === "windows" ? "Windows TUN ready" : "NetworkManager ready",
+  };
+  Object.entries(values).forEach(([key, value]) => {
+    const element = app.querySelector<HTMLElement>(`[data-telemetry="${key}"]`);
+    if (element) element.textContent = value;
+  });
+}
+
+async function refreshTelemetry(): Promise<void> {
+  if (!isTauri || telemetryInFlight || state.busy || document.visibilityState !== "visible") return;
+  telemetryInFlight = true;
+  try {
+    const status = parseJson<TunnelStatus>(await invoke<CliOutput>("tunnel_status"));
+    const connectionChanged = status.active !== state.status.active || status.node_id !== state.status.node_id;
+    applyTunnelStatus(status);
+    if (connectionChanged) render();
+    else updateTelemetryDom();
+  } catch (error) {
+    console.warn("WProxy live telemetry is temporarily unavailable", error);
+  } finally {
+    telemetryInFlight = false;
   }
 }
 
@@ -204,6 +297,7 @@ function navItem(page: Page, label: string, iconName: keyof typeof icons): strin
 }
 
 function connectionPill(): string {
+  if (!isTauri) return `<div class="connection-pill" role="status"><span class="connection-pulse"></span><span><strong>Design preview</strong><small>Connections require the installed app</small></span></div>`;
   const connected = state.status.active;
   const progress = state.connectionProgress;
   const label = progress ? connectionProgressLabel() : connected ? "Connected" : "Disconnected";
@@ -228,12 +322,13 @@ function renderShell(content: string): void {
         ${navItem("subscriptions", "Subscriptions", "subscriptions")}
         ${navItem("add", "Add connection", "add")}
         ${navItem("routing", "Split routing", "routing")}
+        ${navItem("tools", "Tools", "tools")}
       </nav>
       <div class="sidebar-footer">
         <button class="nav-item${state.page === "settings" ? " is-active" : ""}" data-page="settings">
           <span class="nav-icon">${icon("settings", 17)}</span><span>Settings</span>
         </button>
-        <div class="version-row"><span>WProxy 2.8.4</span><span>${state.platform === "windows" ? "Windows" : "Linux"}</span></div>
+        <div class="version-row"><span>WProxy 2.8.4</span><span>${!isTauri ? "Preview" : state.platform === "windows" ? "Windows" : "Linux"}</span></div>
       </div>
     </aside>
     <section class="workspace">
@@ -260,12 +355,12 @@ function runInterfaceMotion(): void {
     previousPage = state.page;
     return;
   }
-  const pageOrder: Page[] = ["dashboard", "servers", "subscriptions", "add", "routing", "settings"];
+  const pageOrder: Page[] = ["dashboard", "servers", "subscriptions", "add", "routing", "tools", "settings"];
   const previousIndex = pageOrder.indexOf(previousPage);
   const currentIndex = pageOrder.indexOf(state.page);
   const direction = currentIndex === previousIndex ? 0 : currentIndex > previousIndex ? 1 : -1;
   const surfaces = app.querySelectorAll<HTMLElement>(
-    ".dashboard-grid > *, .connection-hero, .server-row, .subscription-card, .mode-card, .route-card, .form-card, .settings-card, .about-card",
+    ".dashboard-grid > *, .connection-hero, .server-row, .subscription-card, .mode-card, .route-card, .form-card, .settings-card, .about-card, .tool-card, .engine-card",
   );
   surfaces.forEach((surface, index) => {
     animate(surface, { opacity: [0, 1], transform: [`translateX(${direction * 14}px) translateY(6px) scale(.992)`, "translateX(0) translateY(0) scale(1)"] }, {
@@ -281,7 +376,7 @@ function runInterfaceMotion(): void {
   if (backdrop) animate(backdrop, { opacity: [0, 1] }, { duration: 0.16 });
   if (picker) animate(picker, { opacity: [0, 1], transform: ["translateY(18px) scale(.975)", "translateY(0) scale(1)"] }, { duration: 0.34, ease: [0.22, 1, 0.36, 1] });
   const marker = app.querySelector<HTMLElement>(".nav-marker");
-  const navigationPages = pageOrder.slice(0, 5);
+  const navigationPages = pageOrder.slice(0, 6);
   const markerFrom = Math.max(0, navigationPages.indexOf(previousPage)) * 54;
   const markerTo = Math.max(0, navigationPages.indexOf(state.page)) * 54;
   if (marker && state.page !== "settings") {
@@ -302,7 +397,7 @@ function runInterfaceMotion(): void {
 }
 
 function pageTitle(): string {
-  return ({ dashboard: "Dashboard", servers: "Servers", subscriptions: "Subscriptions", add: "Add connection", routing: "Split routing", settings: "Settings" })[state.page];
+  return ({ dashboard: "Dashboard", servers: "Servers", subscriptions: "Subscriptions", add: "Add connection", routing: "Split routing", tools: "Tools", settings: "Settings" })[state.page];
 }
 
 function pageSubtitle(): string {
@@ -312,6 +407,7 @@ function pageSubtitle(): string {
     subscriptions: "Keep remote server lists current in one place.",
     add: "Paste a V2Ray-compatible link. It stays on this device.",
     routing: state.platform === "linux" ? "Keep Linux app and site routing under control." : "Route Windows applications and sites exactly where you want.",
+    tools: "Inspect engines, the active session, and real connection readiness.",
     settings: "Updates, permissions, and platform details.",
   })[state.page];
 }
@@ -414,10 +510,13 @@ function dashboardPage(): string {
       <p>${state.routing.apps.length} apps · ${state.routing.domains.length} sites</p>
     </article>
 
-    <article class="dashboard-card health-summary">
-      <div class="dashboard-card-head"><span class="tile-icon">${icon("gauge", 18)}</span><button class="text-button" data-action="ping" ${state.busy || !state.nodes.length ? "disabled" : ""}>Test now</button></div>
-      <span class="tile-label">Fastest response</span><strong>${fastest ? `${fastest[1]} ms` : "Not tested"}</strong>
-      <p>${fastestNode ? escapeHtml(fastestNode.name) : `${tested} of ${state.nodes.length} tested`}</p>
+    <article class="dashboard-card traffic-summary">
+      <div class="dashboard-card-head"><span class="tile-icon">${icon("gauge", 18)}</span><span class="live-caption">LIVE</span></div>
+      <div class="traffic-pair">
+        <div><span>↓ Download</span><strong data-telemetry="download-rate">${formatRate(state.downloadRate)}</strong></div>
+        <div><span>↑ Upload</span><strong data-telemetry="upload-rate">${formatRate(state.uploadRate)}</strong></div>
+      </div>
+      <p><span data-telemetry="download-total">${formatBytes(state.status.rx_bytes || 0)}</span> received · <span data-telemetry="upload-total">${formatBytes(state.status.tx_bytes || 0)}</span> sent</p>
     </article>
 
     <article class="dashboard-card fleet-summary">
@@ -428,13 +527,13 @@ function dashboardPage(): string {
 
     <article class="dashboard-recommendation">
       <div class="recommendation-copy"><span class="eyebrow">NEXT BEST ROUTE</span><h3>${suggested ? escapeHtml(suggested.name) : "Add your first server"}</h3><p>${suggested ? `${escapeHtml(suggested.source_name || "Manual")} · ${suggested.engine ? escapeHtml(suggested.engine) : "Auto engine"}` : "Import a link or subscription to get started."}</p></div>
-      ${suggested ? `<div class="recommendation-latency"><span class="latency-dot"></span>${latencyFor(suggested)}</div><button class="button secondary" data-action="connect" data-node="${suggested.id}" ${state.busy || suggested.id === state.status.node_id ? "disabled" : ""}>${connected ? "Switch" : "Connect"}</button>` : '<button class="button accent" data-page="add">Add server</button>'}
+      ${suggested ? `<div class="recommendation-latency"><span class="latency-dot"></span>${fastestNode ? latencyFor(suggested) : `${tested} tested`}</div><button class="button secondary" data-action="${fastestNode ? "connect" : "ping"}" ${fastestNode ? `data-node="${suggested.id}"` : ""} ${state.busy || suggested.id === state.status.node_id ? "disabled" : ""}>${fastestNode ? connected ? "Switch" : "Connect" : "Find fastest"}</button>` : '<button class="button accent" data-page="add">Add server</button>'}
     </article>
 
     <article class="dashboard-card privacy-summary">
       <div class="dashboard-card-head"><span class="tile-icon">${icon("shield", 18)}</span><span class="live-dot ${connected ? "online" : ""}"></span></div>
       <span class="tile-label">System status</span><strong>${connected ? "Protected" : "Direct"}</strong>
-      <p>${state.platform === "windows" ? "Windows TUN" : "NetworkManager"}</p>
+      <p data-telemetry="session-detail">${connected ? `${escapeHtml(state.status.engine || "Core")} · ${formatDuration(state.status.connected_seconds || 0)} · ${formatBytes(state.status.core_memory_bytes || 0)} RAM` : state.platform === "windows" ? "Windows TUN ready" : "NetworkManager ready"}</p>
     </article>
   </section>`;
 }
@@ -556,10 +655,47 @@ function settingsPage(): string {
   </section>`;
 }
 
+function toolsPage(): string {
+  const activeNode = state.nodes.find((node) => node.id === state.status.node_id);
+  const routingItems = state.routing.apps.length + state.routing.domains.length;
+  const engines = state.cores.map((core) => {
+    const compatible = state.nodes.filter((node) => node.engine === core.engine).length;
+    return `<article class="engine-card${core.available ? " is-ready" : ""}">
+      <div class="engine-head"><span class="engine-mark">${escapeHtml(core.engine.slice(0, 1).toUpperCase())}</span><span class="status-chip ${core.available ? "success" : ""}">${core.available ? "Ready" : "Missing"}</span></div>
+      <h3>${escapeHtml(core.engine)}</h3><p>${core.version ? `v${escapeHtml(core.version)}` : "Not installed"}</p>
+      <small>${compatible} compatible ${compatible === 1 ? "route" : "routes"}</small>
+    </article>`;
+  }).join("");
+  return `<section class="tools-layout constrained">
+    <section class="tool-card tool-overview">
+      <div><span class="eyebrow">SYSTEM READINESS</span><h2>${state.cores.some((core) => core.available) ? "Connection engines are ready" : "No connection engine found"}</h2><p>WProxy validates a route with real HTTPS before Quick Connect changes your tunnel.</p></div>
+      <button class="button accent" data-action="verify-best" ${state.busy || !state.nodes.length ? "disabled" : ""}>${icon("gauge", 17)} Verify fastest route</button>
+    </section>
+    <div class="engine-grid">${engines || '<div class="empty-list">Core inventory is unavailable.</div>'}</div>
+    <div class="tools-detail-grid">
+      <article class="tool-card">
+        <div class="dashboard-card-head"><span class="tile-icon">${icon("shield", 18)}</span><span class="live-dot ${state.status.active ? "online" : ""}"></span></div>
+        <span class="tile-label">ACTIVE SESSION</span><h3>${state.status.active ? escapeHtml(activeNode?.name || state.status.name || "Private tunnel") : "Direct connection"}</h3>
+        <dl class="diagnostic-list"><div><dt>Engine</dt><dd>${escapeHtml(state.status.engine || activeNode?.engine || "—")}</dd></div><div><dt>Uptime</dt><dd>${state.status.active ? formatDuration(state.status.connected_seconds || 0) : "—"}</dd></div><div><dt>Traffic</dt><dd>${formatBytes((state.status.rx_bytes || 0) + (state.status.tx_bytes || 0))}</dd></div></dl>
+      </article>
+      <article class="tool-card">
+        <div class="dashboard-card-head"><span class="tile-icon">${icon("routing", 18)}</span><button class="text-button" data-page="routing">Manage</button></div>
+        <span class="tile-label">ROUTING POLICY</span><h3>${escapeHtml(routingModeLabel())}</h3>
+        <dl class="diagnostic-list"><div><dt>Applications</dt><dd>${state.routing.apps.length}</dd></div><div><dt>Sites</dt><dd>${state.routing.domains.length}</dd></div><div><dt>Applied items</dt><dd>${routingItems}</dd></div></dl>
+      </article>
+      <article class="tool-card">
+        <div class="dashboard-card-head"><span class="tile-icon">${icon("gauge", 18)}</span><span class="status-chip">HTTPS</span></div>
+        <span class="tile-label">LAST DIAGNOSTIC</span><h3>${escapeHtml(state.diagnostic)}</h3>
+        <p>Verification starts a local core probe and never falls back to the direct connection.</p>
+      </article>
+    </div>
+  </section>`;
+}
+
 function render(): void {
   if (state.loading) return renderShell(loadingView());
   if (state.error) return renderShell(errorView());
-  const content = ({ dashboard: dashboardPage, servers: serversPage, subscriptions: subscriptionsPage, add: addPage, routing: routingPage, settings: settingsPage })[state.page]();
+  const content = ({ dashboard: dashboardPage, servers: serversPage, subscriptions: subscriptionsPage, add: addPage, routing: routingPage, tools: toolsPage, settings: settingsPage })[state.page]();
   renderShell(content);
 }
 
@@ -602,7 +738,6 @@ async function connect(nodeId: string): Promise<void> {
     state.status = { active: true, verified: true, name: node?.name ?? "Demo server", node_id: nodeId };
     return;
   }
-  if (state.status.active && state.status.node_id === nodeId) return;
   state.connectionProgress = { switching: state.status.active, nodeId };
   render();
   try {
@@ -664,6 +799,7 @@ app.addEventListener("click", async (event) => {
     previousPage = state.page;
     state.page = page;
     render();
+    if (page === "dashboard") void refreshTelemetry();
     return;
   }
   if (target.dataset.selectNode) { state.selectedNode = target.dataset.selectNode; render(); return; }
@@ -673,11 +809,25 @@ app.addEventListener("click", async (event) => {
 
   const command = target.dataset.action;
   if (!command) return;
+  if (!isTauri && ["connect", "quick-connect", "disconnect", "ping", "verify-best"].includes(command)) {
+    toast("This browser is a design preview. Open the installed WProxy app to use your real connections.", "error");
+    return;
+  }
   if (command === "refresh") return void loadSnapshot();
   if (command === "connect" && target.dataset.node) return void action("Connected", () => connect(target.dataset.node!));
   if (command === "quick-connect") return void action("Connected to the fastest server", quickConnect);
   if (command === "disconnect") return void action("Disconnected", disconnect);
   if (command === "ping") return void action("Latency test complete", pingAll);
+  if (command === "verify-best") return void action("Fastest route verified", async () => {
+    if (!isTauri) {
+      const first = state.nodes[0];
+      state.diagnostic = first ? `${first.name} · verified` : "No routes";
+      return;
+    }
+    const best = await ctl<PingResult>(["node", "best", "--verify", "--json", "--timeout", "3"]);
+    state.pings.set(best.id, best.latency_ms);
+    state.diagnostic = `${best.name} · ${best.latency_ms} ms`;
+  });
   if (command === "remove-node" && target.dataset.node) return void action("Server removed", async () => {
     if (isTauri) await invoke<CliOutput>("run_ctl", { args: ["node", "remove", target.dataset.node!] });
     else state.nodes = state.nodes.filter((node) => node.id !== target.dataset.node);
@@ -933,3 +1083,6 @@ app.addEventListener("change", async (event) => {
 });
 
 void loadSnapshot();
+window.setInterval(() => void refreshTelemetry(), 3500);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refreshTelemetry(); });
+window.addEventListener("focus", () => void refreshTelemetry());

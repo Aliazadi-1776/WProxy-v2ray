@@ -434,6 +434,7 @@ fn valid_ctl_args(args: &[String]) -> bool {
             }
             _ => false,
         },
+        "core" => args.len() == 3 && args[1] == "list" && is_json_tail(args),
         "update" if args.len() >= 2 => match args[1].as_str() {
             "check" | "download" => args.iter().all(|value| {
                 !value.starts_with('-')
@@ -512,11 +513,22 @@ async fn import_config(text: String, name: Option<String>) -> Result<CliOutput, 
 }
 
 #[tauri::command]
-fn tunnel_status() -> Result<CliOutput, String> {
+async fn tunnel_status() -> Result<CliOutput, String> {
+    tauri::async_runtime::spawn_blocking(tunnel_status_command)
+        .await
+        .map_err(|error| format!("Could not read the tunnel status: {error}"))?
+}
+
+fn tunnel_status_command() -> Result<CliOutput, String> {
     #[cfg(windows)]
-    let args = vec!["windows".into(), "status".into(), "--json".into()];
+    let args = vec![
+        "windows".into(),
+        "status".into(),
+        "--json".into(),
+        "--telemetry".into(),
+    ];
     #[cfg(not(windows))]
-    let args = vec!["status".into(), "--json".into()];
+    let args = vec!["status".into(), "--json".into(), "--telemetry".into()];
     execute(ctl_command()?, &args)
 }
 
@@ -736,5 +748,27 @@ mod tests {
             "[Desktop Entry]\nType=Application\nName=Flatpak\nExec=flatpak run example.App\n"
         )
         .is_none());
+    }
+
+    #[test]
+    fn linux_application_scan_returns_existing_absolute_executables() {
+        let applications = linux_applications();
+        assert!(!applications.is_empty());
+        assert!(applications.iter().all(|entry| {
+            let path = Path::new(&entry.path);
+            path.is_absolute() && path.is_file()
+        }));
+        assert!(applications
+            .windows(2)
+            .all(|pair| pair[0].running || !pair[1].running));
+    }
+
+    #[test]
+    fn command_guard_accepts_verified_quick_connect() {
+        let args = ["node", "best", "--verify", "--json", "--timeout", "2"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert!(valid_ctl_args(&args));
     }
 }

@@ -1001,8 +1001,10 @@ def windows_state():
     return {
         "active": True,
         "verified": bool(state.get("verified")),
+        "pid": pid,
         "node_id": state.get("node_id"),
         "name": state.get("name"),
+        "connected_at": state.get("connected_at"),
         "checked_at": state.get("checked_at"),
         "engine": state.get("engine", "xray"),
     }
@@ -1119,7 +1121,8 @@ def windows_up(store, node_id, plan=None):
         )
     (runtime / "xray.pid").write_text(str(process.pid) + "\n", encoding="ascii")
     (runtime / "state.json").write_text(json.dumps({
-        "node_id": node["id"], "name": node["name"], "verified": False, "engine": plan.engine
+        "node_id": node["id"], "name": node["name"], "verified": False,
+        "engine": plan.engine, "connected_at": int(time.time()),
     }, ensure_ascii=False), encoding="utf-8")
     ready, detail = wait_for_windows_tunnel(process)
     if ready:
@@ -1140,7 +1143,8 @@ def windows_up(store, node_id, plan=None):
         )
     (runtime / "state.json").write_text(json.dumps({
         "node_id": node["id"], "name": node["name"], "verified": True,
-        "checked_at": int(time.time()), "https_probe": detail, "engine": plan.engine,
+        "checked_at": int(time.time()), "connected_at": int(time.time()),
+        "https_probe": detail, "engine": plan.engine,
     }, ensure_ascii=False), encoding="utf-8")
     try:
         (runtime / "last-error.txt").unlink()
@@ -1415,6 +1419,92 @@ def status_json(store):
         "subscriptions": len(store["subs"]),
         "routing_mode": normalize_routing_policy(store.get("routing"))["mode"],
     }
+
+
+def read_counter(path):
+    try:
+        return max(0, int(Path(path).read_text(encoding="ascii").strip()))
+    except (OSError, ValueError):
+        return 0
+
+
+def linux_core_telemetry():
+    """Read the WProxy-owned core without privileged polling or extra daemons."""
+    try:
+        ticks = os.sysconf("SC_CLK_TCK")
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        system_uptime = float(Path("/proc/uptime").read_text(encoding="ascii").split()[0])
+    except (OSError, ValueError):
+        return {"connected_seconds": 0, "core_memory_bytes": 0}
+    for process in Path("/proc").iterdir():
+        if not process.name.isdigit():
+            continue
+        try:
+            command = (process / "cmdline").read_bytes()
+            if b"/run/NetworkManager/wproxy/" not in command:
+                continue
+            # systemd-run's argv also names the config/log directory. Its
+            # memory is not the core's memory; select the actual engine argv0.
+            program = Path(os.fsdecode(command.split(b"\0", 1)[0])).name
+            if program not in ("xray", "sing-box", "mihomo"):
+                continue
+            stat = (process / "stat").read_text(encoding="ascii")
+            fields = stat[stat.rfind(")") + 2:].split()
+            start_ticks = int(fields[19])
+            resident_pages = int((process / "statm").read_text(encoding="ascii").split()[1])
+            elapsed = max(0, int(system_uptime - start_ticks / ticks))
+            return {"connected_seconds": elapsed, "core_memory_bytes": resident_pages * page_size}
+        except (OSError, ValueError, IndexError):
+            continue
+    return {"connected_seconds": 0, "core_memory_bytes": 0}
+
+
+def linux_telemetry(store, status):
+    data = {
+        "rx_bytes": read_counter("/sys/class/net/wproxy0/statistics/rx_bytes"),
+        "tx_bytes": read_counter("/sys/class/net/wproxy0/statistics/tx_bytes"),
+        "connected_seconds": 0,
+        "core_memory_bytes": 0,
+        "engine": None,
+        "protocol": None,
+    }
+    if not status.get("active"):
+        return data
+    node = next((item for item in store["nodes"] if item["id"] == status.get("node_id")), None)
+    if node:
+        data["engine"] = node_engine_info(node["uri"])
+        data["protocol"] = node_protocol_info(node["uri"])
+    data.update(linux_core_telemetry())
+    return data
+
+
+def windows_telemetry(status):
+    data = {"rx_bytes": 0, "tx_bytes": 0, "connected_seconds": 0, "core_memory_bytes": 0}
+    if not status.get("active"):
+        return data
+    connected_at = status.get("connected_at")
+    if isinstance(connected_at, (int, float)):
+        data["connected_seconds"] = max(0, int(time.time() - connected_at))
+    pid = status.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        return data
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    if not powershell:
+        return data
+    script = (
+        "$ErrorActionPreference='SilentlyContinue';"
+        f"$p=Get-Process -Id {pid};$s=Get-NetAdapterStatistics -Name 'wproxy';"
+        "[ordered]@{rx=[int64]$s.ReceivedBytes;tx=[int64]$s.SentBytes;memory=[int64]$p.WorkingSet64}|ConvertTo-Json -Compress"
+    )
+    result = run([powershell, "-NoProfile", "-NonInteractive", "-Command", script], capture=True)
+    try:
+        payload = json.loads(result.stdout) if result.returncode == 0 else {}
+        data["rx_bytes"] = max(0, int(payload.get("rx") or 0))
+        data["tx_bytes"] = max(0, int(payload.get("tx") or 0))
+        data["core_memory_bytes"] = max(0, int(payload.get("memory") or 0))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return data
 
 
 def ping_node(node, timeout):
@@ -2048,9 +2138,9 @@ def build_parser():
     a = ws.add_parser("up"); a.add_argument("id")
     a = ws.add_parser("connect"); a.add_argument("id")
     ws.add_parser("down")
-    a = ws.add_parser("status"); a.add_argument("--json", action="store_true")
+    a = ws.add_parser("status"); a.add_argument("--json", action="store_true"); a.add_argument("--telemetry", action="store_true")
 
-    a = sp.add_parser("status"); a.add_argument("--json", action="store_true")
+    a = sp.add_parser("status"); a.add_argument("--json", action="store_true"); a.add_argument("--telemetry", action="store_true")
     pc = sp.add_parser("core")
     cs = pc.add_subparsers(dest="action", required=True)
     a = cs.add_parser("list"); a.add_argument("--json", action="store_true")
@@ -2095,12 +2185,16 @@ def main():
             elif args.action == "down": windows_down()
             elif args.action == "status":
                 data = windows_state()
+                if args.telemetry:
+                    data.update(windows_telemetry(data))
                 if args.json:
                     print(json.dumps(data, ensure_ascii=False))
                 else:
                     print("connected" if data["active"] else "disconnected", data.get("name") or "")
         elif args.cmd == "status":
             data = status_json(store)
+            if args.telemetry:
+                data.update(linux_telemetry(store, data))
             if args.json: print(json.dumps(data, ensure_ascii=False))
             else: print("connected" if data["active"] else "disconnected", data.get("name") or "")
         elif args.cmd == "core":

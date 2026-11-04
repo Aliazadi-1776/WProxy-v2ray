@@ -539,7 +539,8 @@ textarea:focus-visible {
 }
 
 .section-block.constrained,
-.settings-layout.constrained {
+.settings-layout.constrained,
+.tools-layout.constrained {
   max-width: 920px;
 }
 
@@ -1416,6 +1417,41 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.live-caption {
+  color: #72e9a4;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.traffic-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 17px;
+}
+
+.traffic-pair > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.traffic-pair span {
+  color: var(--muted-2);
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.traffic-pair strong {
+  overflow: hidden;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dashboard-recommendation {
   display: grid;
   min-height: 132px;
@@ -1464,6 +1500,153 @@ textarea:focus {
   background: var(--green);
   box-shadow: 0 0 0 5px rgb(57 217 138 / 10%);
 }
+
+/* Engine and connection diagnostics */
+.tools-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.tool-card,
+.engine-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.tool-overview {
+  display: flex;
+  min-height: 132px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 23px;
+  border-color: #365779;
+  background: #172b40;
+}
+
+.tool-overview h2,
+.tool-card h3,
+.engine-card h3 {
+  margin: 0;
+  letter-spacing: -.025em;
+}
+
+.tool-overview h2 {
+  margin-top: 7px;
+  font-size: 22px;
+}
+
+.tool-overview p,
+.tool-card > p,
+.engine-card p,
+.engine-card small {
+  color: var(--muted);
+}
+
+.tool-overview p {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.engine-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.engine-card {
+  min-height: 154px;
+  padding: 17px;
+}
+
+.engine-card.is-ready {
+  border-color: #35566a;
+}
+
+.engine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.engine-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #39709b;
+  border-radius: 11px;
+  background: #1b4567;
+  color: #ddecff;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.engine-card h3 {
+  font-size: 16px;
+}
+
+.engine-card p {
+  margin: 5px 0 16px;
+  font-size: 10px;
+}
+
+.engine-card small {
+  font-size: 9px;
+}
+
+.tools-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tools-detail-grid .tool-card {
+  min-height: 222px;
+  padding: 18px;
+}
+
+.tool-card > h3 {
+  overflow: hidden;
+  margin-top: 6px;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-card > p {
+  margin: 12px 0 0;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.diagnostic-list {
+  display: grid;
+  gap: 8px;
+  margin: 17px 0 0;
+}
+
+.diagnostic-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.diagnostic-list dt,
+.diagnostic-list dd {
+  margin: 0;
+  font-size: 10px;
+}
+
+.diagnostic-list dt { color: var(--muted-2); }
+.diagnostic-list dd { color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Application picker */
 .picker-backdrop {
@@ -1638,6 +1821,8 @@ textarea:focus {
   .dashboard-main-action { grid-column: 1 / -1; width: 100%; }
   .dashboard-card { grid-column: span 6; }
   .dashboard-recommendation { grid-column: 1 / -1; }
+  .engine-grid,
+  .tools-detail-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

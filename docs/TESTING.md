@@ -1,5 +1,20 @@
 # Test coverage
 
+## 2.8.4 installed connection and recovery verification
+
+The installed controller/helper/service reproduced a NetworkManager 1.58.1
+profile-save assertion and a failed server switch. The corrected path loads
+keyfiles without persistent modifications, reads fresh file routing and waits
+for plugin teardown. Installed Connect → YouTube → Switch → YouTube and the
+exact Quick Connect command subsequently passed. A separate bypass check kept
+ChatGPT/Codex direct while ordinary laptop traffic used a different exit IP;
+the complete YouTube homepage, thumbnail and four ICMP replies were received.
+NetworkManager did not restart during the corrected checks.
+
+See the [commands, measurements and limits](verification/2026-11-04-linux-connection.md).
+Native browser video playback and live Fedora SELinux/KDE acceptance remain
+unverified. The [Fedora guide](FEDORA.md) documents target-side diagnosis.
+
 ## 2.8.3 Linux route-collision acceptance
 
 The Linux runner selects a private `/30` that does not overlap existing Docker, Podman or LAN routes. The focused regression mocks a `172.19.0.0/16` Docker bridge and requires selection of `172.31.255.1/30`. Target acceptance on Ubuntu 26.10 additionally requires an active NetworkManager VPN, an address on `wproxy0` outside the Docker subnet, HTTPS 204 through the TUN, and a different egress address for a temporarily selected process.

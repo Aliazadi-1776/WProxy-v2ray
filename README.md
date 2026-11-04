@@ -315,7 +315,7 @@ Panel controls request Polkit authentication when new/changed subscription profi
 
 Deleting a node or subscription in **WProxy Manager** also synchronizes NetworkManager: its loaded WProxy entries are deleted from **Settings → VPN**, not just removed from `store.json`. Approve the Polkit dialog and close/reopen Settings if it was already open. With the CLI, run `sudo wproxyctl nm sync` after `node remove` or `sub remove`. This cleanup identifies WProxy by its service marker and deterministic per-user UUID; it does not delete unrelated VPN profiles.
 
-Routing changes apply on the next connection. The graphical manager saves and syncs them automatically; CLI changes need `sudo wproxyctl nm sync`. See [routing behavior, privacy implications and examples](docs/ROUTING.md).
+On Linux, the graphical manager applies routing changes to the active tunnel automatically and restores the previous connection if activation fails. After CLI changes, run `sudo wproxyctl nm sync` and reconnect to apply them. On Windows, routing changes apply on the next connection. See [routing behavior, privacy implications and examples](docs/ROUTING.md).
 
 ## Build and test
 
@@ -336,6 +336,10 @@ bash tests/headless-smoke.sh
 The GitHub Actions workflow builds the backend/editors and runs unit, syntax, shell-quoting and package checks. Desktop integration tests are separate. See [test coverage and limitations](docs/TESTING.md).
 
 ## Troubleshooting and removal
+
+Fedora users: see the [Fedora recovery guide](docs/FEDORA.md) for SELinux label
+checks, activation/switch failures, Plasma support and scoped authorization.
+[راهنمای فارسی فدورا](docs/FEDORA.fa.md)
 
 ```bash
 bash scripts/diagnose.sh

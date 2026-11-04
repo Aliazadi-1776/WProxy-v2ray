@@ -4,6 +4,10 @@
 - Replace manual executable-path entry with a searchable running/installed application picker on Linux and Windows. Prefer the real running executable so split routing matches packaged apps and launchers reliably.
 - Apply Linux routing changes to the active tunnel automatically. Validate a replacement before teardown, switch once, and restore the previous saved connection if activation fails.
 - Keep Quick Connect based on real HTTPS validation while reducing the per-batch probe delay for faster selection.
+- Avoid the NetworkManager profile-save assertion by loading root-owned keyfiles without subsequent persistent modifications; prefer current file routing over stale D-Bus data and wait for plugin teardown before replacement.
+- Read live tunnel traffic/session data and show actual core inventory in Tools. Refresh visible server state without blocking the desktop, and label browser-only previews explicitly.
+- Probe HTTPS even for endpoints whose bare TCP latency check times out, and keep installed-path connection/switch/YouTube diagnostics separate from UI previews.
+- Add English/Persian Fedora recovery instructions for SELinux, Plasma, authorization and real traffic checks; stop printing private configuration links in the diagnostic node listing.
 
 # 2.8.3
 

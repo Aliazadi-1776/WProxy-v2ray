@@ -2,6 +2,7 @@
 set -u
 
 echo "=== WProxy 2.8.4 diagnostic ==="
+echo 'Local diagnostics: review logs and remove private details before sharing.'
 echo
 
 echo "[NetworkManager]"
@@ -33,7 +34,7 @@ if command -v wproxyctl >/dev/null 2>&1; then
     wproxyctl --version 2>/dev/null || true
     wproxyctl status --json 2>/dev/null || true
     echo "Nodes:"
-    wproxyctl node list 2>/dev/null | sed -n '1,10p' || true
+    wproxyctl node list --json 2>/dev/null || true
 else
     echo "MISSING: /usr/bin/wproxyctl"
 fi

@@ -109,7 +109,11 @@ try {
     if (message.error) request.reject(new Error(JSON.stringify(message.error)));
     else request.resolve(message.result);
   });
-  await waitFor("document.querySelector('.server-row') !== null", "the real server list");
+  await waitFor(`document.querySelector('.dashboard-recommendation')?.textContent.includes(${JSON.stringify(fixtureName)})`, "the dashboard loaded from the real profile");
+  await assertLayout();
+  await screenshot("windows-dashboard-default.png");
+  await evaluate("document.querySelector('.navigation [data-page=servers]').click()");
+  await waitFor("document.querySelector('.server-row') !== null", "the real server list after navigation");
   assert.equal(await evaluate("window.__TAURI_INTERNALS__.invoke('platform')"), "windows");
   const bridge = await evaluate("window.__TAURI_INTERNALS__.invoke('run_ctl', {args:['node','list','--json']})");
   assert.equal(JSON.parse(bridge.stdout)[0].name, fixtureName);
@@ -202,7 +206,7 @@ try {
   await screenshot("windows-settings.png");
   await writeFile(path.join(outputDirectory, "desktop-result.json"), JSON.stringify({
     platform: "windows", installed: true, rendered: true, bridge: true,
-    addAndRemovePersisted: true, widths: [defaultWidth, 960], screenshots: tunnelUri ? 5 : 4,
+    dashboard: true, addAndRemovePersisted: true, widths: [defaultWidth, 960], screenshots: tunnelUri ? 7 : 5,
     uiTunnel,
     automaticUpdateChecksOnEnable: 2,
   }, null, 2));

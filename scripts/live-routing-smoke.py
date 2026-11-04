@@ -13,8 +13,10 @@ import ipaddress
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 
@@ -81,7 +83,7 @@ def apply_policy(store, policy):
 
 
 def connect(store, node_id):
-    CTL.nm_up(store, node_id)
+    CTL.nm_connect(store, node_id)
     status = CTL.status_json(store)
     if not status.get('active') or status.get('node_id') != node_id:
         raise RuntimeError('NetworkManager did not report the selected WProxy node as active')
@@ -130,6 +132,64 @@ def check_only_app(store, node_id, baseline, timeout):
     if unselected != baseline['primary']:
         raise AssertionError('Only-app mode unexpectedly proxied the unselected Python process')
     print('PASS  only-app: selected process proxied; unselected process stayed direct')
+    status = CTL.status_json(store)
+    telemetry = CTL.linux_telemetry(store, status)
+    if telemetry['rx_bytes'] <= 0 or telemetry['tx_bytes'] <= 0:
+        raise AssertionError('Tunnel traffic counters did not move during the selected app probe')
+    print('PASS  telemetry: live tunnel upload/download counters are non-zero')
+    if telemetry['core_memory_bytes'] > 0:
+        print('PASS  telemetry: active core memory and uptime are readable')
+    CTL.nm_down()
+
+
+def check_switch(store, node_id, baseline, timeout, switch_node_id):
+    if not switch_node_id or switch_node_id == node_id:
+        raise AssertionError('Switch case requires a different --switch-node')
+    curl_path = str(Path(shutil.which('curl')).resolve())
+    apply_policy(store, {'mode': 'only', 'domains': [], 'apps': [curl_path]})
+    connect(store, node_id)
+    first_route = retry_probe(curl_probe, SECONDARY_PROBE, timeout)
+    if first_route == baseline['secondary']:
+        raise AssertionError('The selected app was direct before the server switch')
+
+    stop = threading.Event()
+    direct_failures = []
+    direct_attempts = []
+
+    def monitor_direct_path():
+        while not stop.is_set():
+            try:
+                with socket.create_connection(('1.1.1.1', 443), timeout=1):
+                    direct_attempts.append(True)
+            except OSError as error:
+                direct_failures.append(str(error))
+            stop.wait(0.15)
+
+    monitor = threading.Thread(target=monitor_direct_path, daemon=True)
+    monitor.start()
+    started = time.monotonic()
+    try:
+        connect(store, switch_node_id)
+    finally:
+        stop.set()
+        monitor.join(timeout=2)
+    elapsed = time.monotonic() - started
+
+    status = CTL.status_json(store)
+    if status.get('node_id') != switch_node_id:
+        raise AssertionError('The replacement server did not become the active connection')
+    second_route = retry_probe(curl_probe, SECONDARY_PROBE, timeout)
+    unselected = python_probe(PRIMARY_PROBE, timeout)
+    if second_route == baseline['secondary']:
+        raise AssertionError('The selected app became direct after the server switch')
+    if unselected != baseline['primary']:
+        raise AssertionError('The unselected process stopped using the direct route after the switch')
+    if not direct_attempts:
+        raise AssertionError('The direct-path continuity monitor did not complete a probe')
+    if direct_failures:
+        raise AssertionError(f'The direct internet path dropped during the switch: {direct_failures[0]}')
+    print(f'PASS  switch: replacement active in {elapsed:.1f}s; selected app stayed proxied')
+    print(f'PASS  continuity: {len(direct_attempts)} direct probes survived the switch')
     CTL.nm_down()
 
 
@@ -164,9 +224,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--confirm', action='store_true', help='confirm temporary live network changes')
     parser.add_argument('--node', help='saved WProxy node ID; defaults to the first node')
+    parser.add_argument('--switch-node', help='second saved node ID used by the switch case')
+    parser.add_argument('--skip-preflight', action='store_true',
+                        help='use the explicitly selected, separately verified node without a full-tunnel preflight')
     parser.add_argument('--timeout', type=int, default=12)
     parser.add_argument(
-        '--case', choices=('all', 'only-empty', 'bypass-app', 'only-app', 'only-domain'),
+        '--case', choices=('all', 'only-empty', 'bypass-app', 'only-app', 'only-domain', 'switch'),
         default='all', help='run one routing case after the tunnel preflight',
     )
     args = parser.parse_args()
@@ -183,6 +246,12 @@ def main():
     original_policy = CTL.normalize_routing_policy(store.get('routing'))
     if args.node and not any(node['id'] == args.node for node in store['nodes']):
         parser.error('the selected node ID is not in the current user store')
+    if args.switch_node and not any(node['id'] == args.switch_node for node in store['nodes']):
+        parser.error('the switch node ID is not in the current user store')
+    if args.case == 'switch' and not args.switch_node:
+        parser.error('--case switch requires --switch-node')
+    if args.skip_preflight and not args.node:
+        parser.error('--skip-preflight requires --node')
     print('Checking direct baseline (the public IP is intentionally not printed)…')
     baseline = {
         'primary': python_probe(PRIMARY_PROBE, args.timeout),
@@ -190,17 +259,24 @@ def main():
     }
 
     try:
-        candidates = [node for node in store['nodes'] if not args.node or node['id'] == args.node]
-        node_id = find_working_node(store, candidates, baseline, args.timeout)
+        if args.skip_preflight:
+            node_id = args.node
+            print('Using the explicitly selected node; full-tunnel preflight skipped')
+        else:
+            candidates = [node for node in store['nodes'] if not args.node or node['id'] == args.node]
+            node_id = find_working_node(store, candidates, baseline, args.timeout)
         cases = {
             'only-empty': check_only_empty,
             'bypass-app': check_bypass_app,
             'only-app': check_only_app,
             'only-domain': check_only_domain,
         }
-        selected = cases if args.case == 'all' else {args.case: cases[args.case]}
-        for check in selected.values():
-            check(store, node_id, baseline, args.timeout)
+        if args.case == 'switch':
+            check_switch(store, node_id, baseline, args.timeout, args.switch_node)
+        else:
+            selected = cases if args.case == 'all' else {args.case: cases[args.case]}
+            for check in selected.values():
+                check(store, node_id, baseline, args.timeout)
     finally:
         CTL.nm_down()
         store = CTL.load_store()

@@ -1,3 +1,7 @@
+#include <glib.h>
+static gchar *test_profile_directory;
+#define WPROXY_SYSTEM_CONNECTIONS_DIR test_profile_directory
+#define WPROXY_RUNTIME_CONNECTIONS_DIR "/nonexistent-wproxy-test-runtime"
 #define main wproxy_service_main
 #include "../service/nm-wproxy-service.c"
 #undef main
@@ -39,6 +43,29 @@ static void test_profile_uri_lookup(void) {
     g_clear_pointer(&routing, g_free);
     g_assert_true(is_supported_routing(routing64));
     g_assert_false(is_supported_routing("bad=value"));
+
+    /* Reloading can leave an older VPN dictionary in NetworkManager. The
+     * service must use the root-owned profile refreshed by WProxy instead
+     * of requiring a second persistent save through the settings backend. */
+    test_profile_directory = directory;
+    NMConnection *connection = nm_simple_connection_new();
+    NMSetting *settings = nm_setting_connection_new();
+    g_object_set(settings,
+        NM_SETTING_CONNECTION_ID, "WProxy test",
+        NM_SETTING_CONNECTION_UUID, uuid,
+        NM_SETTING_CONNECTION_TYPE, "vpn", NULL);
+    nm_connection_add_setting(connection, settings);
+    NMSettingVpn *vpn = NM_SETTING_VPN(nm_setting_vpn_new());
+    g_object_set(vpn, NM_SETTING_VPN_SERVICE_TYPE, WPROXY_SERVICE_NAME, NULL);
+    nm_setting_vpn_add_data_item(vpn, "routing64", "eyJtb2RlIjoib25seSIsImFwcHMiOlsiY3VybCJdfQ");
+    nm_connection_add_setting(connection, NM_SETTING(vpn));
+    GVariant *payload = nm_connection_to_dbus(connection, NM_CONNECTION_SERIALIZE_ALL);
+    routing = extract_routing(payload);
+    g_assert_cmpstr(routing, ==, routing64);
+    g_free(routing);
+    g_variant_unref(payload);
+    g_object_unref(connection);
+    test_profile_directory = NULL;
 
     g_assert_cmpint(g_remove(path), ==, 0);
     g_assert_cmpint(g_rmdir(directory), ==, 0);

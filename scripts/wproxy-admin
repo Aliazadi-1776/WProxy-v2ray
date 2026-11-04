@@ -52,7 +52,7 @@ case "${1:-}" in
         case "${2:-}" in ''|*[!0-9a-f]*) echo 'Invalid node id.' >&2; exit 2 ;; esac
         [ "${#2}" -eq 16 ] || { echo 'Invalid node id.' >&2; exit 2; }
         if [ "$1" = up-remember ]; then remember_authorization; fi
-        env SUDO_USER="$CALLER_USER" "$CTL" nm sync >/dev/null
+        env SUDO_USER="$CALLER_USER" "$CTL" nm sync --node "$2" >/dev/null
         exec env SUDO_USER="$CALLER_USER" "$CTL" nm connect "$2" --verify
         ;;
     down)

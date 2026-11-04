@@ -1179,6 +1179,24 @@ def loaded_owned_wproxy_uuids():
     return owned
 
 
+def nm_sync_node(store, node_id):
+    """Refresh only the profile being connected; leave the active one alone."""
+    require_root()
+    if not re.fullmatch(r"[0-9a-f]{16}", node_id):
+        raise ValueError("Invalid node id")
+    node = next((row for row in store["nodes"] if row["id"] == node_id), None)
+    if not node:
+        raise ValueError("Unknown node id")
+    directory = Path("/etc/NetworkManager/system-connections")
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = directory / f"wproxy-{original_user().pw_uid}-{node_id}.nmconnection"
+    filename.write_text(nm_keyfile(node, store.get("routing")), encoding="utf-8")
+    os.chmod(filename, 0o600)
+    loaded = run(["nmcli", "connection", "load", str(filename)], capture=True)
+    if loaded.returncode:
+        raise RuntimeError(loaded.stderr.strip() or "Could not load the selected WProxy profile")
+
+
 def nm_sync(store):
     require_root()
     conn_dir = Path("/etc/NetworkManager/system-connections")
@@ -1186,7 +1204,6 @@ def nm_sync(store):
     uid = original_user().pw_uid
     wanted = set()
     wanted_uuids = set()
-    routing64 = encode_routing_policy(store.get("routing"))
     for node in store["nodes"]:
         fn = conn_dir / f"wproxy-{uid}-{node['id']}.nmconnection"
         wanted.add(fn.name)
@@ -1222,30 +1239,11 @@ def nm_sync(store):
         if deleted.returncode != 0:
             raise RuntimeError(deleted.stderr.strip() or f"Could not remove stale WProxy profile {cuuid}")
         print(f"Removed stale NetworkManager profile {cuuid}")
-    # WProxy VPN service does not support NetworkManager private/user-only
-    # connections. Keep every generated profile system-wide. This also
-    # repairs profiles created by WProxy <= 2.2.3.  Update routing64 through
-    # NetworkManager as well as the keyfile: on some keyfile/netplan backends,
-    # `connection reload` retains the old in-memory VPN dictionary even though
-    # the file on disk has changed.
-    for node in store["nodes"]:
-        cuuid = deterministic_uuid(node["id"])
-        routing_update = run([
-            "nmcli", "connection", "modify", "uuid", cuuid,
-            "+vpn.data", f"routing64={routing64}"
-        ], capture=True)
-        if routing_update.returncode != 0:
-            raise RuntimeError(
-                routing_update.stderr.strip() or f"Could not update routing for WProxy profile {cuuid}"
-            )
-        modified = run([
-            "nmcli", "connection", "modify", "uuid", cuuid, "connection.permissions", ""
-        ], capture=True)
-        if modified.returncode != 0:
-            raise RuntimeError(modified.stderr.strip() or f"Could not update WProxy profile {cuuid}")
-    reloaded = run(["nmcli", "connection", "reload"], capture=True)
-    if reloaded.returncode != 0:
-        raise RuntimeError(reloaded.stderr.strip() or "NetworkManager reload failed")
+    # The generated keyfiles already grant system-wide access. Do not save
+    # them again through `connection modify`: NetworkManager/Netplan storage
+    # migration can abort the daemon in nm-settings-utils.c. The VPN service
+    # reads routing64 from our root-owned keyfile, even if the D-Bus dictionary
+    # still contains a cached value from an older profile.
 
 
 def active_wproxy_connections():
@@ -1276,13 +1274,32 @@ def active_wproxy_names():
     return [connection["name"] for connection in active_wproxy_connections()]
 
 
+def linux_plugin_stopped():
+    # NetworkManager removes the interface before the plugin has reaped its
+    # runner. Starting Connect during that gap is rejected as "already active".
+    # The manager helper runs as root and may read the plugin's State property.
+    if not _is_root() or not shutil.which("busctl"):
+        return True
+    result = run([
+        "busctl", "--system", "--auto-start=no", "--timeout=1", "get-property",
+        SERVICE, "/org/freedesktop/NetworkManager/VPN/Plugin",
+        "org.freedesktop.NetworkManager.VPN.Plugin", "State",
+    ], capture=True)
+    if result.returncode != 0:
+        # No owner after Disconnect is normal; never activate the plugin merely
+        # to ask whether the old runtime has finished.
+        return True
+    match = re.fullmatch(r"u\s+(\d+)\s*", result.stdout)
+    return bool(match and int(match[1]) in (0, 1, 2, 6))
+
+
 def wait_for_linux_tun_removal(timeout=8.0):
     if os.name == "nt" or not shutil.which("ip"):
         return True
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = run(["ip", "link", "show", "dev", "wproxy0"], capture=True)
-        if result.returncode != 0:
+        if result.returncode != 0 and linux_plugin_stopped():
             return True
         time.sleep(0.1)
     return False
@@ -2012,7 +2029,7 @@ def build_parser():
 
     pm = sp.add_parser("nm")
     ms = pm.add_subparsers(dest="action", required=True)
-    ms.add_parser("sync")
+    a = ms.add_parser("sync"); a.add_argument("--node")
     a = ms.add_parser("up"); a.add_argument("id"); a.add_argument("--verify", action="store_true")
     a = ms.add_parser("connect"); a.add_argument("id"); a.add_argument("--verify", action="store_true")
     ms.add_parser("down")
@@ -2055,7 +2072,11 @@ def main():
         elif args.cmd == "update":
             cmd_update(args)
         elif args.cmd == "nm":
-            if args.action == "sync": nm_sync(store)
+            if args.action == "sync":
+                if args.node:
+                    nm_sync_node(store, args.node)
+                else:
+                    nm_sync(store)
             elif args.action == "up": nm_up(store, args.id, verify=args.verify)
             elif args.action == "connect": nm_connect(store, args.id, verify=args.verify)
             elif args.action == "down": sys.exit(0 if nm_down() else 1)

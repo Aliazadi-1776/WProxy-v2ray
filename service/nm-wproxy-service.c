@@ -379,6 +379,15 @@ static gchar *extract_routing(GVariant *connection) {
         return NULL;
     }
     const gchar *connection_uuid = nm_connection_get_uuid(nm_connection);
+    /* Our root-owned keyfile is refreshed before activation. Some settings
+     * backends keep an older routing dictionary in the Connect payload.
+     * Reading the authoritative keyfile avoids a persistent Update/Save just
+     * to repair that cache, which can crash NM during storage migration. */
+    gchar *routing = lookup_routing_from_profiles(connection_uuid);
+    if (routing) {
+        g_object_unref(nm_connection);
+        return routing;
+    }
     NMSettingVpn *vpn = nm_connection_get_setting_vpn(nm_connection);
     if (vpn) {
         const gchar *value = nm_setting_vpn_get_data_item(vpn, "routing64");
@@ -388,9 +397,8 @@ static gchar *extract_routing(GVariant *connection) {
             return routing;
         }
     }
-    gchar *routing = lookup_routing_from_profiles(connection_uuid);
     g_object_unref(nm_connection);
-    return routing;
+    return NULL;
 }
 
 static void child_watch(GPid pid, gint status, gpointer user_data) {

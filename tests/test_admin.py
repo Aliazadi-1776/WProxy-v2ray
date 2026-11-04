@@ -47,7 +47,7 @@ class AdminTests(unittest.TestCase):
         self.assertIn('action.id == "io.github.aliazadi1776.wproxy.admin"', rule)
         self.assertIn('subject.active && subject.local && subject.user == "desktop"', rule)
         self.assertEqual(self.log.read_text().splitlines(), [
-            "desktop:nm sync", "desktop:nm connect 0123456789abcdef --verify",
+            "desktop:nm sync --node 0123456789abcdef", "desktop:nm connect 0123456789abcdef --verify",
         ])
         self.assertEqual(self.run_helper("revoke").returncode, 0)
         self.assertFalse((self.rules / "49-wproxy-1000.rules").exists())
@@ -65,7 +65,7 @@ class AdminTests(unittest.TestCase):
     def test_failed_sync_never_activates_stale_profile(self):
         result = self.run_helper("up", "0123456789abcdef", ADMIN_TEST_FAIL_SYNC="1")
         self.assertEqual(result.returncode, 8)
-        self.assertEqual(self.log.read_text().splitlines(), ["desktop:nm sync"])
+        self.assertEqual(self.log.read_text().splitlines(), ["desktop:nm sync --node 0123456789abcdef"])
 
     def test_unknown_linux_connect_verbs_cannot_start_commands_or_create_approval(self):
         for operation in ("connect", "connect-remember"):

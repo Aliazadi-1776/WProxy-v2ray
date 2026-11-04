@@ -13,6 +13,20 @@ SPEC.loader.exec_module(ctl)
 
 
 class DisconnectTests(unittest.TestCase):
+    def test_interface_removal_waits_for_plugin_cleanup(self):
+        with patch.object(ctl.shutil, "which", return_value="/usr/bin/ip"), \
+                patch.object(ctl, "run", return_value=SimpleNamespace(returncode=1)), \
+                patch.object(ctl, "linux_plugin_stopped", side_effect=[False, True]) as stopped, \
+                patch.object(ctl.time, "sleep"):
+            self.assertTrue(ctl.wait_for_linux_tun_removal())
+        self.assertEqual(stopped.call_count, 2)
+
+    def test_plugin_disconnecting_state_is_not_ready_for_a_replacement(self):
+        with patch.object(ctl, "_is_root", return_value=True), \
+                patch.object(ctl.shutil, "which", return_value="/usr/bin/busctl"), \
+                patch.object(ctl, "run", return_value=SimpleNamespace(returncode=0, stdout="u 5\n")):
+            self.assertFalse(ctl.linux_plugin_stopped())
+
     def test_successful_deactivation_with_lingering_tun_explains_cleanup_failure(self):
         stderr = io.StringIO()
         with patch.object(ctl, "active_wproxy_connections", return_value=[{"uuid": "fixture"}]), \

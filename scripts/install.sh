@@ -7,6 +7,7 @@ MIN_XRAY_VERSION=26.9.30
 
 DESKTOP=auto
 DRY_RUN=0
+INSTALL_BUILT=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --desktop)
@@ -14,6 +15,8 @@ while [ "$#" -gt 0 ]; do
             DESKTOP=$2; shift 2 ;;
         --dry-run)
             DRY_RUN=1; shift ;;
+        --install-built)
+            INSTALL_BUILT=1; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -163,10 +166,12 @@ install_xray_if_needed() {
     "$XRAY_PATH" version 2>/dev/null | head -n 1 || true
 }
 
-install_deps_if_needed
-install_xray_if_needed
+if [ "$INSTALL_BUILT" -eq 0 ]; then
+    install_deps_if_needed
+    install_xray_if_needed
+fi
 
-if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+if [ "$INSTALL_BUILT" -eq 0 ] && ! python3 -c 'import yaml' >/dev/null 2>&1; then
     if [ "$DRY_RUN" -eq 1 ]; then
         echo 'Dry-run failed: PyYAML is required for Clash YAML imports.' >&2
         exit 2
@@ -183,7 +188,7 @@ if ! python3 -c 'import yaml' >/dev/null 2>&1; then
 fi
 
 # Fetch before stopping the current VPN; only official pinned archives are accepted.
-if [ "$DRY_RUN" -eq 0 ]; then
+if [ "$DRY_RUN" -eq 0 ] && [ "$INSTALL_BUILT" -eq 0 ]; then
     python3 scripts/install-cores.py --destination build/cores
 fi
 
@@ -210,7 +215,7 @@ install_kde_deps_if_needed() {
     fi
     cmake -S plasma-nm -B build/plasma-nm -DCMAKE_INSTALL_PREFIX=/usr
 }
-install_kde_deps_if_needed
+if [ "$INSTALL_BUILT" -eq 0 ]; then install_kde_deps_if_needed; fi
 
 if [ "$INSTALL_KDE" -eq 1 ] && ! command -v kpackagetool6 >/dev/null 2>&1; then
     echo 'Plasma 6 / kpackagetool6 is required. Install a Plasma 6 desktop first.' >&2
@@ -279,18 +284,26 @@ echo "  desktop:      $DESKTOP"
 
 echo
 echo "Checking sources and dependencies..."
-make check-deps
-make check-python
-
-echo
-echo "Building NetworkManager service + GTK3/GTK4 editors..."
-make clean
-make LIBDIR="$LIBDIR" LIBEXECDIR="$LIBEXEC" NM_PLUGIN_DIR="$NM_PLUGIN_DIR"
-
-echo
-echo "Building lightweight Tauri desktop..."
-make desktop
 DESKTOP_BINARY="$PROJECT_DIR/desktop/src-tauri/target/release/wproxy-desktop"
+if [ "$INSTALL_BUILT" -eq 0 ]; then
+    make check-deps
+    make check-python
+
+    echo
+    echo "Building NetworkManager service + GTK3/GTK4 editors..."
+    make clean
+    make LIBDIR="$LIBDIR" LIBEXECDIR="$LIBEXEC" NM_PLUGIN_DIR="$NM_PLUGIN_DIR"
+
+    echo
+    echo "Building lightweight Tauri desktop..."
+    make desktop
+else
+    echo 'Using previously validated local build artifacts.'
+    for artifact in wproxy-service libnm-vpn-plugin-wproxy.so libnm-vpn-plugin-wproxy-editor.so \
+            libnm-gtk4-vpn-plugin-wproxy-editor.so wproxyctl validate-plugin; do
+        [ -f "$artifact" ] || { echo "Missing build artifact: $artifact" >&2; exit 3; }
+    done
+fi
 [ -x "$DESKTOP_BINARY" ] || { echo 'Tauri desktop build did not produce an executable.' >&2; exit 3; }
 
 echo

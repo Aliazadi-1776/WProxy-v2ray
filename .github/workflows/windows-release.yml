@@ -45,6 +45,7 @@ jobs:
           Push-Location desktop
           npm ci
           npm run build
+          npm test
           Pop-Location
           cargo build --release --locked --manifest-path desktop/src-tauri/Cargo.toml
           python tests/check-tauri-production.py desktop/src-tauri/target/release/wproxy-desktop.exe
@@ -161,4 +162,4 @@ jobs:
             "dist/WProxy-$env:WPROXY_VERSION-GitHub.zip" `
             "dist/WProxy-$env:WPROXY_VERSION-Plasma6.plasmoid" `
             "dist/SHA256SUMS" `
-            --title "WProxy $env:WPROXY_VERSION" --generate-notes --verify-tag --latest --prerelease=false --draft=false
+            --title "WProxy $env:WPROXY_VERSION — New desktop Manager" --notes-file "docs/releases/v$env:WPROXY_VERSION.md" --verify-tag --latest --prerelease=false --draft=false

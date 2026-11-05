@@ -249,9 +249,9 @@ pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)
     def test_archives_include_license_assets_and_no_generated_data(self):
         with tempfile.TemporaryDirectory(prefix="wproxy-release-test-") as directory:
             BUILDER.build(Path(directory))
-            with zipfile.ZipFile(Path(directory) / "WProxy-2.8.4-GitHub.zip") as archive:
+            with zipfile.ZipFile(Path(directory) / "WProxy-2.8.5-GitHub.zip") as archive:
                 self.assertIsNone(archive.testzip())
-                prefix = "WProxy-2.8.4/"
+                prefix = "WProxy-2.8.5/"
                 self.assertEqual(archive.read(prefix + "LICENSE"), (ROOT / "LICENSE").read_bytes())
                 self.assertEqual(
                     archive.read(prefix + "THIRD_PARTY_NOTICES.md"),
@@ -270,7 +270,7 @@ pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)
                              "desktop/public/wproxy.svg", "desktop/public/fonts/inter-tight.ttf",
                              "desktop/public/fonts/jetbrains-mono.ttf",
                              "desktop/public/fonts/InterTight-OFL.txt", "desktop/public/fonts/JetBrainsMono-OFL.txt",
-                             "docs/screenshots/manager-v4.png", "docs/releases/v2.8.4.md",
+                             "docs/screenshots/manager-v4.png", "docs/releases/v2.8.5.md",
                              "desktop/src-tauri/Cargo.toml", "desktop/src-tauri/Cargo.lock",
                              "desktop/src-tauri/src/lib.rs", "desktop/src-tauri/tauri.conf.json",
                              "windows/WProxy.ps1", "windows/WProxy.iss",
@@ -285,7 +285,7 @@ pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)
                     self.assertFalse(BUILDER.EXCLUDED.intersection(path.parts), name)
                     self.assertNotIn(path.suffix.lower(), {".pyc", ".pyo", ".so", ".o", ".log", ".nmconnection", ".pid", ".exe", ".dll"})
                     self.assertNotIn("dist", path.parts)
-            with zipfile.ZipFile(Path(directory) / "WProxy-2.8.4-Plasma6.plasmoid") as archive:
+            with zipfile.ZipFile(Path(directory) / "WProxy-2.8.5-Plasma6.plasmoid") as archive:
                 self.assertIsNone(archive.testzip())
                 self.assertEqual(archive.read("LICENSE"), (ROOT / "LICENSE").read_bytes())
                 self.assertIn("metadata.json", archive.namelist())

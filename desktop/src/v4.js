@@ -892,7 +892,7 @@ function pageSettings(){
     <div class="note" style="max-width:none;margin-top:12px">${ic("i-info", 15)}
       <span><strong>Last diagnostic.</strong> ${esc(S.diagnostic)}</span></div>
     <p style="text-align:center;font-size:11.5px;color:var(--ink-4);margin-top:26px">
-      WProxy 2.8.4 · ${IS_NATIVE ? (S.platform === 'windows' ? 'Windows' : 'Linux') : "design preview · connections require the installed app"}</p>
+      WProxy 2.8.5 · ${IS_NATIVE ? (S.platform === 'windows' ? 'Windows' : 'Linux') : "design preview · connections require the installed app"}</p>
   </div>`;
 }
 

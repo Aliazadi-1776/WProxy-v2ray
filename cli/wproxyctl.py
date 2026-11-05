@@ -37,7 +37,7 @@ import wproxy_engines as engines
 APP = "wproxy"
 SERVICE = "org.freedesktop.NetworkManager.wproxy"
 PREFIX = "WProxy · "
-VERSION = "2.8.4"
+VERSION = "2.8.5"
 USER_AGENT = f"WProxy/{VERSION} (multi-engine proxy client)"
 RELEASE_API = "https://api.github.com/repos/Aliazadi-1776/WProxy-v2ray/releases/latest"
 ROUTING_MODES = ("all", "bypass", "only")

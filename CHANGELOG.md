@@ -1,3 +1,10 @@
+# 2.8.5
+
+- Publish the redesigned dark-and-lime Manager with the established connection engines and native backend retained from the previous development snapshot.
+- Include searchable/filterable servers, favorites, measured traffic, application selection, themes, motion controls and bilingual first-connection/download guides.
+- Check Windows layout bounds only for rendered controls; retain the same clipping and size assertions for visible buttons.
+- Ship curated Persian and English release notes with the Windows installer, Linux source package, KDE widget and checksum manifest.
+
 # 2.8.4
 
 - Replace the earlier navy Manager with the supplied dark-and-lime desktop design: connection dial, measured traffic cards, searchable/filterable server list, favorites, list/grid views, server details and keyboard command palette.

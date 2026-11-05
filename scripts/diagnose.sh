@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-echo "=== WProxy 2.8.4 diagnostic ==="
+echo "=== WProxy 2.8.5 diagnostic ==="
 echo 'Local diagnostics: review logs and remove private details before sharing.'
 echo
 

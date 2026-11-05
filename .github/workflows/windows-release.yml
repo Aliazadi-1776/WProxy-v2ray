@@ -162,4 +162,4 @@ jobs:
             "dist/WProxy-$env:WPROXY_VERSION-GitHub.zip" `
             "dist/WProxy-$env:WPROXY_VERSION-Plasma6.plasmoid" `
             "dist/SHA256SUMS" `
-            --title "WProxy $env:WPROXY_VERSION — New desktop Manager" --notes-file "docs/releases/v$env:WPROXY_VERSION.md" --verify-tag --latest --prerelease=false --draft=false
+            --title "WProxy $env:WPROXY_VERSION - New desktop Manager" --notes-file "docs/releases/v${env:WPROXY_VERSION}.md" --verify-tag --latest --prerelease=false --draft=false

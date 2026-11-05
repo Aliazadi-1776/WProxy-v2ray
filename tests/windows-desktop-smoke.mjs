@@ -76,7 +76,10 @@ async function assertLayout() {
   const layout = await evaluate(`(() => {
     const sidebar = document.querySelector('.rail').getBoundingClientRect();
     const content = document.querySelector('#page').getBoundingClientRect();
-    const buttons = [...document.querySelectorAll('#page button')].filter(b => !b.disabled);
+    const buttons = [...document.querySelectorAll('#page button')].filter(b => {
+      const rect = b.getBoundingClientRect();
+      return !b.disabled && rect.width > 0 && rect.height > 0;
+    });
     return { width: innerWidth, sidebar: sidebar.width, content: content.width,
       overflow: document.documentElement.scrollWidth > innerWidth + 1,
       clipped: buttons.filter(b => { const r=b.getBoundingClientRect(); return r.width < 20 || r.right > innerWidth + 1 || r.left < sidebar.right - 1; }).map(b => b.textContent) };

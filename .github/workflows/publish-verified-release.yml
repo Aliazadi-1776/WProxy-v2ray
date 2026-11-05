@@ -1,0 +1,99 @@
+name: Publish verified release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-verified-release.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Windows installer run containing the tested release artifact
+        required: true
+        default: '42096625918'
+      tag:
+        description: Existing release tag matching that build
+        required: true
+        default: 'v2.8.5'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: ${{ inputs.run_id || '42096625918' }}
+      RELEASE_TAG: ${{ inputs.tag || 'v2.8.5' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || 'v2.8.5' }}
+      - name: Verify the tagged build and installed Windows tests
+        id: verified
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/' + path]))
+          tag, run_id = os.environ['RELEASE_TAG'], os.environ['SOURCE_RUN']
+          assert re.fullmatch(r'v\d+\.\d+\.\d+', tag) and run_id.isdigit()
+          run = api('actions/runs/' + run_id)
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert run['head_sha'] == commit and run['head_branch'] == tag
+          assert run['path'] == '.github/workflows/windows-release.yml' and run['event'] == 'push'
+          jobs = api('actions/runs/' + run_id + '/jobs')['jobs']
+          assert len(jobs) == 1 and jobs[0]['name'] == 'installer'
+          steps = {step['name']: step['conclusion'] for step in jobs[0]['steps']}
+          required = ['Run shared Windows tests', 'Build Tauri desktop', 'Smoke test Tauri startup on Windows',
+                      'Compile Setup.exe', 'Test installed native Windows UI and command bridge',
+                      'Test installed Windows Wintun, DNS, HTTPS and rollback', 'Create release checksum manifest',
+                      'Run actions/upload-artifact@v4']
+          assert all(steps.get(name) == 'success' for name in required), steps
+          assert all(result != 'failure' or name == 'Publish tagged GitHub release' for name, result in steps.items())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('version=' + tag[1:] + '\n')
+          print('Verified tagged source, installed UI, native TUN/DNS/HTTPS/rollback and release artifact.')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: WProxy-${{ steps.verified.outputs.version }}-release
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id || '42096625918' }}
+      - name: Verify downloaded checksums and prepare release notes
+        env:
+          VERSION: ${{ steps.verified.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          version = os.environ['VERSION']
+          root = Path('dist')
+          names = [f'WProxy-{version}-Setup.exe', f'WProxy-{version}-GitHub.zip', f'WProxy-{version}-Plasma6.plasmoid']
+          manifest = dict(line.split('  ', 1)[::-1] for line in (root / 'SHA256SUMS').read_text().splitlines() if line.strip())
+          assert set(manifest) == set(names)
+          for name in names:
+              path = root / name
+              assert path.is_file() and not path.is_symlink()
+              assert hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() == manifest[name], name
+          assert (root / (names[0] + '.sha256')).read_text().split()[0] == manifest[names[0]]
+          notes = Path(f'docs/releases/v{version}.md').read_text()
+          url = 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['SOURCE_RUN']
+          Path('release-notes.md').write_text(notes + '\n\nWindows build and native test evidence: ' + url + '\n')
+          print('All published assets match the checksum manifest from the tested build.')
+          PY
+      - name: Publish the verified assets
+        env:
+          VERSION: ${{ steps.verified.outputs.version }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "dist/WProxy-$VERSION-Setup.exe" \
+            "dist/WProxy-$VERSION-Setup.exe.sha256" \
+            "dist/WProxy-$VERSION-GitHub.zip" \
+            "dist/WProxy-$VERSION-Plasma6.plasmoid" \
+            dist/SHA256SUMS \
+            --title "WProxy $VERSION - New desktop Manager" \
+            --notes-file release-notes.md --verify-tag --latest --draft=false --prerelease=false

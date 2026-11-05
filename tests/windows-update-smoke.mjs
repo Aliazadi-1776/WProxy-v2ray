@@ -73,7 +73,7 @@ async function screenshot(name) {
   const { data } = await command("Page.captureScreenshot", { format: "png" });
   await writeFile(path.join(output, name), Buffer.from(data, "base64"));
 }
-async function launch() {
+async function launch(updated = false) {
   app = spawn(executable, [], { env: environment, cwd: installation, stdio: "ignore" });
   let target;
   for (let attempt = 0; attempt < 120; attempt++) {
@@ -107,7 +107,7 @@ async function launch() {
   await command("Runtime.enable");
   await waitFor("document.querySelector('[data-page=settings]') !== null");
   await evaluate("document.querySelector('[data-page=settings]').click()");
-  await waitFor("document.querySelector('[data-setting=auto-update]') !== null");
+  await waitFor(updated ? "document.querySelector('#swUpd') !== null" : "document.querySelector('[data-setting=auto-update]') !== null");
 }
 function stopApplication() {
   socket?.close();
@@ -210,9 +210,9 @@ try {
   assert.equal(digest(await readFile(downloaded)), expectedTargetHash, "The GUI update cache differs from the published SHA256SUMS");
   stopApplication();
   await delay(1000);
-  await launch();
+  await launch(true);
   assert(await evaluate(`document.body.textContent.includes('WProxy ${targetVersion}')`), "The updated manager still renders the old version");
-  assert.equal(await evaluate("document.querySelector('[data-setting=auto-update]').checked"), true);
+  assert.equal(await evaluate("document.querySelector('#swUpd').getAttribute('aria-checked')"), 'true');
   assert.equal(JSON.parse(ctl(["settings", "show", "--json"])).auto_update, true);
   assert.deepEqual(JSON.parse(ctl(["node", "list", "--json"])), nodes, "Upgrade lost the existing server configuration");
   await screenshot("after-update.png");

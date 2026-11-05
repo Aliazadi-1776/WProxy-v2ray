@@ -1,14 +1,178 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111214" />
-    <meta name="color-scheme" content="dark" />
-    <title>WProxy</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<html lang="en" data-theme="dark" data-desktop="true">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>WProxy — Private Routing</title>
+
+
+
+
+</head>
+<body data-conn="off" data-motion="on">
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i><u></u></div>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="i-shield" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6 4.6 5.4v6.1c0 4.6 2.9 8.3 7.4 9.9 4.5-1.6 7.4-5.3 7.4-9.9V5.4L12 2.6Z"/><path d="m8.9 12 2.2 2.2 4-4.4"/></g>
+<g id="i-power" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8.4"/><path d="M6.6 6.9a7.6 7.6 0 1 0 10.8 0"/></g>
+<g id="i-grid" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="3.2" width="7" height="7" rx="2"/><rect x="13.8" y="3.2" width="7" height="7" rx="2"/><rect x="3.2" y="13.8" width="7" height="7" rx="2"/><rect x="13.8" y="13.8" width="7" height="7" rx="2"/></g>
+<g id="i-globe" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.2 9.6h17.6M3.2 14.4h17.6"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/></g>
+<g id="i-layers" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8.4 4.3L12 11.6 3.6 7.3 12 3Z"/><path d="m3.6 12.2 8.4 4.3 8.4-4.3"/><path d="m3.6 16.8 8.4 4.3 8.4-4.3"/></g>
+<g id="i-route" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="18.5" r="2.4"/><circle cx="18.5" cy="5.5" r="2.4"/><path d="M8 18.5h5a3.6 3.6 0 0 0 0-7.2h-2a3.6 3.6 0 0 1 0-7.2"/></g>
+<g id="i-cog" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.3 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a1.9 1.9 0 0 1-3.8 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1h-.2a1.9 1.9 0 0 1 0-3.8h.2a1.6 1.6 0 0 0 1.4-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5v-.2a1.9 1.9 0 0 1 3.8 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.2a1.9 1.9 0 0 1 0 3.8h-.2a1.6 1.6 0 0 0-1.5 1Z"/></g>
+<g id="i-search" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m15.7 15.7 4 4"/></g>
+<g id="i-refresh" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 11.3a8.5 8.5 0 1 0-2.6 6.3"/><path d="M20.8 4.5v5.6h-5.6"/></g>
+<g id="i-bolt" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 2.5 4.8 13.3h5.4l-1.2 8.2 8.6-10.8h-5.4l1.2-8.2Z"/></g>
+<g id="i-gauge" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 17.4a9.6 9.6 0 1 1 16.8 0"/><path d="m12 12.6 4.1-3.6"/><circle cx="12" cy="14.4" r="1.7"/></g>
+<g id="i-star" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.4 2.6 5.5 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.4Z"/></g>
+<g id="i-star-f" fill="currentColor"><path d="m12 3.4 2.6 5.5 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.4Z"/></g>
+<g id="i-trash" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.9 6.4h16.2"/><path d="M8.6 6.4V4.3c0-.7.6-1.3 1.3-1.3h4.2c.7 0 1.3.6 1.3 1.3v2.1"/><path d="M5.8 6.4l.9 13c0 .8.7 1.4 1.5 1.4h7.6c.8 0 1.5-.6 1.5-1.4l.9-13"/></g>
+<g id="i-plus" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5.2v13.6M5.2 12h13.6"/></g>
+<g id="i-x" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></g>
+<g id="i-chev" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m9.4 5.2 6.8 6.8-6.8 6.8"/></g>
+<g id="i-arrow" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 12h15.2"/><path d="m13.6 5.6 6.4 6.4-6.4 6.4"/></g>
+<g id="i-down" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.6v14.8"/><path d="m5.6 13 6.4 6.4L18.4 13"/></g>
+<g id="i-up" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19.4V4.6"/><path d="m5.6 11 6.4-6.4L18.4 11"/></g>
+<g id="i-link" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 13.2a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.4 1.4"/><path d="M14.4 10.8a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.4-1.4"/></g>
+<g id="i-laptop" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.6" width="17.2" height="11" rx="2"/><path d="M2 19.4h20"/></g>
+<g id="i-app" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4"/><path d="M8.4 8.4h7.2v7.2H8.4z"/></g>
+<g id="i-sun" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.4v2.2M12 19.4v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.4 12h2.2M19.4 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></g>
+<g id="i-moon" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 14.4A8.9 8.9 0 0 1 9.6 3.6a8.9 8.9 0 1 0 10.8 10.8Z"/></g>
+<g id="i-play" fill="currentColor"><path d="M7.5 4.8 19 12 7.5 19.2z"/></g>
+<g id="i-pause" fill="currentColor"><rect x="6.6" y="4.8" width="3.9" height="14.4" rx="1.4"/><rect x="13.5" y="4.8" width="3.9" height="14.4" rx="1.4"/></g>
+<g id="i-rows" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></g>
+<g id="i-cards" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="3.4" width="7.6" height="7.6" rx="2"/><rect x="13" y="3.4" width="7.6" height="7.6" rx="2"/><rect x="3.4" y="13" width="7.6" height="7.6" rx="2"/><rect x="13" y="13" width="7.6" height="7.6" rx="2"/></g>
+<g id="i-info" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.4M12 7.8h.01"/></g>
+<g id="i-check" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.8 12.6 4.8 4.8L19.2 7.2"/></g>
+<g id="i-update" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.4v11"/><path d="m7.6 10 4.4 4.4L16.4 10"/><path d="M4.2 17.2v1.4c0 1.1.9 2 2 2h11.6c1.1 0 2-.9 2-2v-1.4"/></g>
+<g id="i-split" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 12h4.2l3-6h10"/><path d="m17.4 3.4 3.4 2.6-3.4 2.6"/><path d="M7.8 12l3 6h10"/><path d="m17.4 15.4 3.4 2.6-3.4 2.6"/></g>
+<g id="i-lock" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.4" y="10.4" width="15.2" height="10.2" rx="2.6"/><path d="M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8"/></g>
+<g id="i-wrench" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.2 6.4a3.9 3.9 0 0 1 5.3-3.6l-2.7 2.7 1.7 1.7 2.7-2.7a3.9 3.9 0 0 1-5 5l-7.8 7.8a2.2 2.2 0 1 1-3.1-3.1l7.8-7.8a3.9 3.9 0 0 1 1.1 0Z"/></g>
+<g id="i-pin" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19.2 10.4c0 5.3-7.2 10.8-7.2 10.8s-7.2-5.5-7.2-10.8a7.2 7.2 0 0 1 14.4 0Z"/><circle cx="12" cy="10.2" r="2.6"/></g>
+<g id="i-clock" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.2V12l3.4 2.1"/></g>
+<g id="i-activity" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 12.6h4L8.8 7l3.4 10.6L15 11.4l1.6 2.6h4.8"/></g>
+<g id="i-server" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="3.4" width="17.6" height="7" rx="2.2"/><rect x="3.2" y="13.6" width="17.6" height="7" rx="2.2"/><path d="M7.2 6.9h.01M7.2 17.1h.01"/></g>
+<g id="i-key" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.2" cy="15.8" r="3.8"/><path d="m10.9 13.1 7.4-7.4"/><path d="m15.4 5.8 2.9-2.9 2.8 2.8-2.9 2.9"/><path d="m13.6 10.4 2.3 2.3"/></g>
+<g id="i-eye" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.6 5.4 12 5.4 22.2 12 22.2 12 18.4 18.6 12 18.6 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.1"/></g>
+<g id="i-eye-off" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 5.8A8.9 8.9 0 0 1 12 5.4c6.4 0 10.2 6.6 10.2 6.6a19 19 0 0 1-2.6 3.5"/><path d="M6.1 7.6A18.6 18.6 0 0 0 1.8 12S5.6 18.6 12 18.6a9.3 9.3 0 0 0 4-.9"/><path d="M10 10.1a2.8 2.8 0 0 0 3.9 3.9"/><path d="m3.2 3.2 17.6 17.6"/></g>
+<g id="i-calendar" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.6" y="5.2" width="16.8" height="15.2" rx="2.4"/><path d="M3.6 10h16.8M8.4 2.8v3.6M15.6 2.8v3.6"/></g>
+<g id="i-database" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.8" rx="7.8" ry="3"/><path d="M4.2 5.8v12.4c0 1.7 3.5 3 7.8 3s7.8-1.3 7.8-3V5.8"/><path d="M4.2 12c0 1.7 3.5 3 7.8 3s7.8-1.3 7.8-3"/></g>
+<g id="i-filter" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 5.4h17.2l-6.6 7.8v6.2l-4-2.2v-4l-6.6-7.8Z"/></g>
+<g id="i-sort" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.6v14.8M3.4 15.8 7 19.4l3.6-3.6"/><path d="M17 19.4V4.6M13.4 8.2 17 4.6l3.6 3.6"/></g>
+<g id="i-history" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 12a8.6 8.6 0 1 0 2.6-6.2"/><path d="M3.2 3.6v4.6h4.6"/><path d="M12 8v4.4l3 1.8"/></g>
+<g id="i-alert" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6 2.8 19.6h18.4L12 3.6Z"/><path d="M12 9.6v4.2M12 17h.01"/></g>
+<g id="i-ban" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></g>
+<g id="i-trend" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3.4 16.6 5.2-5.2 3.4 3.4 6.4-6.4"/><path d="M14.4 7.6h4.8v4.8"/></g>
+<g id="i-cpu" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5.6" y="5.6" width="12.8" height="12.8" rx="2.4"/><rect x="9.4" y="9.4" width="5.2" height="5.2" rx="1.2"/><path d="M9.4 2.4v3.2M14.6 2.4v3.2M9.4 18.4v3.2M14.6 18.4v3.2M2.4 9.4h3.2M2.4 14.6h3.2M18.4 9.4h3.2M18.4 14.6h3.2"/></g>
+<g id="i-swap" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.4h13.2M13.8 5l3.4 3.4-3.4 3.4"/><path d="M20 15.6H6.8M10.2 12.2 6.8 15.6l3.4 3.4"/></g>
+<g id="i-fingerprint" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10.4a2.6 2.6 0 0 1 2.6 2.6c0 2.4-.4 4.6-1.2 6.6"/><path d="M9.4 13a2.6 2.6 0 0 1 .4-1.4"/><path d="M8.6 19.6c.9-2 1.4-4.2 1.4-6.6"/><path d="M6.4 8.4a7 7 0 0 1 11.2 0"/><path d="M4.6 12a9.4 9.4 0 0 1 1.1-4.4"/><path d="M18.3 7.6A9.4 9.4 0 0 1 19.4 12c0 1.8-.2 3.5-.6 5.2"/><path d="M6.2 17.2A12 12 0 0 0 7 13a5 5 0 0 1 10 0c0 1.3-.1 2.6-.4 3.9"/></g>
+<g id="i-copy" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4"/><path d="M15.6 5.6V5a2.4 2.4 0 0 0-2.4-2.4H6a2.4 2.4 0 0 0-2.4 2.4v7.2A2.4 2.4 0 0 0 6 14.6h.6"/></g>
+<g id="i-signal" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M4 18v-3M9.3 18v-6.4M14.7 18V8M20 18V4.6"/></g>
+<g id="i-dns" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.8"/><path d="M3.2 12h17.6"/><path d="M12 3.2a13 13 0 0 1 0 17.6 13 13 0 0 1 0-17.6Z"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/></g>
+<g id="i-sliders" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 7.6h15.2M4.4 16.4h15.2"/><circle cx="9.2" cy="7.6" r="2.4"/><circle cx="15.6" cy="16.4" r="2.4"/></g>
+</defs></svg>
+
+<div class="shell">
+  <!-- ============ rail ============ -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="mark boot"><img class="brand-mark" src="/wproxy.svg" alt="WProxy"></div>
+      <div class="brand-t"><b>WProxy</b><span>Private routing</span></div>
+    </div>
+
+    <div class="rail-state" id="railState">
+      <span class="dot"></span>
+      <div class="rs-txt"><b id="rsName">Not connected</b><span id="rsMeta">Direct</span></div>
+    </div>
+
+    <nav class="nav" id="nav" aria-label="Main navigation">
+      <div class="nav-lbl">Session</div>
+      <a data-page="dashboard" aria-current="page"><svg viewBox="0 0 24 24"><use href="#i-grid"/></svg><span class="t">Dashboard</span></a>
+      <a data-page="servers"><svg viewBox="0 0 24 24"><use href="#i-globe"/></svg><span class="t">Servers</span><span class="count" id="navServers">0</span></a>
+      <div class="nav-lbl">Library</div>
+      <a data-page="subs"><svg viewBox="0 0 24 24"><use href="#i-layers"/></svg><span class="t">Subscriptions</span><span class="count" id="navSubs">0</span></a>
+      <a data-page="routing"><svg viewBox="0 0 24 24"><use href="#i-route"/></svg><span class="t">Routing</span><span class="count" id="navRouting">0</span></a>
+      <div class="nav-lbl">System</div>
+      <a data-page="settings"><svg viewBox="0 0 24 24"><use href="#i-cog"/></svg><span class="t">Settings</span></a>
+    </nav>
+
+    <div class="rail-foot">
+      <button class="btn sm ghost" id="motionBtn" style="justify-content:flex-start">
+        <svg viewBox="0 0 24 24"><use href="#i-pause"/></svg><span class="t">Pause motion</span>
+      </button>
+      <div class="ver"><span>Version</span><span class="mono">2.8.4</span></div>
+    </div>
+  </aside>
+
+  <!-- ============ main ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="m-brand">
+        <div class="mark"><img class="brand-mark" src="/wproxy.svg" alt="WProxy"></div>
+      </div>
+      <h1 id="pageTitle">Dashboard</h1>
+      <span class="sub" id="pageSub">Preview</span>
+      <div class="spacer"></div>
+      <button class="srch" id="palBtn" aria-label="Search">
+        <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+        <span>Search your WProxy</span>
+        <kbd id="kbdHint">Ctrl K</kbd>
+      </button>
+      <button class="icbtn" id="themeBtn" aria-label="Switch theme"><svg viewBox="0 0 24 24"><use href="#i-sun"/></svg></button>
+      <button class="icbtn" id="refreshBtn" aria-label="Refresh"><svg viewBox="0 0 24 24"><use href="#i-refresh"/></svg></button>
+    </header>
+
+    <div class="scroll" id="scroll">
+      <main class="page" id="page" tabindex="-1"></main>
+    </div>
+  </div>
+</div>
+
+<!-- ============ mobile tabs ============ -->
+<nav class="tabbar" id="tabbar" aria-label="Sections">
+  <a data-page="dashboard" aria-current="page"><svg viewBox="0 0 24 24"><use href="#i-grid"/></svg><span>Home</span></a>
+  <a data-page="servers"><svg viewBox="0 0 24 24"><use href="#i-globe"/></svg><span>Servers</span></a>
+  <a data-page="subs"><svg viewBox="0 0 24 24"><use href="#i-layers"/></svg><span>Lists</span></a>
+  <a data-page="routing"><svg viewBox="0 0 24 24"><use href="#i-route"/></svg><span>Routing</span></a>
+  <a data-page="settings"><svg viewBox="0 0 24 24"><use href="#i-cog"/></svg><span>Settings</span></a>
+</nav>
+
+<!-- ============ overlays ============ -->
+<div class="scrim" id="scrim"></div>
+
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Server details">
+  <div class="sheet-h">
+    <span class="eyebrow">Server details</span>
+    <button class="icbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="sheet-b" id="sheetBody"></div>
+  <div class="sheet-f" id="sheetFoot"></div>
+</aside>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-h" id="modalHead"></div>
+  <div class="modal-b" id="modalBody"></div>
+  <div class="modal-f" id="modalFoot"></div>
+</div>
+
+<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="Command palette">
+  <div class="pal-i">
+    <svg viewBox="0 0 24 24"><use href="#i-search"/></svg>
+    <input id="palInput" placeholder="Search servers, pages and actions…" autocomplete="off" spellcheck="false">
+    <kbd style="font-family:var(--ff-mono);font-size:10px;padding:2px 6px;border-radius:5px;background:var(--panel-4);border:1px solid var(--line);color:var(--ink-3)">Esc</kbd>
+  </div>
+  <div class="pal-l" id="palList"></div>
+  <div class="pal-f">
+    <span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span>
+    <span style="margin-left:auto" class="mono" id="palCount"></span>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
 </html>

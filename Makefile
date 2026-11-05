@@ -49,6 +49,7 @@ desktop:
 
 desktop-check:
 	cd desktop && npm run build
+	cd desktop && npm test
 	cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml
 
 .PHONY: plasma-plugin

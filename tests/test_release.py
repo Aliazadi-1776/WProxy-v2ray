@@ -45,29 +45,25 @@ class ReleaseTests(unittest.TestCase):
         self.assertLess(installer.index("WProxy installer dry-run: PASS"), installer.index("Creating backup:"))
 
     def test_tauri_desktop_exposes_primary_workflows(self):
-        source = read_utf8("desktop/src/main.ts")
+        source = read_utf8("desktop/src/v4.js")
         for label in (
-            "Servers", "Add connection", "Subscriptions", "Routing",
-            "Choose application", "Test latency", "Use fastest", "Connect", "Remove",
+            "Servers", "Add a server", "Subscriptions", "Routing",
+            "Choose application", "Test latency", "Quick connect", "Connect", "Remove",
         ):
-            if label == "Use fastest":
-                self.assertIn("fastest", source)
-            else:
-                self.assertIn(label, source)
+            self.assertIn(label, source)
         self.assertNotIn("Add typed path", source)
-        self.assertIn("Quick connect", source)
-        self.assertIn('open({ multiple: false, directory: false', source)
+        self.assertIn('open({multiple:false,directory:false', source)
 
     def test_tauri_navigation_is_responsive_and_has_empty_states(self):
-        source = read_utf8("desktop/src/main.ts")
+        source = read_utf8("desktop/src/v4.js") + read_utf8("desktop/index.html")
         styles = read_utf8("desktop/src/styles.css")
         config = json.loads(read_utf8("desktop/src-tauri/tauri.conf.json"))
         for token in (
-            "Main navigation", "No servers yet", "Split routing", "Automatic updates",
-            "data-page", "routing-columns", "empty-state",
+            "Main navigation", "No servers yet", "Routing policy", "Automatic updates",
+            "data-page", "route-modes", 'class="empty"',
         ):
             self.assertIn(token, source)
-        self.assertIn("minmax(0, 1fr)", styles)
+        self.assertRegex(styles, r"minmax\(0,\s*1fr\)")
         self.assertIn("prefers-reduced-motion", styles)
         self.assertEqual(config["app"]["windows"][0]["minWidth"], 960)
         self.assertEqual(config["app"]["windows"][0]["minHeight"], 640)
@@ -101,11 +97,12 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("plugin-shell", read_utf8("desktop/package.json"))
 
     def test_tauri_auto_update_is_opt_in_verified_and_installed_by_native_bridge(self):
-        source = read_utf8("desktop/src/main.ts")
-        self.assertIn("state.preferences.auto_update", source)
-        self.assertIn("runAutomaticUpdate", source)
-        self.assertIn('"update", "download", "--json", "--platform"', source)
-        self.assertIn('invoke<CliOutput>("install_update"', source)
+        source = read_utf8("desktop/src/v4.js")
+        self.assertIn("snap.preferences.auto_update", source)
+        self.assertIn("automaticUpdateStarted", source)
+        self.assertIn("updateInProgress", source)
+        self.assertIn("['update','download','--json','--platform'", source)
+        self.assertIn("client.call('install_update'", source)
 
     def test_repair_scripts_keep_the_tauri_manager(self):
         for name in ("scripts/repair-runtime.sh", "scripts/repair-gnome-vpn-editor.sh"):
@@ -200,7 +197,7 @@ pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)
 
     def test_desktop_managers_keep_linux_integration_and_tauri_shell(self):
         linux = read_utf8("manager/wproxy-manager.py")
-        desktop = read_utf8("desktop/src/main.ts")
+        desktop = read_utf8("desktop/src/v4.js")
 
         for token in (
             "navigation-rail", "connection-card", "material-list", "Add connection",
@@ -210,7 +207,7 @@ pathlib.Path(os.environ['STAGE_LOG']).write_text(json.dumps({'stage': str(stage)
             self.assertIn(token, linux)
         self.assertNotIn("root.append(header)", linux)
 
-        for token in ("connection-hero", "server-list", "routing-layout", "Choose application"):
+        for token in ('class="hero"', 'class="rows', "route-modes", "Choose application"):
             self.assertIn(token, desktop)
 
     def test_gnome_51_layout_uses_orientation_property(self):

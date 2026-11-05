@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
+    "test": "node --test ../tests/test-desktop-client.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

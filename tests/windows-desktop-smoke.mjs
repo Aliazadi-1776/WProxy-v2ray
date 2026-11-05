@@ -74,14 +74,14 @@ async function screenshot(name) {
 }
 async function assertLayout() {
   const layout = await evaluate(`(() => {
-    const sidebar = document.querySelector('.sidebar').getBoundingClientRect();
-    const content = document.querySelector('#content').getBoundingClientRect();
-    const buttons = [...document.querySelectorAll('#content button')].filter(b => !b.disabled);
+    const sidebar = document.querySelector('.rail').getBoundingClientRect();
+    const content = document.querySelector('#page').getBoundingClientRect();
+    const buttons = [...document.querySelectorAll('#page button')].filter(b => !b.disabled);
     return { width: innerWidth, sidebar: sidebar.width, content: content.width,
       overflow: document.documentElement.scrollWidth > innerWidth + 1,
       clipped: buttons.filter(b => { const r=b.getBoundingClientRect(); return r.width < 20 || r.right > innerWidth + 1 || r.left < sidebar.right - 1; }).map(b => b.textContent) };
   })()`);
-  assert(layout.sidebar >= 130 && layout.content >= 500, JSON.stringify(layout));
+  assert(layout.sidebar >= 60 && layout.content >= 500, JSON.stringify(layout));
   assert.equal(layout.overflow, false, JSON.stringify(layout));
   assert.deepEqual(layout.clipped, [], JSON.stringify(layout));
   return layout.width;
@@ -109,15 +109,15 @@ try {
     if (message.error) request.reject(new Error(JSON.stringify(message.error)));
     else request.resolve(message.result);
   });
-  await waitFor(`document.querySelector('.dashboard-recommendation')?.textContent.includes(${JSON.stringify(fixtureName)})`, "the dashboard loaded from the real profile");
+  await waitFor(`document.querySelector('.hero')?.textContent.includes(${JSON.stringify(fixtureName)})`, "the dashboard loaded from the real profile");
   await assertLayout();
   await screenshot("windows-dashboard-default.png");
-  await evaluate("document.querySelector('.navigation [data-page=servers]').click()");
-  await waitFor("document.querySelector('.server-row') !== null", "the real server list after navigation");
+  await evaluate("document.querySelector('#nav [data-page=servers]').click()");
+  await waitFor("document.querySelector('.rows .row') !== null", "the real server list after navigation");
   assert.equal(await evaluate("window.__TAURI_INTERNALS__.invoke('platform')"), "windows");
   const bridge = await evaluate("window.__TAURI_INTERNALS__.invoke('run_ctl', {args:['node','list','--json']})");
   assert.equal(JSON.parse(bridge.stdout)[0].name, fixtureName);
-  assert(await evaluate(`document.querySelector('.server-row').textContent.includes(${JSON.stringify(fixtureName)})`));
+  assert(await evaluate(`document.querySelector('.rows .row').textContent.includes(${JSON.stringify(fixtureName)})`));
   assert(await evaluate("(() => { const logo=document.querySelector('.brand-mark'); return logo.tagName === 'IMG' && logo.complete && logo.naturalWidth > 0 && logo.src.includes('svg'); })()"), "The canonical SVG logo did not render");
   const defaultWidth = await assertLayout();
   await screenshot("windows-servers-default.png");
@@ -134,54 +134,60 @@ try {
       await delay(50);
     }
     assert(existsSync(`${cancel}.armed`), "UI network recovery watchdog did not arm");
-    await evaluate("document.querySelector('[data-action=connect]').click()");
-    await waitFor("document.querySelector('.server-row.is-connected') !== null", "a connection through the real Rust elevation bridge", 360);
+    await evaluate("document.querySelector('[data-connect]').click()");
+    await waitFor("document.querySelector('.row.active') !== null", "a connection through the real Rust elevation bridge", 360);
     const connected = JSON.parse(ctl(["windows", "status", "--json"]));
     assert(connected.active && connected.verified, JSON.stringify(connected));
-    assert(await evaluate("document.querySelector('.connection-hero.is-online') !== null"));
+    assert(await evaluate("document.querySelector('body[data-conn=on]') !== null"));
     await screenshot("windows-connected-through-ui.png");
     const switchStarted = Date.now();
-    await evaluate(`document.querySelector('[data-action=connect][data-node="${switchNode.id}"]').click()`);
-    await waitFor(`document.querySelector('.server-row.is-connected[data-select-node="${switchNode.id}"]') !== null`, "one-click replacement without pressing Disconnect", 360);
+    await evaluate(`document.querySelector('[data-connect="${switchNode.id}"]').click()`);
+    await waitFor(`document.querySelector('.row.active:has([data-connect="${switchNode.id}"])') !== null`, "one-click replacement without pressing Disconnect", 360);
     const switchElapsedMs = Date.now() - switchStarted;
     const switched = JSON.parse(ctl(["windows", "status", "--json"]));
     assert(switched.active && switched.verified && switched.node_id === switchNode.id, JSON.stringify(switched));
     await screenshot("windows-switched-through-ui.png");
-    await evaluate("document.querySelector('[data-action=disconnect]').click()");
-    await waitFor("document.querySelector('.server-row.is-connected') === null", "Disconnect through the real Rust elevation bridge", 120);
+    await evaluate("document.querySelector('#nav [data-page=dashboard]').click()");
+    await evaluate("document.querySelector('#dial').click()");
+    await waitFor("document.querySelector('.row.active') === null", "Disconnect through the real Rust elevation bridge", 120);
+    await waitFor("document.body.dataset.conn === 'off' && document.querySelector('#page').getAttribute('aria-busy') === 'false'", "confirmed disconnection", 120);
     assert.equal(JSON.parse(ctl(["windows", "status", "--json"])).active, false);
+    await evaluate("document.querySelector('#nav [data-page=servers]').click()");
     await writeFile(cancel, "disconnected");
     uiTunnel = { connected: true, verified: true, switchedWithoutManualDisconnect: true, switchElapsedMs, disconnected: true, rustElevationBridge: true };
     ctl(["node", "remove", switchNode.id]);
-    await evaluate("document.querySelector('[data-action=refresh]').click()");
-    await waitFor("document.querySelectorAll('.server-row').length === 1", "removing the temporary switch fixture");
+    await evaluate("document.querySelector('#refreshBtn').click()");
+    await waitFor("document.querySelectorAll('.rows .row').length === 1", "removing the temporary switch fixture");
   }
 
-  await evaluate("document.querySelector('[data-page=add]').click()");
-  await waitFor("document.querySelector('#node-form') !== null", "Add connection");
+  await evaluate("document.querySelector('#addServer').click()");
+  await waitFor("document.querySelector('#nCfg') !== null", "Add server dialog");
   await evaluate(`(() => {
-    const form=document.querySelector('#node-form');
-    form.elements.name.value='CI added through native UI';
-    form.elements.uri.value='trojan://synthetic@example.invalid:444?security=tls#CI-added';
-    form.requestSubmit();
+    document.querySelector('#nName').value='CI added through native UI';
+    document.querySelector('#nCfg').value='trojan://synthetic@example.invalid:444?security=tls#CI-added';
+    document.querySelector('#saveNode').click();
   })()`);
-  await waitFor("document.querySelectorAll('.server-row').length === 2", "a server saved through the UI bridge");
+  await waitFor("document.querySelectorAll('.rows .row').length === 2 && !document.querySelector('#modal.show')", "a server saved through the UI bridge");
   const saved = JSON.parse(ctl(["node", "list", "--json"]));
-  assert(saved.some((node) => node.name === "CI added through native UI"), "UI save did not persist through the frozen CLI");
-  const added = saved.find((node) => node.name === "CI added through native UI");
-  await evaluate(`document.querySelector('[data-action=remove-node][data-node="${added.id}"]').click()`);
-  await waitFor("document.querySelectorAll('.server-row').length === 1", "server removal");
+  const added = saved.find(node => node.name === "CI added through native UI");
+  assert(added, "The native UI did not persist the imported server");
+  await evaluate(`document.querySelector('[data-open="${added.id}"]').click()`);
+  await waitFor("document.querySelector('#sheet.show') !== null", "server details");
+  await evaluate("document.querySelector('[data-remove-node]').click()");
+  await waitFor("document.querySelector('#confirmYes') !== null", "removal confirmation");
+  await evaluate("document.querySelector('#confirmYes').click()");
+  await waitFor("document.querySelectorAll('.rows .row').length === 1 && !document.querySelector('#modal.show')", "server removal");
   assert.equal(JSON.parse(ctl(["node", "list", "--json"])).length, 1);
 
   await evaluate("document.querySelector('[data-page=routing]').click()");
-  await waitFor("document.querySelector('[data-action=choose-app]') !== null", "native application picker action");
+  await waitFor("document.querySelector('#appAdd') !== null", "native application picker action");
   await assertLayout();
   await screenshot("windows-routing-default.png");
   await command("Emulation.setDeviceMetricsOverride", { width: 960, height: 640, deviceScaleFactor: 1, mobile: false });
   await assertLayout();
   await screenshot("windows-routing-minimum.png");
   await evaluate("document.querySelector('[data-page=settings]').click()");
-  assert(await evaluate("document.querySelector('#content').textContent.includes('Automatic updates')"));
+  assert(await evaluate("document.querySelector('#page').textContent.includes('Automatic updates')"));
   await evaluate(`(() => {
     window.__wproxyUpdateChecks = 0;
     // Tauri's invoke property is read-only. Observe real IPC fetches without replacing responses.
@@ -196,11 +202,11 @@ try {
     };
   })()`);
   for (let count = 1; count <= 2; count++) {
-    await evaluate("document.querySelector('[data-setting=auto-update]').click()");
-    await waitFor(`window.__wproxyUpdateChecks === ${count} && !document.querySelector('[data-setting=auto-update]').disabled && document.querySelector('#content').textContent.includes('Up to date')`, "an immediate update check each time automatic updates are enabled", 120);
+    await evaluate("document.querySelector('#swUpd').click()");
+    await waitFor(`window.__wproxyUpdateChecks === ${count} && document.querySelector('#swUpd').getAttribute('aria-disabled') !== 'true' && document.querySelector('#page').textContent.includes('Up to date')`, "an immediate update check each time automatic updates are enabled", 120);
     assert.equal(JSON.parse(ctl(["settings", "show", "--json"])).auto_update, true);
-    await evaluate("document.querySelector('[data-setting=auto-update]').click()");
-    await waitFor("!document.querySelector('[data-setting=auto-update]').checked && !document.querySelector('[data-setting=auto-update]').disabled", "automatic updates disabled");
+    await evaluate("document.querySelector('#swUpd').click()");
+    await waitFor("document.querySelector('#swUpd').getAttribute('aria-checked') === 'false' && document.querySelector('#swUpd').getAttribute('aria-disabled') !== 'true'", "automatic updates disabled");
     assert.equal(JSON.parse(ctl(["settings", "show", "--json"])).auto_update, false);
   }
   await screenshot("windows-settings.png");

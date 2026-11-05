@@ -1,5 +1,12 @@
 # Third-party notices
 
+## Bundled interface fonts
+
+The Manager embeds Inter Tight and JetBrains Mono for offline rendering, under
+the SIL Open Font License 1.1. Their copyright notices and complete licenses are
+retained alongside the font files in `desktop/public/fonts/InterTight-OFL.txt`
+and `desktop/public/fonts/JetBrainsMono-OFL.txt` in the source package.
+
 ## Independently executed VPN cores
 
 WProxy runs the following unmodified official executables as separate processes;

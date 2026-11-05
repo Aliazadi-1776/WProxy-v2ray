@@ -2,7 +2,7 @@
 
 WProxy 2.8.4 ships as a per-user `Setup.exe`. It includes the lightweight Tauri 2 desktop, a standalone WProxy controller, sing-box **1.14.4**, Xray **26.9.30**, Mihomo **1.19.33** and Wintun. End users do not install Python or download cores separately. Windows 10/11 supplies the WebView2 runtime used by Tauri.
 
-The manager uses one compact graphite-and-blue, DPI-aware shell on both Linux and Windows. It has a fixed navigation rail, persistent connection status and dedicated pages for servers, subscriptions, importing, split routing and settings. Server names containing emoji or non-Latin text are carried over UTF-8, and command failures are reported inside the app. There is no background status polling loop, so an idle window does not repeatedly start the command engine.
+The redesigned Manager uses the same dark-and-lime Tauri interface on Linux and Windows: a connection dial, traffic cards, a navigation rail and pages for servers, subscriptions, routing and settings. Server names containing emoji or non-Latin text are carried over UTF-8, and command failures appear inside the app. Visible windows refresh live status every 3.5 seconds; polling pauses while the window is hidden. Fonts and the WProxy SVG logo are bundled locally.
 
 ## Why it uses its own window instead of Win+A
 
@@ -27,8 +27,9 @@ The build workflow downloads the three official pinned core archives, verifies e
 
 ## Subscriptions and servers
 
-- Use **Add connection** to paste a single share link; use **Subscriptions** for a subscription URL.
-- On **Servers**, choose **Quick connect** to test all endpoints and connect to the lowest-latency responder, or use **Connect** on one row. **Test latency**, **Disconnect**, **Refresh** and **Remove** remain available.
+- Use **Servers → Add server** to paste a share link, JSON/YAML, or import a file; use **Subscriptions** for a subscription URL.
+- On **Dashboard**, press the dial / **Quick connect** for automatic selection from servers that pass the existing HTTPS check. On **Servers**, **Connect** selects a particular server and **Switch** replaces the active connection in one step. Press the connected Dashboard dial to disconnect, or open the active server's details.
+- **Test latency** measures TCP responsiveness. Search, source/engine filters, latency/name sorting, favorites and list/grid views help manage longer lists. Open a server's details to test or remove it; disconnect an active server before deleting it.
 - **Subscriptions** shows every subscription and its imported server count. Update or remove one subscription independently.
 - Each server row shows its source subscription. Identical links from two subscriptions remain two source-owned entries; updating/removing one subscription cannot delete the other's entry.
 - The provider's quota/expiry announcement links are filtered from connectable nodes.
@@ -47,19 +48,19 @@ If any check fails, WProxy stops the partial tunnel and shows the reason. Runtim
 
 ## Application and site routing
 
-Open **Split routing** and choose one routing mode:
+Open **Routing** and choose one routing mode:
 
-- **All traffic through VPN** — default;
-- **Bypass listed sites/apps** — listed traffic is direct;
-- **Only listed sites/apps use VPN** — everything else is direct.
+- **All traffic** — traffic uses the VPN;
+- **Bypass selected** — listed sites/apps stay direct; the rest uses the VPN;
+- **Only selected** — listed sites/apps use the VPN; everything else stays direct. Add at least one item before connecting.
 
-For applications, choose **Choose application** and browse for an `.exe`; selected items are saved as exact absolute paths. Exact paths are more reliable than typing a process name. Reconnect after changing routing.
+For applications, choose **Choose application** to search running/installed applications, or **Browse executable** for an `.exe`. Selected items are saved as exact absolute paths. Reconnect after changing Windows routing. For example, to route only your browser, choose **Only selected** and add that browser; to keep a support application direct while the rest uses the VPN, use **Bypass selected** and add that application.
 
 Site rules depend on protocol sniffing and may not identify traffic that only exposes an IP address or uses unsupported/encrypted name resolution. When a site rule is insufficient, select the browser/application itself. Process rules and site rules form a union. See [Xray routing matching](https://xtls.github.io/en/config/routing.html) and [WProxy routing details](ROUTING.md).
 
 ## Automatic updates
 
-Enable **Automatic updates** in the sidebar to check GitHub releases when WProxy starts. WProxy downloads the matching Setup executable and the release `SHA256SUMS`, refuses a missing or mismatched hash, and then launches Inno Setup silently. Automatic update is opt-in and uses the same per-user installation directory; the installer itself is currently not Authenticode-signed.
+Open **Settings → Automatic updates** to enable updates. Enabling it triggers a check immediately; subsequent launches check again while it stays enabled. **Check now** provides a manual check. WProxy downloads the matching Setup executable and release `SHA256SUMS`, refuses a missing or mismatched hash, and launches Inno Setup. Reopen WProxy when installation completes. Updates use the same per-user installation directory and preserve the saved server store; the installer is currently not Authenticode-signed.
 
 ## Uninstall and private data
 

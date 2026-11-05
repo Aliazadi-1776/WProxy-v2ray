@@ -1,11 +1,14 @@
 # 2.8.4
 
-- Add a lightweight animated Tauri dashboard with WProxy's existing navy and blue visual language, shared Motion navigation, real connection state and protocol/engine labels.
+- Replace the earlier navy Manager with the supplied dark-and-lime desktop design: connection dial, measured traffic cards, searchable/filterable server list, favorites, list/grid views, server details and keyboard command palette.
+- Keep the current connection engines and native Tauri commands intact while wiring the new interface to real saved profiles, routing, subscriptions, authorization and update preferences.
+- Bundle offline fonts and the canonical SVG logo, respect reduced motion and pause hidden-window polling. Preserve form drafts and update session/traffic fields without rebuilding the whole page.
+- Document the downloadable files, first connection, routing modes, Windows setup, Fedora recovery and the difference between browser design previews and the native application in English and Persian.
 - Replace manual executable-path entry with a searchable running/installed application picker on Linux and Windows. Prefer the real running executable so split routing matches packaged apps and launchers reliably.
 - Apply Linux routing changes to the active tunnel automatically. Validate a replacement before teardown, switch once, and restore the previous saved connection if activation fails.
 - Keep Quick Connect based on real HTTPS validation while reducing the per-batch probe delay for faster selection.
 - Avoid the NetworkManager profile-save assertion by loading root-owned keyfiles without subsequent persistent modifications; prefer current file routing over stale D-Bus data and wait for plugin teardown before replacement.
-- Read live tunnel traffic/session data and show actual core inventory in Tools. Refresh visible server state without blocking the desktop, and label browser-only previews explicitly.
+- Read live tunnel traffic/session data and show actual core inventory in Settings. Refresh visible server state without blocking the desktop, and label browser-only previews explicitly.
 - Probe HTTPS even for endpoints whose bare TCP latency check times out, and keep installed-path connection/switch/YouTube diagnostics separate from UI previews.
 - Add English/Persian Fedora recovery instructions for SELinux, Plasma, authorization and real traffic checks; stop printing private configuration links in the diagnostic node listing.
 

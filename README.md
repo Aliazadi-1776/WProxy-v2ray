@@ -26,7 +26,7 @@
   · <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-WProxy imports proxy links, native core profiles and subscriptions, selects a compatible sing-box, Xray or Mihomo runtime, and exposes one system TUN through your desktop. Version **2.8.4** adds an animated Tauri dashboard, a real application picker for split routing, and recoverable one-step server switching on Linux and Windows.
+WProxy is a desktop client for your own proxy configuration or subscription; it does not supply a VPN account or default servers. It selects a compatible sing-box, Xray or Mihomo runtime and controls one system TUN. Version **2.8.4** brings the redesigned dark-and-lime Manager, measured traffic, a real application picker and the previously developed connection/recovery fixes. The Manager redesign keeps the connection engines and operating-system backend intact.
 
 ## Get WProxy
 
@@ -36,6 +36,24 @@ WProxy imports proxy links, native core profiles and subscriptions, selects a co
 
 The Windows installer includes WProxy, sing-box, Xray, Mihomo and Wintun. Linux uses the installed NetworkManager and system TUN stack. Review the [engine architecture](WPROXY_ENGINE_ARCHITECTURE.md) and [compatibility matrix](#compatibility) before installing on a new platform.
 
+### Which file do I need?
+
+| Release file | Purpose |
+| --- | --- |
+| `WProxy-2.8.4-Setup.exe` | Windows 10/11 **x64** installer; includes the application and engines. |
+| `WProxy-2.8.4-GitHub.zip` | Linux/source package; extract it, install your distro dependencies, then run the installer below. Extracting it alone does not update an installed application. |
+| `WProxy-2.8.4-Plasma6.plasmoid` | KDE panel widget; requires the WProxy backend. It is not a standalone VPN application. |
+| `SHA256SUMS` / `Setup.exe.sha256` | Checksums for verifying the downloaded files. |
+
+### First connection
+
+1. Open **WProxy** from the application menu. Add your provider's URL under **Subscriptions**, or use **Servers → Add server** for a link or configuration file.
+2. For a whole-device connection, open **Routing → All traffic**. **Only selected** requires at least one application or site; **Bypass selected** keeps the listed items direct.
+3. On **Dashboard**, press the connection dial / **Quick connect** to select an HTTPS-working server, or choose **Connect** beside a specific server. To change server, press **Switch** on another row; Disconnect is in the Dashboard dial or active server's details.
+4. Open a website in the browser you want to route. A TCP ping alone does not prove the tunnel works, and an application in the bypass list deliberately uses the direct connection.
+
+For Windows installation and diagnostics, see [the Windows guide](docs/WINDOWS.md). For Fedora activation, SELinux or authorization errors, use the [Fedora recovery guide](docs/FEDORA.md) ([فارسی](docs/FEDORA.fa.md)).
+
 To validate Linux dependencies, compile every native component and print the exact installation targets without changing the system, run `bash scripts/install.sh --desktop auto --dry-run`.
 
 > [!IMPORTANT]
@@ -43,19 +61,42 @@ To validate Linux dependencies, compile every native component and print the exa
 
 ## Screenshots
 
+### Desktop Manager — 2.8.4
+
+The redesigned Tauri Manager uses a dark interface with lime accents, a connection dial, live traffic cards, server filters and a searchable application picker. The screenshot below shows the disconnected Linux Manager with a local server library; it contains no connection credentials or subscription URLs.
+
+![WProxy Manager with the redesigned connection dashboard](docs/screenshots/manager-v4.png)
+
 ### GNOME Quick Settings
 
 Three visible server rows, scrolling for the rest, per-server latency and selection, and fixed subscription/action controls.
 
 ![WProxy connected beside Wi-Fi in GNOME Quick Settings](docs/screenshots/gnome-quick-settings.png)
 
-### Desktop manager
+The GNOME screenshot is from version 2.2.10. The Manager redesign is separate from the GNOME and KDE panel widgets.
 
-Manage servers and subscriptions independently of the panel widget.
+## Using the desktop Manager
 
-![WProxy desktop manager showing imported servers](docs/screenshots/manager.png)
+The Manager's new frontend uses the existing connection engines, Tauri commands, NetworkManager service and Windows TUN backend.
 
-These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They are not screenshots of the new KDE widget. No server credentials or subscription URL are displayed.
+| Page | What you can do |
+| --- | --- |
+| Dashboard | Connect with the dial or Quick connect; see the active server, engine, session time, memory and measured traffic. Quick connect uses the existing HTTPS-verified selection command. |
+| Servers | Search and filter by source or engine, sort by latency or name, save favorites, switch between list/grid views, test latency and open server details. **Add server** accepts links, JSON/YAML or a file. |
+| Subscriptions | Add a subscription, refresh it individually or refresh all, and see usage/expiry when the provider reports it. |
+| Routing | Choose **All traffic**, **Only selected** or **Bypass selected**. Choose applications from the running/installed list or browse for an executable; add and remove sites separately. |
+| Settings | Change theme and animation preferences, manage automatic updates and Linux authorization, inspect installed engines and run the connection check. |
+
+Use **Ctrl+K** (**⌘K** on macOS keyboards) to find pages, actions and servers. Interface animations respect the operating system's reduced-motion setting and can be paused. Fonts and the SVG logo are bundled locally. Live status polling pauses while the window is hidden; the traffic graph uses measured counter changes and resets when the server changes. Missing measurements stay unknown.
+
+After installing the dependencies below, build and open the native Manager without reinstalling the backend:
+
+```bash
+make desktop
+./desktop/src-tauri/target/release/wproxy-desktop
+```
+
+For frontend development, `npm run dev` inside `desktop/` opens a **Design preview**. Browser preview data is illustrative; connection, import, routing and update actions require the installed/native Tauri application. Building the UI or viewing the preview does not establish a VPN connection.
 
 ## Features
 
@@ -71,8 +112,8 @@ These supplied screenshots show the GNOME/GTK interface in version 2.2.10. They 
 - Three routing modes: all traffic through VPN, bypass listed sites/apps, or only listed sites/apps through VPN.
 - Desktop Connect and Quick connect test real HTTPS through the selected core before changing system routes; an open port alone cannot qualify a server.
 - Opt-in verified automatic updates on Linux and Windows, using the release `SHA256SUMS` manifest before installation.
-- Linux remembers limited WProxy approval after the first desktop connection; disable "Ask for permission only once" in Settings to revoke it. Passwords are never saved.
-- Windows 10/11 x64 Setup.exe with no separate Python or core install, a UTF-8-safe Tauri/WebView2 manager, subscription counts/source labels, native application picker, zero periodic idle polling and verified TUN control.
+- Linux remembers limited WProxy approval after the first desktop connection; disable "Ask for permission once" in Settings to revoke it. Passwords are never saved.
+- Windows 10/11 x64 Setup.exe with no separate Python or core install, a UTF-8-safe Tauri/WebView2 manager, subscription counts/source labels, native application picker and verified TUN control.
 
 **Ping measures TCP connection latency to a server endpoint, not end-to-end VPN health.** A successful HTTPS-through-TUN test is stronger evidence than a ping result.
 

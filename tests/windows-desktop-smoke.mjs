@@ -113,6 +113,9 @@ try {
     else request.resolve(message.result);
   });
   await waitFor(`document.querySelector('.hero')?.textContent.includes(${JSON.stringify(fixtureName)})`, "the dashboard loaded from the real profile");
+  const backendVersion = ctl(["--version"]).trim().replace(/^WProxy /, "");
+  assert.equal(await evaluate("document.querySelector('#appVersion').textContent"), backendVersion);
+  assert(await evaluate("document.querySelector('#appVersion').getClientRects().length > 0"), "The version is hidden in the sidebar");
   await assertLayout();
   await screenshot("windows-dashboard-default.png");
   await evaluate("document.querySelector('#nav [data-page=servers]').click()");

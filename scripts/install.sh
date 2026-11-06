@@ -398,8 +398,11 @@ $SUDO install -Dm755 libnm-vpn-plugin-wproxy-editor.so "$GTK3_EDITOR_FILE"
 $SUDO install -Dm755 libnm-gtk4-vpn-plugin-wproxy-editor.so "$GTK4_EDITOR_FILE"
 $SUDO install -Dm755 wproxyctl /usr/bin/wproxyctl
 $SUDO install -Dm644 cli/wproxy_engines.py /usr/lib/wproxy/wproxy_engines.py
-$SUDO install -Dm755 build/cores/sing-box /usr/lib/wproxy/cores/sing-box
-$SUDO install -Dm755 build/cores/mihomo /usr/lib/wproxy/cores/mihomo
+for engine in sing-box mihomo; do
+    if ! cmp -s "build/cores/$engine" "/usr/lib/wproxy/cores/$engine"; then
+        $SUDO install -Dm755 "build/cores/$engine" "/usr/lib/wproxy/cores/$engine"
+    fi
+done
 $SUDO mkdir -p /usr/share/licenses/wproxy-cores
 $SUDO cp build/cores/licenses/* /usr/share/licenses/wproxy-cores/
 $SUDO install -Dm644 build/cores/installed.json /usr/lib/wproxy/cores/installed.json

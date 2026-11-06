@@ -24,6 +24,14 @@ def read_utf8(path):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_desktop_package_and_backend_versions_agree(self):
+        version = json.loads(read_utf8("desktop/src-tauri/tauri.conf.json"))["version"]
+        self.assertEqual(version, json.loads(read_utf8("desktop/package.json"))["version"])
+        self.assertEqual(version, tomllib.loads(read_utf8("desktop/src-tauri/Cargo.toml"))["package"]["version"])
+        self.assertEqual(version, BUILDER.VERSION)
+        self.assertIn(f'VERSION = "{version}"\n', read_utf8("cli/wproxyctl.py"))
+        self.assertIn(f'"WProxy service {version}\\n"', read_utf8("service/nm-wproxy-service.c"))
+
     def test_linux_admin_helper_is_narrow_and_never_stores_passwords(self):
         helper = read_utf8("scripts/wproxy-admin")
         policy = read_utf8("data/io.github.aliazadi1776.wproxy.policy")

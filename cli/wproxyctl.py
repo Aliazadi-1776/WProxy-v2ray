@@ -40,6 +40,8 @@ PREFIX = "WProxy · "
 VERSION = "2.8.5"
 USER_AGENT = f"WProxy/{VERSION} (multi-engine proxy client)"
 RELEASE_API = "https://api.github.com/repos/Aliazadi-1776/WProxy-v2ray/releases/latest"
+UPDATE_LOCK = Path("/run/wproxy-update.lock")
+UPDATE_STAGING_DIR = Path("/var/tmp")
 ROUTING_MODES = ("all", "bypass", "only")
 MAX_SUBSCRIPTION_BYTES = 8 * 1024 * 1024
 MAX_RELEASE_METADATA_BYTES = 1024 * 1024
@@ -1831,21 +1833,29 @@ def install_update(path, timeout=30.0):
         return
     if not _is_root():
         raise RuntimeError("Linux update installation requires administrator authorization")
+    import fcntl
     import tempfile
-    with tempfile.TemporaryDirectory(prefix="wproxy-update-") as directory:
-        # The caller can replace its download; verify and install only a root-private snapshot.
-        snapshot = Path(directory) / candidate.name
-        shutil.copyfile(candidate, snapshot)
-        release = _verified_update_release(snapshot, timeout)
-        installer = _safe_extract_update(snapshot, Path(directory), release)
-        environment = os.environ.copy()
-        environment["SUDO_USER"] = original_user().pw_name
-        result = subprocess.run(
-            ["bash", str(installer), "--desktop", "preserve"], env=environment,
-            text=True, capture_output=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Linux update installer failed")
+    lock_fd = os.open(UPDATE_LOCK, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(lock_fd, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("A WProxy update is already being installed.") from None
+        with tempfile.TemporaryDirectory(prefix="wproxy-update-", dir=UPDATE_STAGING_DIR) as directory:
+            # Verify and install the root-private snapshot of the caller's download.
+            snapshot = Path(directory) / candidate.name
+            shutil.copyfile(candidate, snapshot)
+            release = _verified_update_release(snapshot, timeout)
+            installer = _safe_extract_update(snapshot, Path(directory), release)
+            environment = os.environ.copy()
+            environment["SUDO_USER"] = original_user().pw_name
+            environment.setdefault("CARGO_BUILD_JOBS", "2")
+            result = subprocess.run(
+                ["bash", str(installer), "--desktop", "preserve"], env=environment,
+                text=True, capture_output=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Linux update installer failed")
 
 
 def cmd_sub(args, store):

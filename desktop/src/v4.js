@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { version as appVersion } from '../src-tauri/tauri.conf.json';
 import { createDesktopClient } from './v4-client';
 import { TelemetryHistory } from './telemetry';
 import { subscriptionHealth } from './subscription-health';
@@ -892,7 +893,7 @@ function pageSettings(){
     <div class="note" style="max-width:none;margin-top:12px">${ic("i-info", 15)}
       <span><strong>Last diagnostic.</strong> ${esc(S.diagnostic)}</span></div>
     <p style="text-align:center;font-size:11.5px;color:var(--ink-4);margin-top:26px">
-      WProxy 2.8.5 · ${IS_NATIVE ? (S.platform === 'windows' ? 'Windows' : 'Linux') : "design preview · connections require the installed app"}</p>
+      WProxy ${esc(appVersion)} · ${IS_NATIVE ? (S.platform === 'windows' ? 'Windows' : 'Linux') : "design preview · connections require the installed app"}</p>
   </div>`;
 }
 
@@ -1170,19 +1171,38 @@ async function chooseApplication(browse=false){
     $('#appSearch').focus();
   }catch(error){closeLayer();toast(String(error?.message||error),'i-alert');}
 }
-async function checkUpdates(automatic=false){
+function setUpdateLabel(label){
+  S.updateLabel=label;
+  if(S.page==='settings')render(false);
+}
+
+async function checkUpdates(install=false){
   if(!IS_NATIVE||S.busy||updateInProgress)return;
   updateInProgress=true;
   updateBusyControls();
-  S.updateLabel='Checking releases…';if(S.page==='settings')render(false);
+  let failureLabel=install?'Update download failed':'Update check failed';
+  setUpdateLabel(install?'Checking and downloading update…':'Checking releases…');
   try{
-    const result=await client.ctl(['update',automatic?'download':'check','--json',...(automatic?['--platform',S.platform]:[]),'--timeout',automatic?'30':'15']);
-    if(!result.update_available){S.updateLabel='Up to date';if(!automatic)toast('Up to date');}
-    else if(automatic&&result.path){await client.call('install_update',{path:result.path});S.updateLabel='Installed. Reopen WProxy';toast('Update installed. Reopen WProxy.');}
-    else{S.updateLabel=`Version ${result.latest_version} available`;confirmModal({title:'Install update?',desc:`Download the verified release ${esc(result.latest_version)} and install it?`,confirmLabel:'Install',icon:'i-update',onConfirm:()=>runAction('Update installed. Reopen WProxy.',async()=>{const next=await client.ctl(['update','download','--json','--platform',S.platform,'--timeout','30']);if(next.path)await client.call('install_update',{path:next.path});})});}
-  }catch(error){S.updateLabel='Update check failed';toast(String(error?.message||error),'i-alert');}
+    const args=install
+      ? ['update','download','--json','--platform',S.platform,'--timeout','30']
+      : ['update','check','--json','--timeout','15'];
+    const result=await client.ctl(args);
+    if(!result.update_available){
+      setUpdateLabel('Up to date');
+      if(!install)toast('Up to date');
+    }else if(install){
+      if(!result.path)throw new Error('The downloaded update file is missing.');
+      failureLabel='Update installation failed';
+      setUpdateLabel(S.platform==='linux'?'Installing update. Authorize if prompted…':'Starting the update installer…');
+      await client.call('install_update',{path:result.path});
+      setUpdateLabel(S.platform==='linux'?'Update installed. Reopen WProxy':'Update installer started');
+      toast(S.updateLabel);
+    }else{
+      setUpdateLabel(`Version ${result.latest_version} available`);
+      confirmModal({title:'Install update?',desc:`Download the verified release ${esc(result.latest_version)} and install it?`,confirmLabel:'Install',icon:'i-update',onConfirm:()=>checkUpdates(true)});
+    }
+  }catch(error){setUpdateLabel(failureLabel);toast(String(error?.message||error),'i-alert');}
   finally{updateInProgress=false;updateBusyControls();}
-  if(S.page==='settings')render(false);
 }
 
 function paintLive(prevD, prevU){
@@ -1570,6 +1590,7 @@ document.addEventListener("keydown", e => {
    ============================================================ */
 applyTheme();
 applyAnims();
+$('#appVersion').textContent = appVersion;
 $$('#nav a,#tabbar a').forEach(a=>{a.tabIndex=0;a.setAttribute('role','button');a.setAttribute('aria-label',a.textContent.trim());});
 if(!IS_NATIVE){const label=document.createElement('span');label.className='preview-label';label.textContent='Design preview';$('#pageSub').after(label);}
 $("#kbdHint").textContent = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent) ? "⌘ K" : "Ctrl K";

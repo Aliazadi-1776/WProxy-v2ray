@@ -725,7 +725,7 @@ textarea.inp{resize:vertical;min-height:112px;font-family:var(--ff-mono);font-si
 /* ============================================================ responsive */
 @media (max-width:1140px){
   :root{--rail:76px}
-  .brand-t,.nav span.t,.nav .count,.nav-lbl,.rail-state .rs-txt,.ver,.rail-foot .btn .t{display:none}
+  .brand-t,.nav span.t,.nav .count,.nav-lbl,.rail-state .rs-txt,.ver > span:first-child,.rail-foot .btn .t{display:none}
   .rail-foot .btn{width:38px;height:36px;padding:0;justify-content:center !important}
   .rail{padding:16px 10px 12px;align-items:center}
   .brand{padding:2px;justify-content:center}

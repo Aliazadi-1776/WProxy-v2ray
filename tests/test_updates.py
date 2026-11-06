@@ -144,6 +144,8 @@ class UpdateTests(unittest.TestCase):
                 return subprocess.CompletedProcess(arguments, 0, "", "")
 
             with patch.object(ctl, "_is_root", return_value=True), \
+                    patch.object(ctl, "UPDATE_LOCK", Path(directory) / "update.lock"), \
+                    patch.object(ctl, "UPDATE_STAGING_DIR", Path(directory)), \
                     patch.object(ctl, "latest_release", return_value=release), \
                     patch.object(ctl, "_release_checksums", return_value={candidate.name: digest}), \
                     patch.object(ctl, "_sha256_file", side_effect=hash_then_replace), \
@@ -152,6 +154,23 @@ class UpdateTests(unittest.TestCase):
                 ctl.install_update(candidate)
 
         self.assertEqual(executed_scripts, [trusted_script])
+
+    @unittest.skipIf(os.name == "nt", "Linux updater lock")
+    def test_linux_update_refuses_a_second_installer(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = Path(directory) / "update.lock"
+            candidate = Path(directory) / "WProxy-9.8.7-GitHub.zip"
+            candidate.touch()
+            with lock_path.open("w") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                with patch.object(ctl, "_is_root", return_value=True), \
+                        patch.object(ctl, "UPDATE_LOCK", lock_path), \
+                        patch.object(ctl.subprocess, "run") as installer:
+                    with self.assertRaisesRegex(RuntimeError, "already being installed"):
+                        ctl.install_update(candidate)
+                    installer.assert_not_called()
 
     def test_preferences_default_to_opt_in_updates(self):
         self.assertEqual(ctl.normalize_preferences(None), {"auto_update": False, "remember_authorization": True})
